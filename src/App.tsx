@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   HealthTelemetry, 
-  UserRole, 
   TimeCalculations, 
   ZoneConfig, 
   AlertThresholds, 
   TelemetryLog, 
-  FirebaseConnectionConfig,
-  AuthUser 
+  FirebaseConnectionConfig 
 } from './types';
 import { 
   getSavedFirebaseConfig, 
@@ -16,9 +14,7 @@ import {
   clearFirebaseTelemetry
 } from './services/firebase';
 import { playAlertChime } from './services/sound';
-import { getCurrentUser, logout } from './services/authService';
 import { appendTelemetryToHistory } from './services/historyService';
-import { LoginScreen } from './components/LoginScreen';
 import { Header } from './components/Header';
 import { MetricCards } from './components/MetricCards';
 import { PostureVisualizer } from './components/PostureVisualizer';
@@ -30,21 +26,10 @@ import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
 import { HealthChatbot } from './components/HealthChatbot';
-import { Sparkles, Shield, AlertTriangle, Cpu, Radio, RotateCcw, Trash2 } from 'lucide-react';
+import { Sparkles, AlertTriangle, Radio, Trash2 } from 'lucide-react';
 
 export default function App() {
-  // 1. Authentication State
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
-  const [role, setRole] = useState<UserRole>(() => currentUser?.role || 'employee');
-
-  // Sync role when currentUser changes
-  useEffect(() => {
-    if (currentUser) {
-      setRole(currentUser.role);
-    }
-  }, [currentUser]);
-
-  // 2. Firebase Configuration State
+  // 1. Firebase Configuration State
   const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConnectionConfig>(getSavedFirebaseConfig());
   const [isConnected, setIsConnected] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -55,12 +40,12 @@ export default function App() {
   const [isClearingFirebase, setIsClearingFirebase] = useState(false);
   const [clearNotice, setClearNotice] = useState<string | null>(null);
 
-  // 3. Modals State
+  // 2. Modals State
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isRpiGuideModalOpen, setIsRpiGuideModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
-  // 4. Alert Thresholds State
+  // 3. Alert Thresholds State
   const [thresholds, setThresholds] = useState<AlertThresholds>(() => {
     try {
       const saved = localStorage.getItem('theodoisk_thresholds');
@@ -77,7 +62,7 @@ export default function App() {
     };
   });
 
-  // 5. Zone Configuration State
+  // 4. Zone Configuration State
   const [zone, setZone] = useState<ZoneConfig>(() => {
     try {
       const saved = localStorage.getItem('theodoisk_zone');
@@ -86,7 +71,7 @@ export default function App() {
     return { x1: 20, y1: 10, x2: 80, y2: 90 };
   });
 
-  // 6. Live Telemetry State (Starts empty until device or simulation pushes data)
+  // 5. Live Telemetry State (Starts empty until device or simulation pushes data)
   const [telemetry, setTelemetry] = useState<HealthTelemetry>({
     bpm: 0,
     spo2: 0,
@@ -128,8 +113,10 @@ export default function App() {
 
   // Handle new incoming telemetry packet
   const handleIncomingTelemetry = useCallback((data: HealthTelemetry) => {
-    // If packet represents an empty/cleared state
-    if ((data.bpm === 0 && data.spo2 === 0 && !data.trackingActive) || data.postureStatus === -1) {
+    // Only consider packet empty if posture is unknown/cleared (-1) AND no sensors or camera frames are present
+    const isEmptyPacket = data.postureStatus === -1 && data.bpm === 0 && data.spo2 === 0 && !data.trackingActive && !data.image;
+
+    if (isEmptyPacket) {
       setTelemetry(data);
       setHasReceivedData(false);
       setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
@@ -333,24 +320,10 @@ export default function App() {
     saveFirebaseConfig(newCfg);
   };
 
-  const handleLogout = () => {
-    logout();
-    setCurrentUser(null);
-  };
-
-  // If not logged in, show dedicated 2-role login screen
-  if (!currentUser) {
-    return <LoginScreen onLoginSuccess={user => setCurrentUser(user)} />;
-  }
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-sky-500 selection:text-white">
       {/* Top Navigation */}
       <Header
-        role={role}
-        setRole={setRole}
-        currentUser={currentUser}
-        onLogout={handleLogout}
         isConnected={isConnected}
         isSimulating={isSimulating}
         toggleSimulation={() => setIsSimulating(!isSimulating)}
@@ -367,7 +340,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
         {/* Success clear notification */}
         {clearNotice && (
-          <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-md">
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-md">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
               {clearNotice}
@@ -378,36 +351,36 @@ export default function App() {
 
         {/* Banner when Firebase has data from previous sessions or stale data */}
         {hasReceivedData && !isSimulating && (
-          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl border text-xs shadow-lg transition-all ${
+          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs shadow-md transition-all ${
             telemetry.isStale
-              ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+              ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
               : 'bg-slate-900/80 border-slate-800 text-slate-300'
           }`}>
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                 telemetry.isStale 
                   ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                   : 'bg-sky-500/20 text-sky-400 border-sky-500/30'
               }`}>
-                {telemetry.isStale ? <AlertTriangle className="w-5 h-5 text-amber-400" /> : <Radio className="w-5 h-5 text-sky-400 animate-pulse" />}
+                {telemetry.isStale ? <AlertTriangle className="w-4 h-4 text-amber-400" /> : <Radio className="w-4 h-4 text-sky-400 animate-pulse" />}
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-white text-sm">
-                    {telemetry.isStale ? 'Bản Ghi Cũ Đang Lưu Trên Firebase' : 'Dữ Liệu Đang Đồng Bộ Từ Firebase'}
+                  <span className="font-bold text-white text-xs sm:text-sm">
+                    {telemetry.isStale ? 'Bản Ghi Lưu Trên Firebase' : 'Dữ Liệu Trực Tuyến Từ Firebase'}
                   </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
                     telemetry.isStale
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                       : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   }`}>
-                    {telemetry.isStale ? '⚠️ Pi 4 Hiện Đang Offline / Chưa Bật' : 'Trực tuyến'}
+                    {telemetry.isStale ? '⚠️ Bản ghi cũ (Pi 4 Offline)' : 'Trực tuyến'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 mt-1">
+                <p className="text-[11px] text-slate-400 mt-0.5">
                   {telemetry.isStale
-                    ? `Dữ liệu bạn đang nhìn thấy (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi cũ còn lưu trên Cloud Firestore (devices/pi4_node_1). Do Pi 4 hiện chưa gửi gói tin mới nên hệ thống hiển thị số liệu cũ này. Bạn có thể xóa bản ghi cũ này về trạng thái chờ (--).`
-                    : `Đồng bộ từ document "${firebaseConfig.documentId || 'pi4_node_1'}". Cập nhật lúc ${lastUpdate}. Bạn có thể xóa về trạng thái chờ bất cứ lúc nào.`}
+                    ? `Dữ liệu (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi trước đó từ devices/${firebaseConfig.documentId || 'pi4_node_1'}. Bấm nút bên cạnh để đưa màn hình về trạng thái chờ rỗng (--).`
+                    : `Đồng bộ từ document "${firebaseConfig.documentId || 'pi4_node_1'}". Cập nhật lúc ${lastUpdate}.`}
                 </p>
               </div>
             </div>
@@ -416,10 +389,10 @@ export default function App() {
                 onClick={handleClearFirebaseData}
                 disabled={isClearingFirebase}
                 title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
-                className="px-3.5 py-2 rounded-xl font-semibold bg-rose-600/90 hover:bg-rose-500 text-white transition shadow-sm flex items-center gap-1.5 text-xs"
+                className="px-3 py-1.5 rounded-lg font-semibold bg-rose-600/90 hover:bg-rose-500 text-white transition shadow-sm flex items-center gap-1.5 text-xs"
               >
                 <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
-                <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Dữ Liệu Cũ Về Trống (--) '}</span>
+                <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
               </button>
             </div>
           </div>
@@ -427,24 +400,24 @@ export default function App() {
 
         {/* Empty data notification bar when no packet has arrived yet */}
         {!hasReceivedData && !isSimulating && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-900/90 border border-sky-500/30 text-sky-200 text-xs shadow-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-slate-900/80 border border-sky-500/30 text-sky-200 text-xs shadow-md">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
-                <Radio className="w-5 h-5 animate-pulse text-sky-400" />
+              <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
+                <Radio className="w-4 h-4 animate-pulse text-sky-400" />
               </div>
               <div>
-                <span className="font-bold text-white block text-sm">
-                  Đang chờ luồng dữ liệu từ Raspberry Pi 4 (Collection: devices • Doc: pi4_node_1)
+                <span className="font-bold text-white block text-xs sm:text-sm">
+                  Đang chờ luồng dữ liệu từ Raspberry Pi 4 (Collection: devices • Doc: {firebaseConfig.documentId || 'pi4_node_1'})
                 </span>
-                <span className="text-slate-400 text-xs">
-                  Khi chưa có dữ liệu gửi lên từ cảm biến, toàn bộ các mục được giữ trống theo đúng yêu cầu. Bạn có thể bật thử nghiệm giả lập bất kỳ lúc nào.
+                <span className="text-slate-400 text-[11px]">
+                  Màn hình đang ở chế độ chờ sạch sẽ. Khi có dữ liệu gửi lên từ cảm biến, các chỉ số sẽ tự động cập nhật ngay tức thì.
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
               <button
                 onClick={() => setIsSimulating(true)}
-                className="px-3.5 py-2 rounded-xl font-semibold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm"
+                className="px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm text-xs"
               >
                 Bật Giả Lập Thử Nghiệm
               </button>
@@ -504,42 +477,38 @@ export default function App() {
           hasData={hasReceivedData}
         />
 
-        {/* 4. Monitor Zone & Calibration (Special visualizer + controls for Manager) */}
+        {/* 4. Monitor Zone & Calibration */}
         <MonitorZoneCard
           zone={zone}
           setZone={setZone}
           telemetry={telemetry}
-          isManager={role === 'manager'}
+          isManager={true}
         />
 
         {/* 5. History Audit Logs & CSV Export */}
         <HistoryLogs
           history={history}
           onClearHistory={() => setHistory([])}
-          isManager={role === 'manager'}
+          isManager={true}
         />
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800/80 bg-slate-950 py-5 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2025 Office Health & Posture Monitor • Tích hợp Firebase & Raspberry Pi 4</p>
-          <div className="flex items-center gap-4 text-slate-400">
-            {role === 'manager' && (
-              <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-400 transition">
-                Cấu hình Firebase
-              </button>
-            )}
-            {role === 'manager' && <span>•</span>}
+          <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
+          <div className="flex items-center gap-3 text-slate-400">
+            <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-400 transition">
+              Cấu hình Firebase
+            </button>
+            <span>•</span>
             <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-400 transition">
               Hướng dẫn Pi 4
             </button>
-            {role === 'manager' && <span>•</span>}
-            {role === 'manager' && (
-              <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-400 transition">
-                Ngưỡng đo
-              </button>
-            )}
+            <span>•</span>
+            <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-400 transition">
+              Ngưỡng đo cảnh báo
+            </button>
           </div>
         </div>
       </footer>
@@ -547,11 +516,11 @@ export default function App() {
       {/* Floating AI Ergonomic Health Chatbot with Data Retrieval */}
       <HealthChatbot
         telemetry={telemetry}
-        role={role}
+        role="manager"
         sittingSeconds={timeStats.sittingSeconds}
         badPostureSeconds={timeStats.badPostureSeconds}
         hasData={hasReceivedData}
-        userName={currentUser.fullName}
+        userName="Bạn"
       />
 
       {/* Modals */}

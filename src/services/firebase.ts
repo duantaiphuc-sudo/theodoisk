@@ -181,31 +181,31 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
   // Posture status normalization
   // -1: Chưa có dữ liệu, 0: Đúng, 1: Sai, 2: Vắng, 3: Sai lâu, 4: Ngồi lâu
   let postureStatus = 0;
-  if (raw.posture_status === -1 || raw.postureStatus === -1) {
+  const rawStatusVal = raw.posture_status ?? raw.postureStatus ?? raw.posture ?? raw.status ?? raw.Status ?? raw.raw_pred ?? raw.pred;
+
+  if (rawStatusVal === -1 || rawStatusVal === '-1') {
     postureStatus = -1;
-  } else if (typeof raw.posture_status !== 'undefined') {
-    if (typeof raw.posture_status === 'string') {
-      const p = raw.posture_status.toLowerCase();
-      if (p.includes('chưa có') || p.includes('chua co') || p.includes('none') || p.includes('waiting')) postureStatus = -1;
-      else if (p.includes('sai lâu') || p.includes('long_incorrect')) postureStatus = 3;
-      else if (p.includes('ngồi lâu') || p.includes('long_sitting')) postureStatus = 4;
-      else if (p.includes('sai') || p.includes('bad') || p.includes('incorrect') || p.includes('cui') || p.includes('gu')) postureStatus = 1;
-      else if (p.includes('vắng') || p.includes('vang') || p.includes('absent')) postureStatus = 2;
-      else postureStatus = 0;
+  } else if (rawStatusVal !== undefined && rawStatusVal !== null) {
+    if (typeof rawStatusVal === 'string') {
+      const p = rawStatusVal.toLowerCase().trim();
+      if (p.includes('chưa có') || p.includes('chua co') || p.includes('none') || p.includes('waiting') || p.includes('chờ') || p === '--') {
+        postureStatus = -1;
+      } else if (p.includes('sai lâu') || p.includes('long_incorrect')) {
+        postureStatus = 3;
+      } else if (p.includes('ngồi lâu') || p.includes('long_sitting')) {
+        postureStatus = 4;
+      } else if (p.includes('sai') || p.includes('bad') || p.includes('incorrect') || p.includes('cui') || p.includes('gu') || p === '1') {
+        postureStatus = 1;
+      } else if (p.includes('vắng') || p.includes('vang') || p.includes('absent') || p === '2') {
+        postureStatus = 2;
+      } else if (p.includes('dung') || p.includes('đúng') || p.includes('correct') || p.includes('good') || p.includes('normal') || p === '0') {
+        postureStatus = 0;
+      } else {
+        postureStatus = 0;
+      }
     } else {
-      postureStatus = Number(raw.posture_status);
-    }
-  } else if (typeof raw.posture !== 'undefined') {
-    if (typeof raw.posture === 'string') {
-      const p = raw.posture.toLowerCase();
-      if (p.includes('chưa có') || p.includes('chua co') || p.includes('none') || p.includes('waiting')) postureStatus = -1;
-      else if (p.includes('sai lâu') || p.includes('long_incorrect')) postureStatus = 3;
-      else if (p.includes('ngồi lâu') || p.includes('long_sitting')) postureStatus = 4;
-      else if (p.includes('sai') || p.includes('bad') || p.includes('incorrect') || p.includes('cui') || p.includes('gu')) postureStatus = 1;
-      else if (p.includes('vắng') || p.includes('vang') || p.includes('absent')) postureStatus = 2;
-      else postureStatus = 0;
-    } else {
-      postureStatus = Number(raw.posture);
+      postureStatus = Number(rawStatusVal);
+      if (isNaN(postureStatus)) postureStatus = 0;
     }
   }
 
@@ -218,22 +218,23 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     4: 'NGỒI LÀM VIỆC QUÁ LÂU',
   };
 
-  const trackingActive = Boolean(
-    raw.tracking_active !== undefined
-      ? raw.tracking_active
-      : raw.is_in_zone !== undefined
+  // If posture is detected (Đúng, Sai, Sai lâu, Ngồi lâu), person is present and active
+  const isHumanDetected = postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4;
+
+  const inZone = Boolean(
+    raw.is_in_zone !== undefined
       ? raw.is_in_zone
       : raw.in_zone !== undefined
       ? raw.in_zone
-      : postureStatus !== 2 && postureStatus !== -1
+      : isHumanDetected
   );
 
-  const inZone = Boolean(
-    raw.is_in_zone !== undefined 
-      ? raw.is_in_zone 
-      : raw.in_zone !== undefined 
-      ? raw.in_zone 
-      : trackingActive
+  const trackingActive = Boolean(
+    isHumanDetected
+      ? true
+      : raw.tracking_active !== undefined
+      ? raw.tracking_active
+      : inZone
   );
 
   // Timestamp parsing (handles string, Firebase Timestamp, or updated_at)

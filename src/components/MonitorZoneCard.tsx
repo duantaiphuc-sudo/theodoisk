@@ -38,11 +38,6 @@ export const MonitorZoneCard: React.FC<MonitorZoneCardProps> = ({
               <Target className="w-4 h-4 text-amber-400" />
               <span>Camera Monitor Zone (Vùng Giám Sát Tự Động)</span>
             </h2>
-            {isManager && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-                QUẢN LÝ
-              </span>
-            )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             Nhận diện người ngồi trong toạ độ vùng vàng của Raspberry Pi Camera / ESP32-CAM

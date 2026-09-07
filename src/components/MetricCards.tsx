@@ -22,7 +22,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
   const { bpm, spo2, postureStatus, postureLabel, trackingActive, inZone, source } = telemetry;
 
   // If no data has arrived yet, show explicit empty state
-  if (!hasData || (bpm === 0 && spo2 === 0 && !telemetry.trackingActive) || telemetry.postureStatus === -1) {
+  const isEmpty = !hasData || (telemetry.postureStatus === -1 && bpm === 0 && spo2 === 0 && !telemetry.trackingActive && !telemetry.image);
+  if (isEmpty) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Nhịp tim (Empty) */}
