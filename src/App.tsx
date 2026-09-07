@@ -5,7 +5,8 @@ import {
   ZoneConfig, 
   AlertThresholds, 
   TelemetryLog, 
-  FirebaseConnectionConfig 
+  FirebaseConnectionConfig,
+  AuthUser
 } from './types';
 import { 
   getSavedFirebaseConfig, 
@@ -13,9 +14,11 @@ import {
   subscribeToFirebaseTelemetry,
   clearFirebaseTelemetry
 } from './services/firebase';
+import { getCurrentUser, saveCurrentUser, logout } from './services/authService';
 import { playAlertChime } from './services/sound';
 import { appendTelemetryToHistory } from './services/historyService';
 import { Header } from './components/Header';
+import { LoginScreen } from './components/LoginScreen';
 import { MetricCards } from './components/MetricCards';
 import { PostureVisualizer } from './components/PostureVisualizer';
 import { TrendChart } from './components/TrendChart';
@@ -29,6 +32,20 @@ import { HealthChatbot } from './components/HealthChatbot';
 import { Sparkles, AlertTriangle, Radio, Trash2 } from 'lucide-react';
 
 export default function App() {
+  // 0. Authentication State
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
+  const isManager = currentUser?.role === 'manager';
+
+  const handleLoginSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    saveCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    logout();
+    setCurrentUser(null);
+  };
+
   // 1. Firebase Configuration State
   const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConnectionConfig>(getSavedFirebaseConfig());
   const [isConnected, setIsConnected] = useState(false);
@@ -320,24 +337,31 @@ export default function App() {
     saveFirebaseConfig(newCfg);
   };
 
+  // If user is not authenticated, show LoginScreen
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <Header
+        currentUser={currentUser}
+        onLogout={handleLogout}
         isConnected={isConnected}
         isSimulating={isSimulating}
         toggleSimulation={() => setIsSimulating(!isSimulating)}
         firebaseConfig={firebaseConfig}
-        onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
-        onOpenRpiGuideModal={() => setIsRpiGuideModalOpen(true)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenFirebaseModal={() => isManager && setIsFirebaseModalOpen(true)}
+        onOpenRpiGuideModal={() => isManager && setIsRpiGuideModalOpen(true)}
+        onOpenSettingsModal={() => isManager && setIsSettingsModalOpen(true)}
         soundEnabled={thresholds.soundEnabled}
         toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
         lastUpdate={lastUpdate}
       />
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 overflow-hidden">
         {/* Success clear notification */}
         {clearNotice && (
           <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-md">
@@ -384,23 +408,25 @@ export default function App() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-              <button
-                onClick={handleClearFirebaseData}
-                disabled={isClearingFirebase}
-                title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
-                className="px-3 py-1.5 rounded-lg font-semibold bg-rose-600/90 hover:bg-rose-500 text-white transition shadow-sm flex items-center gap-1.5 text-xs"
-              >
-                <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
-                <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
-              </button>
-            </div>
+            {isManager && (
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                <button
+                  onClick={handleClearFirebaseData}
+                  disabled={isClearingFirebase}
+                  title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
+                  className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-rose-600/90 hover:bg-rose-500 text-white transition shadow-sm flex items-center gap-1.5 text-xs"
+                >
+                  <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
+                  <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Empty data notification bar when no packet has arrived yet */}
         {!hasReceivedData && !isSimulating && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-slate-900/80 border border-sky-500/30 text-sky-200 text-xs shadow-md">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-xl bg-slate-900/80 border border-sky-500/30 text-sky-200 text-xs shadow-md">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
                 <Radio className="w-4 h-4 animate-pulse text-sky-400" />
@@ -414,10 +440,10 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <button
                 onClick={() => setIsSimulating(true)}
-                className="px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm text-xs"
+                className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm text-xs"
               >
                 Bật Giả Lập Thử Nghiệm
               </button>
@@ -482,68 +508,82 @@ export default function App() {
           zone={zone}
           setZone={setZone}
           telemetry={telemetry}
-          isManager={true}
+          isManager={isManager}
         />
 
         {/* 5. History Audit Logs & CSV Export */}
         <HistoryLogs
           history={history}
           onClearHistory={() => setHistory([])}
-          isManager={true}
+          isManager={isManager}
         />
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-5 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800/80 bg-slate-950 py-4 sm:py-5 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
-          <div className="flex items-center gap-3 text-slate-400">
-            <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-400 transition">
-              Cấu hình Firebase
-            </button>
-            <span>•</span>
-            <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-400 transition">
-              Hướng dẫn Pi 4
-            </button>
-            <span>•</span>
-            <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-400 transition">
-              Ngưỡng đo cảnh báo
-            </button>
-          </div>
+          {isManager ? (
+            <div className="flex items-center gap-3 text-slate-400">
+              <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-400 transition">
+                Cấu hình Firebase
+              </button>
+              <span>•</span>
+              <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-400 transition">
+                Hướng dẫn Pi 4
+              </button>
+              <span>•</span>
+              <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-400 transition">
+                Ngưỡng đo cảnh báo
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-slate-400 text-xs">
+              <span>Tài khoản: <b>{currentUser.fullName}</b> (Nhân viên)</span>
+              <span>•</span>
+              <button onClick={handleLogout} className="text-sky-400 hover:underline">
+                Đăng xuất
+              </button>
+            </div>
+          )}
         </div>
       </footer>
 
       {/* Floating AI Ergonomic Health Chatbot with Data Retrieval */}
       <HealthChatbot
         telemetry={telemetry}
-        role="manager"
+        role={currentUser.role}
         sittingSeconds={timeStats.sittingSeconds}
         badPostureSeconds={timeStats.badPostureSeconds}
         hasData={hasReceivedData}
-        userName="Bạn"
+        userName={currentUser.fullName}
       />
 
-      {/* Modals */}
-      <FirebaseConfigModal
-        isOpen={isFirebaseModalOpen}
-        onClose={() => setIsFirebaseModalOpen(false)}
-        config={firebaseConfig}
-        onSaveConfig={handleSaveFirebaseConfig}
-        isConnected={isConnected}
-      />
+      {/* Modals (Only Manager has access) */}
+      {isManager && (
+        <>
+          <FirebaseConfigModal
+            isOpen={isFirebaseModalOpen}
+            onClose={() => setIsFirebaseModalOpen(false)}
+            config={firebaseConfig}
+            onSaveConfig={handleSaveFirebaseConfig}
+            isConnected={isConnected}
+          />
 
-      <RaspberryPiGuideModal
-        isOpen={isRpiGuideModalOpen}
-        onClose={() => setIsRpiGuideModalOpen(false)}
-        projectId={firebaseConfig.projectId}
-      />
+          <RaspberryPiGuideModal
+            isOpen={isRpiGuideModalOpen}
+            onClose={() => setIsRpiGuideModalOpen(false)}
+            projectId={firebaseConfig.projectId}
+          />
 
-      <AlertSettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        thresholds={thresholds}
-        onSave={setThresholds}
-      />
+          <AlertSettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            thresholds={thresholds}
+            onSave={setThresholds}
+          />
+        </>
+      )}
     </div>
   );
 }

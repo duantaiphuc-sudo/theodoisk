@@ -43,27 +43,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center px-3 sm:px-4 py-6 sm:py-12 relative overflow-hidden">
       {/* Background ambient lighting */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative w-full max-w-4xl mx-auto space-y-8">
+      <div className="relative w-full max-w-4xl mx-auto space-y-6 sm:space-y-8">
         {/* Header Branding */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white shadow-xl shadow-sky-500/20 mb-2">
-            <Activity className="w-8 h-8 animate-pulse" />
+        <div className="text-center space-y-2 sm:space-y-3">
+          <div className="inline-flex items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white shadow-xl shadow-sky-500/20 mb-1 sm:mb-2">
+            <Activity className="w-6 h-6 sm:w-8 sm:h-8 animate-pulse" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-white leading-snug">
             Hệ Thống Giám Sát Sức Khỏe & Tư Thế IoT
           </h1>
-          <p className="text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed px-2">
             Đồng bộ cảm biến <span className="text-sky-400 font-medium">MAX30102</span> & <span className="text-indigo-400 font-medium">Camera AI MediaPipe</span> qua Raspberry Pi 4 & Firebase Firestore.
           </p>
         </div>
 
         {/* 2-Role Cards (Admin vs User) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
           {/* Card 1: Admin / Quản Trị Viên */}
           <div className="relative rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-900/50 border border-slate-800 p-6 flex flex-col justify-between shadow-xl hover:border-indigo-500/50 transition-all group">
             <div className="space-y-4">

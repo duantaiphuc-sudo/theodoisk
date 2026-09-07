@@ -218,19 +218,28 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     4: 'NGỒI LÀM VIỆC QUÁ LÂU',
   };
 
-  // If posture is detected (Đúng, Sai, Sai lâu, Ngồi lâu), person is present and active
-  const isHumanDetected = postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4;
-
-  const inZone = Boolean(
+  // Check if camera reported in_zone
+  let inZone = Boolean(
     raw.is_in_zone !== undefined
       ? raw.is_in_zone
       : raw.in_zone !== undefined
       ? raw.in_zone
-      : isHumanDetected
+      : raw.inZone !== undefined
+      ? raw.inZone
+      : postureStatus !== 2 && postureStatus !== -1
   );
 
+  // When outside the zone, the monitored seat has NO person -> must be Absent (Vắng mặt)
+  if (!inZone && postureStatus !== -1) {
+    postureStatus = 2; // 2: VẮNG MẶT
+  }
+
+  const isHumanDetected = (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4) && inZone;
+
   const trackingActive = Boolean(
-    isHumanDetected
+    !inZone || postureStatus === 2 || postureStatus === -1
+      ? false
+      : isHumanDetected
       ? true
       : raw.tracking_active !== undefined
       ? raw.tracking_active

@@ -150,36 +150,52 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
   }
 
   // Evaluate Posture
+  const isOutOfZone = inZone === false || trackingActive === false;
+  const isAbsent = postureStatus === 2 || isOutOfZone;
+
   let postureCardBg = 'bg-slate-900/70 border-slate-800';
   let postureBadgeStyle = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
   let postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-400" />;
+  let displayedPostureLabel = postureLabel;
 
-  switch (postureStatus) {
-    case 0: // Đúng
-      postureCardBg = 'bg-emerald-950/20 border-emerald-800/40';
-      postureBadgeStyle = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-      postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-400" />;
-      break;
-    case 1: // Sai
-      postureCardBg = 'bg-rose-950/25 border-rose-800/50';
-      postureBadgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
-      postureIcon = <AlertTriangle className="w-5 h-5 text-rose-400" />;
-      break;
-    case 3: // Sai lâu
-      postureCardBg = 'bg-rose-950/40 border-rose-600/70 animate-pulse';
-      postureBadgeStyle = 'bg-rose-600/30 text-rose-200 border-rose-500/60 font-bold';
-      postureIcon = <AlertTriangle className="w-5 h-5 text-rose-400 animate-bounce" />;
-      break;
-    case 4: // Ngồi lâu
-      postureCardBg = 'bg-amber-950/25 border-amber-800/50';
-      postureBadgeStyle = 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold';
-      postureIcon = <Clock className="w-5 h-5 text-amber-400" />;
-      break;
-    default: // Vắng
-      postureCardBg = 'bg-slate-900/60 border-slate-800';
-      postureBadgeStyle = 'bg-slate-800 text-slate-400 border-slate-700';
-      postureIcon = <UserX className="w-5 h-5 text-slate-400" />;
-      break;
+  if (isAbsent) {
+    postureCardBg = 'bg-slate-900/80 border-amber-500/30';
+    postureBadgeStyle = 'bg-amber-500/15 text-amber-300 border-amber-500/40';
+    postureIcon = <UserX className="w-5 h-5 text-amber-400" />;
+    displayedPostureLabel = 'VẮNG MẶT (Ngoài vùng)';
+  } else {
+    switch (postureStatus) {
+      case 0: // Đúng
+        postureCardBg = 'bg-emerald-950/20 border-emerald-800/40';
+        postureBadgeStyle = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+        postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-400" />;
+        displayedPostureLabel = 'Tư thế ĐÚNG';
+        break;
+      case 1: // Sai
+        postureCardBg = 'bg-rose-950/25 border-rose-800/50';
+        postureBadgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+        postureIcon = <AlertTriangle className="w-5 h-5 text-rose-400" />;
+        displayedPostureLabel = 'Tư thế SAI';
+        break;
+      case 3: // Sai lâu
+        postureCardBg = 'bg-rose-950/40 border-rose-600/70 animate-pulse';
+        postureBadgeStyle = 'bg-rose-600/30 text-rose-200 border-rose-500/60 font-bold';
+        postureIcon = <AlertTriangle className="w-5 h-5 text-rose-400 animate-bounce" />;
+        displayedPostureLabel = 'SAI TƯ THẾ LÂU';
+        break;
+      case 4: // Ngồi lâu
+        postureCardBg = 'bg-amber-950/25 border-amber-800/50';
+        postureBadgeStyle = 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold';
+        postureIcon = <Clock className="w-5 h-5 text-amber-400" />;
+        displayedPostureLabel = 'NGỒI QUÁ LÂU';
+        break;
+      default: // Vắng
+        postureCardBg = 'bg-slate-900/60 border-slate-800';
+        postureBadgeStyle = 'bg-slate-800 text-slate-400 border-slate-700';
+        postureIcon = <UserX className="w-5 h-5 text-slate-400" />;
+        displayedPostureLabel = 'VẮNG MẶT';
+        break;
+    }
   }
 
   return (
@@ -255,19 +271,25 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
 
         <div className="mt-3">
           <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold border shadow-sm ${postureBadgeStyle}`}>
-            <span className="w-2 h-2 rounded-full bg-current animate-ping"></span>
-            {postureLabel}
+            <span className={`w-2 h-2 rounded-full bg-current ${!isAbsent ? 'animate-ping' : ''}`}></span>
+            {displayedPostureLabel}
           </div>
-          {telemetry.postureWarning && (
+          {isAbsent ? (
+            <p className="text-[11px] text-amber-300/90 font-medium mt-1.5">
+              Chưa phát hiện người ngồi trong vùng giám sát
+            </p>
+          ) : telemetry.postureWarning ? (
             <p className="text-[11px] text-rose-300 font-medium mt-1.5 line-clamp-1">
               {telemetry.postureWarning}
             </p>
-          )}
+          ) : null}
         </div>
 
         <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs text-slate-400">
-          <span>{telemetry.angleNeck !== undefined ? `Góc cổ: ${telemetry.angleNeck}°` : 'AI Vision MediaPipe'}</span>
-          <span className="font-mono text-emerald-400">{telemetry.confidence ?? 95}% độ tin cậy</span>
+          <span>{isAbsent ? 'Trạng thái: Vắng mặt' : (telemetry.angleNeck !== undefined ? `Góc cổ: ${telemetry.angleNeck}°` : 'AI Vision MediaPipe')}</span>
+          <span className={`font-mono ${isAbsent ? 'text-amber-400' : 'text-emerald-400'}`}>
+            {isAbsent ? 'Ghế trống' : `${telemetry.confidence ?? 95}% độ tin cậy`}
+          </span>
         </div>
       </div>
 

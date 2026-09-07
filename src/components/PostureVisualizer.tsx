@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, AlertOctagon, Info, Flame, Eye, ArrowUpRight, CameraOff, Camera, Maximize2, Shield, Radio } from 'lucide-react';
+import { CheckCircle, AlertOctagon, Info, Flame, Eye, ArrowUpRight, CameraOff, Camera, Maximize2, Shield, Radio, UserX } from 'lucide-react';
 import { HealthTelemetry } from '../types';
 
 interface PostureVisualizerProps {
@@ -8,7 +8,7 @@ interface PostureVisualizerProps {
 }
 
 export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry, hasData = true }) => {
-  const { postureStatus, postureLabel, image } = telemetry;
+  const { postureStatus, postureLabel, image, inZone, trackingActive } = telemetry;
   const [viewMode, setViewMode] = useState<'skeleton' | 'camera'>('skeleton');
   const [isZoomed, setIsZoomed] = useState(false);
 
@@ -81,18 +81,20 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
     },
     2: {
       title: 'Chưa phát hiện nhân viên trong vùng giám sát',
-      desc: 'Camera hoặc cảm biến chưa nhận diện được người ngồi trong khung hình Monitor Zone.',
-      tip: 'Vui lòng ngồi vào vị trí làm việc trước camera để bắt đầu theo dõi tự động.',
+      desc: 'Camera AI chưa nhận diện được người ngồi trong khung hình Monitor Zone. Không có người ở bàn làm việc.',
+      tip: 'Vui lòng ngồi vào vị trí làm việc trước camera để bắt đầu theo dõi tư thế tự động.',
       color: 'slate',
     },
   };
 
-  const currentAdvice = adviceMap[postureStatus] || adviceMap[0];
+  const isOutOfZone = inZone === false || trackingActive === false;
+  const isAbsent = postureStatus === 2 || isOutOfZone;
 
-  const isGood = postureStatus === 0;
-  const isBad = postureStatus === 1 || postureStatus === 3;
-  const isSittingLong = postureStatus === 4;
-  const isAbsent = postureStatus === 2;
+  const currentAdvice = isAbsent ? adviceMap[2] : (adviceMap[postureStatus] || adviceMap[0]);
+
+  const isGood = !isAbsent && postureStatus === 0;
+  const isBad = !isAbsent && (postureStatus === 1 || postureStatus === 3);
+  const isSittingLong = !isAbsent && postureStatus === 4;
 
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm">
@@ -130,12 +132,13 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           </div>
 
           <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider border ${
+            isAbsent ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
             isGood ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
             isBad ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 animate-pulse' :
             isSittingLong ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
             'bg-slate-800 text-slate-400 border-slate-700'
           }`}>
-            {postureLabel}
+            {isAbsent ? 'VẮNG MẶT / NGOÀI VÙNG' : postureLabel}
           </span>
         </div>
       </div>
@@ -326,23 +329,34 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                 )}
               </g>
             ) : (
-              // Empty seat graphic
-              <g opacity="0.4">
-                <circle cx="95" cy="50" r="16" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="3 3" />
-                <path d="M95 68 L95 145" stroke="#64748b" strokeWidth="4" strokeDasharray="4 4" />
-                <text x="75" y="110" fill="#94a3b8" fontSize="11" fontFamily="sans-serif">Chưa có người</text>
+              // Empty seat graphic when outside zone or absent
+              <g className="transition-all duration-500">
+                {/* Dashed outline of empty seating spot */}
+                <circle cx="95" cy="50" r="16" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="4 4" opacity="0.4" />
+                <path d="M95 68 L95 145" stroke="#64748b" strokeWidth="4" strokeDasharray="5 5" opacity="0.4" />
+                
+                {/* Yellow Empty Seat Indicator Badge */}
+                <rect x="35" y="88" width="130" height="36" rx="6" fill="#0f172a" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3 2" />
+                <text x="100" y="103" fill="#fbbf24" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                  NGOÀI VÙNG GIÁM SÁT
+                </text>
+                <text x="100" y="117" fill="#94a3b8" fontSize="8.5" fontFamily="sans-serif" textAnchor="middle">
+                  (Ghế trống • Chưa có người)
+                </text>
               </g>
             )}
           </svg>
 
           {/* Real-time Indicator Tag */}
           <div className="mt-2 text-center">
-            <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md ${
+            <span className={`text-xs font-mono font-semibold px-2.5 py-1 rounded-md ${
+              isAbsent ? 'text-amber-400 bg-amber-950/60 border border-amber-500/30' :
               isGood ? 'text-emerald-400 bg-emerald-950/60' :
               isBad ? 'text-rose-400 bg-rose-950/60' :
               isSittingLong ? 'text-amber-400 bg-amber-950/60' : 'text-slate-500'
             }`}>
-              {isGood ? '✓ Góc cột sống 105° (Tối ưu)' :
+              {isAbsent ? 'Chờ đối tượng ngồi vào vùng' :
+               isGood ? '✓ Góc cột sống 105° (Tối ưu)' :
                isBad ? '⚠ Góc cúi cổ > 32° (Có nguy cơ)' :
                isSittingLong ? '⏰ Cần giải lao 5 phút' : 'Chờ đối tượng vào vùng'}
             </span>
@@ -355,11 +369,12 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className={`p-1.5 rounded-lg ${
+                isAbsent ? 'bg-amber-500/15 text-amber-400' :
                 isGood ? 'bg-emerald-500/15 text-emerald-400' :
                 isBad ? 'bg-rose-500/15 text-rose-400' :
                 isSittingLong ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-800 text-slate-400'
               }`}>
-                {isGood ? <CheckCircle className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
+                {isAbsent ? <UserX className="w-4 h-4" /> : isGood ? <CheckCircle className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
               </span>
               <h3 className="text-sm font-bold text-slate-100">{currentAdvice.title}</h3>
             </div>
@@ -379,24 +394,45 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           </div>
 
           {/* Mini Checklist */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
-              <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-              <span className="text-slate-300">Góc gập khuỷu tay 90°</span>
+          {isAbsent ? (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span className="text-slate-300">Trạng thái: Tạm dừng đo</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                <span className="text-slate-300">Camera AI: Quét tìm đối tượng</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span className="text-slate-400">Vị trí ghế: Đang trống</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span className="text-slate-300">Tự động nhận diện khi vào</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
-              <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : isBad ? 'bg-rose-500' : 'bg-slate-600'}`}></span>
-              <span className="text-slate-300">Khoảng cách màn hình 50-70cm</span>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
+                <span className="text-slate-300">Góc gập khuỷu tay 90°</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : isBad ? 'bg-rose-500' : 'bg-slate-600'}`}></span>
+                <span className="text-slate-300">Khoảng cách màn hình 50-70cm</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : isSittingLong ? 'bg-amber-400' : 'bg-slate-600'}`}></span>
+                <span className="text-slate-300">Hai bàn chân áp sàn</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
+                <span className="text-slate-300">Tựa thắt lưng đàn hồi</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
-              <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : isSittingLong ? 'bg-amber-400' : 'bg-slate-600'}`}></span>
-              <span className="text-slate-300">Hai bàn chân áp sàn</span>
-            </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800">
-              <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-              <span className="text-slate-300">Tựa thắt lưng đàn hồi</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
