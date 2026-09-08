@@ -28,6 +28,7 @@ interface HeaderProps {
   onOpenRpiGuideModal: () => void;
   onOpenSettingsModal: () => void;
   soundEnabled: boolean;
+  voiceAlertEnabled?: boolean;
   toggleSound: () => void;
   lastUpdate: string | null;
 }
@@ -43,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenRpiGuideModal,
   onOpenSettingsModal,
   soundEnabled,
+  voiceAlertEnabled,
   toggleSound,
   lastUpdate,
 }) => {
@@ -154,7 +156,13 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Sound Alert Toggle */}
           <button
             onClick={toggleSound}
-            title={soundEnabled ? 'Tắt âm thanh cảnh báo' : 'Bật âm thanh cảnh báo'}
+            title={
+              soundEnabled
+                ? voiceAlertEnabled
+                  ? 'Âm thanh chuông & Giọng nói tiếng Việt đang BẬT (Bấm để tắt)'
+                  : 'Âm thanh chuông đang BẬT (Bấm để tắt)'
+                : 'Âm thanh cảnh báo đang TẮT (Bấm để bật)'
+            }
             className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-300 bg-slate-800/80 border border-slate-700/80 hover:bg-slate-700/80 hover:text-white transition"
           >
             {soundEnabled ? (
@@ -192,18 +200,18 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Mobile Compact Controls */}
-        <div className="flex md:hidden items-center gap-1.5 shrink-0">
+        <div className="flex md:hidden items-center gap-2 shrink-0">
           {/* Mobile Role Badge */}
           {currentUser && (
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-bold ${
+            <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold whitespace-nowrap ${
               isManager 
                 ? 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60' 
                 : 'bg-sky-950/80 text-sky-300 border-sky-700/60'
             }`}>
               {isManager ? (
-                <Shield className="w-3 h-3 text-indigo-400" />
+                <Shield className="w-3.5 h-3.5 text-indigo-400" />
               ) : (
-                <User className="w-3 h-3 text-sky-400" />
+                <User className="w-3.5 h-3.5 text-sky-400" />
               )}
               <span>{isManager ? 'Quản Lý' : 'User'}</span>
             </div>
@@ -213,12 +221,12 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={toggleSound}
             aria-label="Toggle Sound"
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 bg-slate-800/80 border border-slate-700/80"
+            className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-300 bg-slate-800/80 border border-slate-700/80 active:scale-95 transition"
           >
             {soundEnabled ? (
-              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              <Volume2 className="w-4 h-4 text-emerald-400" />
             ) : (
-              <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+              <VolumeX className="w-4 h-4 text-slate-500" />
             )}
           </button>
 
@@ -226,7 +234,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Open Mobile Menu"
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-200 bg-slate-800 border border-slate-700"
+            className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-200 bg-slate-800 border border-slate-700 active:scale-95 transition"
           >
             {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>

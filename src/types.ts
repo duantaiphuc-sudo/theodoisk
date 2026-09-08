@@ -66,6 +66,8 @@ export interface AlertThresholds {
   longIncorrectSec: number;
   longSittingSec: number;
   soundEnabled: boolean;
+  voiceAlertEnabled: boolean; // Phát âm thanh giọng nói tiếng Việt nhắc nhở
+  outOfZoneAlertEnabled: boolean; // Nhắc nhở bằng giọng nói khi rời ngoài vùng quan sát
 }
 
 export interface TelemetryLog {

@@ -223,7 +223,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
 
       {/* Floating Chatbot Window */}
       {isOpen && (
-        <div className="fixed bottom-20 right-5 z-50 w-[340px] sm:w-[420px] h-[580px] max-h-[85vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-slate-100">
+        <div className="fixed bottom-16 sm:bottom-20 left-2 right-2 sm:left-auto sm:right-5 z-50 sm:w-[420px] max-w-[calc(100vw-16px)] h-[560px] max-h-[82vh] rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-slate-100">
           {/* Header */}
           <div className="p-3.5 border-b border-slate-800 bg-slate-950/90 flex items-center justify-between">
             <div className="flex items-center gap-2.5">

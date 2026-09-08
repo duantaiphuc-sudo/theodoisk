@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Settings, Volume2, Bell, Check, RotateCcw } from 'lucide-react';
+import { X, Settings, Volume2, Bell, Check, RotateCcw, Mic, Play, Radio } from 'lucide-react';
 import { AlertThresholds } from '../types';
+import { playAlertChime, playErgonomicVoiceAlert, isVoiceAlertSupported } from '../services/sound';
 
 interface AlertSettingsModalProps {
   isOpen: boolean;
@@ -15,11 +16,21 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
   thresholds,
   onSave,
 }) => {
-  const [local, setLocal] = useState<AlertThresholds>({ ...thresholds });
+  const [local, setLocal] = useState<AlertThresholds>({ 
+    voiceAlertEnabled: true,
+    outOfZoneAlertEnabled: true,
+    ...thresholds 
+  });
+  const [testPlaying, setTestPlaying] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (isOpen) {
-      setLocal({ ...thresholds });
+      setLocal({ 
+        voiceAlertEnabled: true,
+        outOfZoneAlertEnabled: true,
+        ...thresholds 
+      });
+      setTestPlaying(null);
     }
   }, [isOpen, thresholds]);
 
@@ -34,7 +45,20 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
       longIncorrectSec: 120,
       longSittingSec: 3600,
       soundEnabled: true,
+      voiceAlertEnabled: true,
+      outOfZoneAlertEnabled: true,
     });
+  };
+
+  const handleTestVoice = (type: 'posture_incorrect' | 'out_of_zone' | 'long_sitting' | 'chime') => {
+    setTestPlaying(type);
+    if (type === 'chime') {
+      playAlertChime('warning');
+      setTimeout(() => setTestPlaying(null), 800);
+    } else {
+      playErgonomicVoiceAlert(type, { playChime: local.soundEnabled });
+      setTimeout(() => setTestPlaying(null), 3000);
+    }
   };
 
   const handleSave = () => {
@@ -43,8 +67,8 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-6 shadow-2xl text-slate-100">
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -142,8 +166,8 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Sound toggle */}
-          <div className="pt-2">
+          {/* Sound and Voice toggles */}
+          <div className="pt-2.5 space-y-2 border-t border-slate-800/80">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -153,9 +177,104 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
               />
               <span className="text-slate-300 font-medium flex items-center gap-1.5">
                 <Volume2 className="w-4 h-4 text-amber-400" />
-                Phát âm thanh cảnh báo khi có sự cố sinh trắc
+                Phát âm thanh chuông bíp khi có sự cố sinh trắc
               </span>
             </label>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={local.voiceAlertEnabled}
+                onChange={e => setLocal({ ...local, voiceAlertEnabled: e.target.checked })}
+                className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-sky-500 focus:ring-0"
+              />
+              <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                <Mic className="w-4 h-4 text-sky-400" />
+                Phát giọng nói tiếng Việt nhắc nhở trực tiếp (TTS)
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none pl-6">
+              <input
+                type="checkbox"
+                checked={local.outOfZoneAlertEnabled}
+                onChange={e => setLocal({ ...local, outOfZoneAlertEnabled: e.target.checked })}
+                className="w-3.5 h-3.5 rounded bg-slate-950 border-slate-800 text-indigo-500 focus:ring-0"
+              />
+              <span className="text-slate-400 text-[11px] flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-indigo-400" />
+                Nhắc nhở khi phát hiện ngồi ngoài vùng quan sát
+              </span>
+            </label>
+          </div>
+
+          {/* Interactive Audio & Voice Test Section */}
+          <div className="mt-3 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                <Play className="w-3 h-3 text-emerald-400" />
+                Kiểm tra thử loa & giọng nói:
+              </span>
+              <span className="text-[10px] text-slate-500">Bấm để nghe thử</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleTestVoice('posture_incorrect')}
+                disabled={testPlaying !== null}
+                className={`px-2.5 py-2 rounded-lg text-[11px] font-medium border text-left transition flex items-center justify-between ${
+                  testPlaying === 'posture_incorrect'
+                    ? 'bg-rose-950/70 border-rose-600 text-rose-200 animate-pulse'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                }`}
+              >
+                <span>🗣️ "Ngồi thẳng lên"</span>
+                <Play className="w-3 h-3 text-slate-500 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTestVoice('out_of_zone')}
+                disabled={testPlaying !== null}
+                className={`px-2.5 py-2 rounded-lg text-[11px] font-medium border text-left transition flex items-center justify-between ${
+                  testPlaying === 'out_of_zone'
+                    ? 'bg-indigo-950/70 border-indigo-600 text-indigo-200 animate-pulse'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                }`}
+              >
+                <span>🗣️ "Vào vùng quan sát"</span>
+                <Play className="w-3 h-3 text-slate-500 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTestVoice('long_sitting')}
+                disabled={testPlaying !== null}
+                className={`px-2.5 py-2 rounded-lg text-[11px] font-medium border text-left transition flex items-center justify-between ${
+                  testPlaying === 'long_sitting'
+                    ? 'bg-amber-950/70 border-amber-600 text-amber-200 animate-pulse'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                }`}
+              >
+                <span>🗣️ "Ngồi quá lâu"</span>
+                <Play className="w-3 h-3 text-slate-500 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTestVoice('chime')}
+                disabled={testPlaying !== null}
+                className={`px-2.5 py-2 rounded-lg text-[11px] font-medium border text-left transition flex items-center justify-between ${
+                  testPlaying === 'chime'
+                    ? 'bg-emerald-950/70 border-emerald-600 text-emerald-200 animate-pulse'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                }`}
+              >
+                <span>🔔 Chuông cảnh báo</span>
+                <Play className="w-3 h-3 text-slate-500 shrink-0" />
+              </button>
+            </div>
           </div>
         </div>
 

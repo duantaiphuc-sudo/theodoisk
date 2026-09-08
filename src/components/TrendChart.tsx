@@ -87,11 +87,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
     : '';
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm">
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 sm:p-5 lg:p-6 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-sky-400" />
+          <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-sky-400 shrink-0" />
             <span>Xu Hướng Sinh Trắc Học (HR & SpO₂)</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">Biểu đồ đồng bộ thời gian thực từ cảm biến MAX30102 qua Firebase</p>

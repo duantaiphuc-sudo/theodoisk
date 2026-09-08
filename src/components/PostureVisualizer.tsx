@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { CheckCircle, AlertOctagon, Info, Flame, Eye, ArrowUpRight, CameraOff, Camera, Maximize2, Shield, Radio, UserX } from 'lucide-react';
+import { CheckCircle, AlertOctagon, Info, Flame, Eye, ArrowUpRight, CameraOff, Camera, Maximize2, Shield, Radio, UserX, Volume2 } from 'lucide-react';
 import { HealthTelemetry } from '../types';
+import { playErgonomicVoiceAlert } from '../services/sound';
 
 interface PostureVisualizerProps {
   telemetry: HealthTelemetry;
@@ -11,6 +12,13 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
   const { postureStatus, postureLabel, image, inZone, trackingActive } = telemetry;
   const [viewMode, setViewMode] = useState<'skeleton' | 'camera'>('skeleton');
   const [isZoomed, setIsZoomed] = useState(false);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+
+  const handleTestPostureVoice = () => {
+    setIsPlayingVoice(true);
+    playErgonomicVoiceAlert('posture_incorrect');
+    setTimeout(() => setIsPlayingVoice(false), 2500);
+  };
 
   // Auto switch to camera view if an image is provided from Pi 4
   React.useEffect(() => {
@@ -97,12 +105,12 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
   const isSittingLong = !isAbsent && postureStatus === 4;
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 sm:p-5 lg:p-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <span>Mô Hình & Chẩn Đoán Tư Thế</span>
-            <span className="text-xs font-normal text-slate-400">AI Skeleton Analysis</span>
+            <span className="text-[11px] sm:text-xs font-normal text-slate-400">AI Skeleton Analysis</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">Phân tích góc nghiêng cột sống và khoảng cách thị giác theo thời gian thực</p>
         </div>
@@ -131,14 +139,30 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             </button>
           </div>
 
-          <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider border ${
+          <button
+            type="button"
+            onClick={handleTestPostureVoice}
+            disabled={isPlayingVoice}
+            title="Nghe thử âm thanh nhắc nhở khi ngồi sai tư thế"
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition ${
+              isPlayingVoice
+                ? 'bg-rose-950/70 text-rose-300 border-rose-500 animate-pulse'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+            }`}
+          >
+            <Volume2 className={`w-3.5 h-3.5 ${isPlayingVoice ? 'text-rose-400' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">Âm thanh nhắc nhở:</span>
+            <span>Ngồi thẳng lên</span>
+          </button>
+
+          <span className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-semibold uppercase tracking-wider border whitespace-nowrap ${
             isAbsent ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
             isGood ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
             isBad ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 animate-pulse' :
             isSittingLong ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
             'bg-slate-800 text-slate-400 border-slate-700'
           }`}>
-            {isAbsent ? 'VẮNG MẶT / NGOÀI VÙNG' : postureLabel}
+            {isAbsent ? 'VẮNG MẶT' : postureLabel}
           </span>
         </div>
       </div>

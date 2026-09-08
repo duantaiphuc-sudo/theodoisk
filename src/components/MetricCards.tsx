@@ -25,93 +25,102 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
   const isEmpty = !hasData || (telemetry.postureStatus === -1 && bpm === 0 && spo2 === 0 && !telemetry.trackingActive && !telemetry.image);
   if (isEmpty) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
         {/* 1. Nhịp tim (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-slate-500" />
-              Nhịp Tim (BPM)
-            </span>
-            <div className="p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60">
-              <Heart className="w-5 h-5 text-slate-500" />
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+                <Activity className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 shrink-0" />
+                <span className="truncate">Nhịp Tim (BPM)</span>
+              </span>
+              <div className="p-1.5 sm:p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60 shrink-0">
+                <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
+              </div>
+            </div>
+            <div className="mt-2.5 sm:mt-4 flex items-baseline gap-1.5 sm:gap-2">
+              <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-600 font-mono">--</span>
+              <span className="text-xs sm:text-sm font-medium text-slate-500">bpm</span>
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-4xl font-extrabold tracking-tight text-slate-600 font-mono">--</span>
-            <span className="text-sm font-medium text-slate-500">bpm</span>
-          </div>
-          <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
-              Chờ cảm biến MAX30102
+          <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs">
+            <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md font-medium bg-slate-800/90 text-slate-400 border border-slate-700 whitespace-nowrap">
+              Chờ MAX30102
             </span>
-            <span className="text-xs text-slate-500 font-mono">Chưa có dữ liệu</span>
+            <span className="text-slate-500 font-mono hidden sm:inline">Chưa có dữ liệu</span>
           </div>
         </div>
 
         {/* 2. Nồng độ SpO2 (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Wind className="w-3.5 h-3.5 text-slate-500" />
-              Nồng độ Oxy (SpO₂)
-            </span>
-            <div className="p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60">
-              <Wind className="w-5 h-5 text-slate-500" />
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+                <Wind className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 shrink-0" />
+                <span className="truncate">Oxy (SpO₂)</span>
+              </span>
+              <div className="p-1.5 sm:p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60 shrink-0">
+                <Wind className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
+              </div>
+            </div>
+            <div className="mt-2.5 sm:mt-4 flex items-baseline gap-1.5 sm:gap-2">
+              <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-600 font-mono">--</span>
+              <span className="text-xs sm:text-sm font-medium text-slate-500">%</span>
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-4xl font-extrabold tracking-tight text-slate-600 font-mono">--</span>
-            <span className="text-sm font-medium text-slate-500">%</span>
-          </div>
-          <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
-              Chờ cảm biến MAX30102
+          <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs">
+            <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md font-medium bg-slate-800/90 text-slate-400 border border-slate-700 whitespace-nowrap">
+              Chờ MAX30102
             </span>
-            <span className="text-xs text-slate-500 font-mono">Chưa có dữ liệu</span>
+            <span className="text-slate-500 font-mono hidden sm:inline">Chưa có dữ liệu</span>
           </div>
         </div>
 
         {/* 3. Tư thế làm việc (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              Tư Thế Làm Việc
-            </span>
-            <div className="p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60">
-              <UserX className="w-5 h-5 text-slate-500" />
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+                <UserX className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 shrink-0" />
+                <span className="truncate">Tư Thế Ngồi</span>
+              </span>
+              <div className="p-1.5 sm:p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60 shrink-0">
+                <UserX className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
+              </div>
+            </div>
+            <div className="mt-2 sm:mt-3">
+              <div className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-[11px] sm:text-xs font-semibold bg-slate-800/90 text-slate-400 border border-slate-700 whitespace-nowrap">
+                Chờ Camera AI
+              </div>
             </div>
           </div>
-          <div className="mt-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-              Chờ Camera AI từ Pi 4
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs text-slate-500">
+          <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs text-slate-500">
             <span>Chưa nhận dạng</span>
             <span className="font-mono">--%</span>
           </div>
         </div>
 
         {/* 4. Vùng Giám Sát (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Target className="w-3.5 h-3.5 text-slate-500" />
-              Vùng Giám Sát (Zone)
-            </span>
-            <div className="p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60">
-              <UserX className="w-5 h-5 text-slate-500" />
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+                <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 shrink-0" />
+                <span className="truncate">Vùng Giám Sát</span>
+              </span>
+              <div className="p-1.5 sm:p-2.5 rounded-xl bg-slate-800/60 text-slate-500 border border-slate-700/60 shrink-0">
+                <UserX className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
+              </div>
+            </div>
+            <div className="mt-2.5 sm:mt-4 flex items-baseline gap-2">
+              <span className="text-base sm:text-xl font-bold tracking-tight text-slate-500 font-sans whitespace-nowrap">
+                CHỜ KẾT NỐI
+              </span>
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-xl font-bold tracking-tight text-slate-500 font-sans">
-              CHỜ KẾT NỐI
-            </span>
-          </div>
-          <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
-            <span className="text-xs text-slate-500">Nguồn: Chờ Pi 4</span>
-            <span className="text-xs text-slate-500">Chưa bắt đầu</span>
+          <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs text-slate-500">
+            <span>Nguồn: Pi 4</span>
+            <span className="whitespace-nowrap">Chưa bắt đầu</span>
           </div>
         </div>
       </div>
@@ -199,130 +208,138 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
       {/* 1. Nhịp tim (Heart Rate) */}
-      <div className="relative overflow-hidden rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm hover:border-slate-700 transition-all">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-rose-400" />
-            Nhịp Tim (BPM)
-          </span>
-          <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
-            <Heart className={`w-5 h-5 ${bpm > 0 ? 'animate-pulse text-rose-500' : ''}`} />
+      <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm hover:border-slate-700 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+              <Activity className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-rose-400 shrink-0" />
+              <span className="truncate">Nhịp Tim (BPM)</span>
+            </span>
+            <div className="p-1.5 sm:p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 shrink-0">
+              <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${bpm > 0 ? 'animate-pulse text-rose-500' : ''}`} />
+            </div>
+          </div>
+
+          <div className="mt-2.5 sm:mt-4 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white font-mono">
+              {bpm > 0 ? bpm : '--'}
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-slate-400">bpm</span>
           </div>
         </div>
 
-        <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-4xl font-extrabold tracking-tight text-white font-mono">
-            {bpm > 0 ? bpm : '--'}
-          </span>
-          <span className="text-sm font-medium text-slate-400">bpm</span>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${hrStatusColor}`}>
+        <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs">
+          <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md font-medium border whitespace-nowrap ${hrStatusColor}`}>
             {bpm > 0 ? hrStatusText : 'Chờ cảm biến'}
           </span>
-          <span className="text-xs text-slate-500 font-mono">
-            Ngưỡng: {thresholds.hrMin}-{thresholds.hrMax}
+          <span className="text-slate-500 font-mono hidden sm:inline">
+            {thresholds.hrMin}-{thresholds.hrMax}
           </span>
         </div>
       </div>
 
       {/* 2. Nồng độ SpO2 */}
-      <div className="relative overflow-hidden rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm hover:border-slate-700 transition-all">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Wind className="w-3.5 h-3.5 text-sky-400" />
-            Nồng độ Oxy (SpO₂)
-          </span>
-          <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400">
-            <Wind className="w-5 h-5 text-sky-400" />
+      <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm hover:border-slate-700 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+              <Wind className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-sky-400 shrink-0" />
+              <span className="truncate">Oxy (SpO₂)</span>
+            </span>
+            <div className="p-1.5 sm:p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 shrink-0">
+              <Wind className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400" />
+            </div>
+          </div>
+
+          <div className="mt-2.5 sm:mt-4 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white font-mono">
+              {spo2 > 0 ? spo2 : '--'}
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-slate-400">%</span>
           </div>
         </div>
 
-        <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-4xl font-extrabold tracking-tight text-white font-mono">
-            {spo2 > 0 ? spo2 : '--'}
-          </span>
-          <span className="text-sm font-medium text-slate-400">%</span>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${spo2StatusColor}`}>
+        <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs">
+          <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md font-medium border whitespace-nowrap ${spo2StatusColor}`}>
             {spo2 > 0 ? spo2StatusText : 'Chờ cảm biến'}
           </span>
-          <span className="text-xs text-slate-500 font-mono">
-            Tối thiểu: ≥{thresholds.spo2Min}%
+          <span className="text-slate-500 font-mono hidden sm:inline">
+            ≥{thresholds.spo2Min}%
           </span>
         </div>
       </div>
 
       {/* 3. Tư thế làm việc */}
-      <div className={`relative overflow-hidden rounded-2xl p-5 shadow-sm border transition-all ${postureCardBg}`}>
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-            Tư Thế Làm Việc
-          </span>
-          <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
-            {postureIcon}
+      <div className={`relative overflow-hidden rounded-2xl p-3.5 sm:p-5 lg:p-6 shadow-sm border transition-all flex flex-col justify-between ${postureCardBg}`}>
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1 sm:gap-1.5 truncate">
+              <span className="truncate">Tư Thế Ngồi</span>
+            </span>
+            <div className="p-1.5 sm:p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 shrink-0">
+              {postureIcon}
+            </div>
+          </div>
+
+          <div className="mt-2 sm:mt-3">
+            <div className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold border shadow-sm whitespace-nowrap ${postureBadgeStyle}`}>
+              <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-current ${!isAbsent ? 'animate-ping' : ''}`}></span>
+              <span className="truncate max-w-[130px] sm:max-w-none">{displayedPostureLabel}</span>
+            </div>
+            {isAbsent ? (
+              <p className="text-[10px] sm:text-[11px] text-amber-300/90 font-medium mt-1 truncate">
+                Chưa có người ngồi
+              </p>
+            ) : telemetry.postureWarning ? (
+              <p className="text-[10px] sm:text-[11px] text-rose-300 font-medium mt-1 truncate">
+                {telemetry.postureWarning}
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-3">
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold border shadow-sm ${postureBadgeStyle}`}>
-            <span className={`w-2 h-2 rounded-full bg-current ${!isAbsent ? 'animate-ping' : ''}`}></span>
-            {displayedPostureLabel}
-          </div>
-          {isAbsent ? (
-            <p className="text-[11px] text-amber-300/90 font-medium mt-1.5">
-              Chưa phát hiện người ngồi trong vùng giám sát
-            </p>
-          ) : telemetry.postureWarning ? (
-            <p className="text-[11px] text-rose-300 font-medium mt-1.5 line-clamp-1">
-              {telemetry.postureWarning}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs text-slate-400">
-          <span>{isAbsent ? 'Trạng thái: Vắng mặt' : (telemetry.angleNeck !== undefined ? `Góc cổ: ${telemetry.angleNeck}°` : 'AI Vision MediaPipe')}</span>
-          <span className={`font-mono ${isAbsent ? 'text-amber-400' : 'text-emerald-400'}`}>
-            {isAbsent ? 'Ghế trống' : `${telemetry.confidence ?? 95}% độ tin cậy`}
+        <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs text-slate-400">
+          <span className="truncate">{isAbsent ? 'Vắng mặt' : (telemetry.angleNeck !== undefined ? `Góc: ${telemetry.angleNeck}°` : 'AI Vision')}</span>
+          <span className={`font-mono whitespace-nowrap ${isAbsent ? 'text-amber-400' : 'text-emerald-400'}`}>
+            {isAbsent ? 'Ghế trống' : `${telemetry.confidence ?? 95}% tin cậy`}
           </span>
         </div>
       </div>
 
       {/* 4. Trạng thái giám sát & Monitor Zone */}
-      <div className="relative overflow-hidden rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm hover:border-slate-700 transition-all">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Target className="w-3.5 h-3.5 text-amber-400" />
-            Vùng Giám Sát (Zone)
-          </span>
-          <div className={`p-2.5 rounded-xl border ${
-            inZone ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-          }`}>
-            {inZone ? <UserCheck className="w-5 h-5" /> : <UserX className="w-5 h-5" />}
+      <div className="relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-800/80 p-3.5 sm:p-5 lg:p-6 shadow-sm hover:border-slate-700 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 sm:gap-1.5 truncate">
+              <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">Vùng Giám Sát</span>
+            </span>
+            <div className={`p-1.5 sm:p-2.5 rounded-xl border shrink-0 ${
+              inZone ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+            }`}>
+              {inZone ? <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" /> : <UserX className="w-4 h-4 sm:w-5 sm:h-5" />}
+            </div>
+          </div>
+
+          <div className="mt-2.5 sm:mt-4 flex items-baseline gap-1.5 sm:gap-2">
+            <span className={`text-base sm:text-xl lg:text-2xl font-bold tracking-tight font-sans whitespace-nowrap ${inZone ? 'text-emerald-300' : 'text-amber-300'}`}>
+              {trackingActive ? (inZone ? 'TRONG VÙNG' : 'NGOÀI VÙNG') : 'CHỜ NGỒI'}
+            </span>
           </div>
         </div>
 
-        <div className="mt-4 flex items-baseline gap-2">
-          <span className={`text-2xl font-bold tracking-tight font-sans ${inZone ? 'text-emerald-300' : 'text-amber-300'}`}>
-            {trackingActive ? (inZone ? 'ĐANG TRONG VÙNG' : 'NGOÀI VÙNG') : 'CHỜ NGƯỜI NGỒI'}
-          </span>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
-          <span className="text-xs text-slate-400">Nguồn: {source || 'Raspberry Pi 4'}</span>
-          <span className={`text-xs font-semibold ${
+        <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-800/80 text-[10px] sm:text-xs">
+          <span className="text-slate-400 truncate">Pi 4</span>
+          <span className={`font-semibold whitespace-nowrap ${
             telemetry.isStale
               ? 'text-amber-400'
               : inZone ? 'text-emerald-400' : 'text-slate-500'
           }`}>
             {telemetry.isStale
-              ? '⚠️ Cũ trên Cloud (Offline)'
-              : inZone ? 'Giám sát hoạt động' : 'Tạm dừng đo'}
+              ? '⚠️ Offline'
+              : inZone ? 'Đang theo dõi' : 'Tạm dừng'}
           </span>
         </div>
       </div>

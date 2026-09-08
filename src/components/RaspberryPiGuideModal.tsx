@@ -122,6 +122,7 @@ def detect_posture_mediapipe():
     return 0, True, True  # posture_status, in_zone, tracking_active
 
 try:
+    last_history_save = 0
     while True:
         bpm, spo2 = read_max30102()
         posture_status, in_zone, tracking = detect_posture_mediapipe()
@@ -138,9 +139,17 @@ try:
             "fps": 30
         }
 
-        # Ghi đè vào document 'live' trong collection 'theodoisk'
-        doc_ref = db.collection("${projectId || 'theodoisk'}").document("live")
+        # Ghi đè vào document 'live' để hiển thị trực tiếp thời gian thực
+        doc_ref = db.collection("theodoisk").document("live")
         doc_ref.set(payload)
+
+        # ⭐️ Tự động lưu lịch sử vĩnh viễn vào collection 'theodoisk_history'
+        # Lưu khi có cảnh báo sai tư thế/nhịp tim hoặc định kỳ 30 giây
+        current_time = time.time()
+        if posture_status in [1, 3] or int(bpm) > 100 or (current_time - last_history_save > 30):
+            db.collection("theodoisk_history").document(f"rec_{int(current_time*1000)}").set(payload)
+            last_history_save = current_time
+            print(f"   💾 Đã lưu 1 bản ghi vào lịch sử Firestore 'theodoisk_history'!")
 
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Đã gửi: BPM={bpm}, SpO2={spo2}%, Posture={posture_status}")
         time.sleep(1.5)  # Cập nhật mỗi 1.5 - 2 giây
@@ -191,10 +200,10 @@ while True:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
       <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl text-slate-100 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
               <Cpu className="w-6 h-6" />

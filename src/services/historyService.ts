@@ -1,4 +1,4 @@
-import { HistoricalRecord, HealthTelemetry } from '../types';
+import { HistoricalRecord, HealthTelemetry, TelemetryLog } from '../types';
 
 const STORAGE_KEY = 'theodoisk_historical_records_v1';
 
@@ -133,6 +133,48 @@ export function appendTelemetryToHistory(telemetry: HealthTelemetry): void {
 
   records.unshift(newRecord);
   saveHistoricalRecords(records);
+}
+
+// Synchronize logs loaded from Firebase into the historical record store for chatbot queries
+export function syncHistoricalLogs(logs: TelemetryLog[]): void {
+  if (!logs || logs.length === 0) return;
+  const existing = getHistoricalRecords();
+  const existingMap = new Map(existing.map(r => [r.timestamp, r]));
+
+  logs.forEach(log => {
+    if (!existingMap.has(log.timestamp)) {
+      try {
+        const d = new Date(log.timestamp);
+        existingMap.set(log.timestamp, {
+          id: log.id,
+          timestamp: log.timestamp,
+          date: formatDate(d),
+          time: formatTime(d),
+          bpm: log.bpm,
+          spo2: log.spo2,
+          postureStatus: log.postureStatus,
+          postureLabel: log.postureLabel,
+          postureWarning: log.alertType,
+          inZone: log.trackingActive,
+          note: 'Đồng bộ từ Firebase Firestore',
+        });
+      } catch {}
+    }
+  });
+
+  const merged = Array.from(existingMap.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+  saveHistoricalRecords(merged);
+}
+
+// Clear local storage historical records
+export function clearLocalHistoricalRecords(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    console.error('Error clearing local history records:', e);
+  }
 }
 
 // Query result structure for chatbot

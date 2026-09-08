@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Target, Sliders, Check, RotateCcw, Eye, ShieldAlert, Cpu } from 'lucide-react';
+import { Target, Sliders, Check, RotateCcw, Eye, ShieldAlert, Cpu, Volume2 } from 'lucide-react';
 import { ZoneConfig, HealthTelemetry } from '../types';
+import { playErgonomicVoiceAlert } from '../services/sound';
 
 interface MonitorZoneCardProps {
   zone: ZoneConfig;
@@ -16,6 +17,13 @@ export const MonitorZoneCard: React.FC<MonitorZoneCardProps> = ({
   isManager,
 }) => {
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isPlayingZoneAudio, setIsPlayingZoneAudio] = useState(false);
+
+  const handleTestZoneVoice = () => {
+    setIsPlayingZoneAudio(true);
+    playErgonomicVoiceAlert('out_of_zone');
+    setTimeout(() => setIsPlayingZoneAudio(false), 2500);
+  };
 
   const handleReset = () => {
     setZone({ x1: 20, y1: 10, x2: 80, y2: 90 });
@@ -30,13 +38,13 @@ export const MonitorZoneCard: React.FC<MonitorZoneCardProps> = ({
   const { inZone, trackingActive } = telemetry;
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-sm">
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 sm:p-5 lg:p-6 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Target className="w-4 h-4 text-amber-400" />
-              <span>Camera Monitor Zone (Vùng Giám Sát Tự Động)</span>
+            <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+              <Target className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Camera Monitor Zone (Vùng Giám Sát)</span>
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -44,8 +52,24 @@ export const MonitorZoneCard: React.FC<MonitorZoneCardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleTestZoneVoice}
+            disabled={isPlayingZoneAudio}
+            title="Nghe thử âm thanh nhắc nhở khi ngồi ngoài vùng quan sát"
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition ${
+              isPlayingZoneAudio
+                ? 'bg-indigo-950/70 text-indigo-300 border-indigo-500 animate-pulse'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+            }`}
+          >
+            <Volume2 className={`w-3.5 h-3.5 ${isPlayingZoneAudio ? 'text-indigo-400' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">Âm thanh nhắc nhở:</span>
+            <span>Vào vùng quan sát</span>
+          </button>
+
+          <span className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 whitespace-nowrap ${
             inZone
               ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
               : 'bg-amber-500/15 text-amber-400 border-amber-500/30'

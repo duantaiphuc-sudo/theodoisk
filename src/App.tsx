@@ -12,11 +12,16 @@ import {
   getSavedFirebaseConfig, 
   saveFirebaseConfig, 
   subscribeToFirebaseTelemetry,
-  clearFirebaseTelemetry
+  clearFirebaseTelemetry,
+  fetchFirebaseHistory,
+  subscribeToFirebaseHistory,
+  saveTelemetryHistoryToFirebase,
+  clearFirebaseHistory,
+  getHistoryCollectionName,
 } from './services/firebase';
 import { getCurrentUser, saveCurrentUser, logout } from './services/authService';
-import { playAlertChime } from './services/sound';
-import { appendTelemetryToHistory } from './services/historyService';
+import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
+import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { MetricCards } from './components/MetricCards';
@@ -66,7 +71,15 @@ export default function App() {
   const [thresholds, setThresholds] = useState<AlertThresholds>(() => {
     try {
       const saved = localStorage.getItem('theodoisk_thresholds');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          soundEnabled: true,
+          voiceAlertEnabled: true,
+          outOfZoneAlertEnabled: true,
+          ...parsed,
+        };
+      }
     } catch {}
     return {
       hrMin: 50,
@@ -76,6 +89,8 @@ export default function App() {
       longIncorrectSec: 120,
       longSittingSec: 3600,
       soundEnabled: true,
+      voiceAlertEnabled: true,
+      outOfZoneAlertEnabled: true,
     };
   });
 
@@ -109,11 +124,31 @@ export default function App() {
     continuousSittingSeconds: 0,
   });
 
-  // 8. History Log Records
-  const [history, setHistory] = useState<TelemetryLog[]>([]);
+  // 8. History Log Records with local persistence fallback
+  const [history, setHistory] = useState<TelemetryLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('theodoisk_telemetry_history_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading history from localStorage:', e);
+    }
+    return [];
+  });
+  const [isSyncingHistory, setIsSyncingHistory] = useState(false);
 
-  // Refs for audio throttle & last alert timestamp
+  // Refs for audio throttle & last alert timestamp & Firebase history throttle
   const lastAlertPlayedRef = useRef<number>(0);
+  const lastPostureVoiceRef = useRef<number>(0);
+  const lastZoneVoiceRef = useRef<number>(0);
+  const lastVitalVoiceRef = useRef<number>(0);
+  const lastInZoneStatusRef = useRef<boolean>(true);
+  const lastFirebaseHistorySaveRef = useRef<number>(0);
+  const lastPostureStatusRef = useRef<number>(-1);
   const telemetryRef = useRef(telemetry);
   telemetryRef.current = telemetry;
   const thresholdsRef = useRef(thresholds);
@@ -127,6 +162,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('theodoisk_zone', JSON.stringify(zone));
   }, [zone]);
+
+  // Persist history records to localStorage on every state change
+  useEffect(() => {
+    try {
+      localStorage.setItem('theodoisk_telemetry_history_v2', JSON.stringify(history.slice(0, 200)));
+    } catch (e) {
+      console.error('Error saving history to localStorage:', e);
+    }
+  }, [history]);
 
   // Handle new incoming telemetry packet
   const handleIncomingTelemetry = useCallback((data: HealthTelemetry) => {
@@ -154,45 +198,120 @@ export default function App() {
     let hasAlert = false;
     let alertType = '';
 
-    if (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax)) {
+    const isBadPosture = data.postureStatus === 1 || data.postureStatus === 3;
+    const isOutOfZone = data.inZone === false || data.postureStatus === 2;
+    const isAbnormalHR = data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax);
+    const isAbnormalSpO2 = data.spo2 > 0 && data.spo2 < currentThresholds.spo2Min;
+
+    if (isAbnormalHR) {
       hasAlert = true;
       alertType = data.bpm < currentThresholds.hrMin ? 'Nhịp tim chậm' : 'Nhịp tim nhanh';
-    } else if (data.spo2 > 0 && data.spo2 < currentThresholds.spo2Min) {
+    } else if (isAbnormalSpO2) {
       hasAlert = true;
       alertType = 'Thiếu oxy SpO₂';
-    } else if (data.postureStatus === 1 || data.postureStatus === 3) {
+    } else if (isBadPosture) {
       hasAlert = true;
       alertType = data.postureStatus === 3 ? 'Sai tư thế lâu' : 'Sai tư thế';
+    } else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled && data.trackingActive !== false) {
+      hasAlert = true;
+      alertType = 'Ngoài vùng quan sát';
     }
 
-    // Audio chime with throttle (min 10s between audio alerts)
-    if (hasAlert && currentThresholds.soundEnabled) {
-      const now = Date.now();
-      if (now - lastAlertPlayedRef.current > 10000) {
+    // Audio chime & Vietnamese voice alert triggers
+    const now = Date.now();
+    const canPlayAudio = currentThresholds.soundEnabled;
+    const canPlayVoice = currentThresholds.voiceAlertEnabled;
+
+    if (canPlayAudio || canPlayVoice) {
+      // 1. Alert for Incorrect Posture ("Xin hãy ngồi thẳng lưng lên!")
+      if (isBadPosture) {
+        const postureJustChanged = lastPostureStatusRef.current !== data.postureStatus && lastPostureStatusRef.current === 0;
+        const timeSinceLastVoice = now - lastPostureVoiceRef.current;
+        if (postureJustChanged || timeSinceLastVoice > 12000) {
+          lastPostureVoiceRef.current = now;
+          lastAlertPlayedRef.current = now;
+          playErgonomicVoiceAlert(data.postureStatus === 3 ? 'long_incorrect' : 'posture_incorrect', {
+            playChime: canPlayAudio,
+            playVoice: canPlayVoice,
+          });
+        }
+      }
+      // 2. Alert for Out of Observation Zone ("Bạn đang ngồi ngoài vùng quan sát, xin hãy ngồi lại vào vị trí quan sát!")
+      else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
+        const zoneJustChanged = lastInZoneStatusRef.current !== false;
+        const timeSinceLastZoneVoice = now - lastZoneVoiceRef.current;
+        if (zoneJustChanged || timeSinceLastZoneVoice > 15000) {
+          lastZoneVoiceRef.current = now;
+          lastAlertPlayedRef.current = now;
+          playErgonomicVoiceAlert('out_of_zone', {
+            playChime: canPlayAudio,
+            playVoice: canPlayVoice,
+          });
+        }
+      }
+      // 3. Alert for abnormal vitals (HR or SpO2)
+      else if ((isAbnormalHR || isAbnormalSpO2) && now - lastVitalVoiceRef.current > 15000) {
+        lastVitalVoiceRef.current = now;
         lastAlertPlayedRef.current = now;
-        playAlertChime(data.postureStatus === 3 ? 'danger' : 'warning');
+        playErgonomicVoiceAlert('vital_abnormal', {
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+          customMessage: `Cảnh báo: ${alertType}! Xin hãy kiểm tra lại trạng thái cơ thể!`,
+        });
       }
     }
 
-    // Add to history
-    setHistory(prev => {
-      const newEntry: TelemetryLog = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        timestamp: data.timestamp,
-        timeFormatted: new Date().toLocaleTimeString('vi-VN'),
-        bpm: data.bpm,
-        spo2: data.spo2,
-        postureStatus: data.postureStatus,
-        postureLabel: data.postureLabel,
-        trackingActive: data.trackingActive,
-        hasAlert,
-        alertType,
-      };
-      return [newEntry, ...prev.slice(0, 49)];
-    });
-  }, []);
+    lastInZoneStatusRef.current = data.inZone;
 
-  // Subscribe to Firebase on mount or config change
+    // Create telemetry log entry
+    const newEntry: TelemetryLog = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: data.timestamp || new Date().toISOString(),
+      timeFormatted: new Date().toLocaleTimeString('vi-VN'),
+      bpm: data.bpm,
+      spo2: data.spo2,
+      postureStatus: data.postureStatus,
+      postureLabel: data.postureLabel,
+      trackingActive: data.trackingActive,
+      hasAlert,
+      alertType,
+    };
+
+    // Add to local history (deduplicating rapid identical samples)
+    setHistory(prev => {
+      if (prev.length > 0) {
+        const first = prev[0];
+        const sameMetrics = first.bpm === newEntry.bpm && first.spo2 === newEntry.spo2 && first.postureStatus === newEntry.postureStatus;
+        const timeDiff = Math.abs(new Date(newEntry.timestamp).getTime() - new Date(first.timestamp).getTime());
+        if (sameMetrics && timeDiff < 3000) {
+          return prev;
+        }
+      }
+      return [newEntry, ...prev.slice(0, 199)];
+    });
+
+    // Save to Firebase Firestore / RTDB history collection:
+    // We write to Firebase if:
+    // 1. There is an active alert (abnormal posture or vital sign)
+    // 2. Posture status changed (e.g. from Good to Bad)
+    // 3. Or at least 25 seconds elapsed since last Firebase history write (heartbeat recording)
+    const nowTime = Date.now();
+    const timeSinceLastRemote = nowTime - lastFirebaseHistorySaveRef.current;
+    const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
+    lastPostureStatusRef.current = data.postureStatus;
+
+    const shouldSaveRemote = (data.bpm > 0 || data.spo2 > 0 || data.postureStatus >= 0) &&
+      (hasAlert || postureChanged || timeSinceLastRemote > 25000);
+
+    if (shouldSaveRemote && firebaseConfig.autoConnect && !isSimulating) {
+      lastFirebaseHistorySaveRef.current = nowTime;
+      saveTelemetryHistoryToFirebase(firebaseConfig, newEntry).catch(err => {
+        console.warn('Ghi log lịch sử Firebase thất bại:', err);
+      });
+    }
+  }, [firebaseConfig, isSimulating]);
+
+  // Subscribe to Firebase Live Telemetry
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
 
@@ -214,6 +333,62 @@ export default function App() {
     };
   }, [firebaseConfig, isSimulating, handleIncomingTelemetry]);
 
+  // Fetch & Subscribe to Firebase History Collection
+  useEffect(() => {
+    let unsubHistory: (() => void) | null = null;
+
+    if (firebaseConfig.autoConnect && !isSimulating) {
+      setIsSyncingHistory(true);
+      fetchFirebaseHistory(firebaseConfig, 100)
+        .then(remoteLogs => {
+          if (remoteLogs && remoteLogs.length > 0) {
+            setHistory(prev => {
+              const map = new Map<string, TelemetryLog>();
+              remoteLogs.forEach(l => map.set(l.timestamp, l));
+              prev.forEach(l => {
+                if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+              });
+              const merged = Array.from(map.values())
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .slice(0, 200);
+              syncHistoricalLogs(merged);
+              return merged;
+            });
+          }
+        })
+        .finally(() => {
+          setIsSyncingHistory(false);
+        });
+
+      unsubHistory = subscribeToFirebaseHistory(
+        firebaseConfig,
+        remoteLogs => {
+          if (remoteLogs && remoteLogs.length > 0) {
+            setHistory(prev => {
+              const map = new Map<string, TelemetryLog>();
+              remoteLogs.forEach(l => map.set(l.timestamp, l));
+              prev.forEach(l => {
+                if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+              });
+              const merged = Array.from(map.values())
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .slice(0, 200);
+              syncHistoricalLogs(merged);
+              return merged;
+            });
+          }
+        },
+        err => {
+          console.warn('Thông báo lắng nghe lịch sử Firebase:', err);
+        }
+      );
+    }
+
+    return () => {
+      if (unsubHistory) unsubHistory();
+    };
+  }, [firebaseConfig, isSimulating]);
+
   // Second timer loop for web-calculated activity times
   useEffect(() => {
     const timer = setInterval(() => {
@@ -230,11 +405,17 @@ export default function App() {
         const newMoving = !isSeated ? prev.movingSeconds + 1 : prev.movingSeconds;
         const newContinuous = isSeated ? prev.continuousSittingSeconds + 1 : 0;
 
-        // Trigger chime if crossing bad posture limit
-        if (newBad === currentThresh.incorrectPostureSec && currentThresh.soundEnabled) {
-          playAlertChime('danger');
-        } else if (newContinuous === currentThresh.longSittingSec && currentThresh.soundEnabled) {
-          playAlertChime('reminder');
+        // Trigger chime & voice alert if crossing bad posture limit or continuous sitting
+        if (newBad === currentThresh.incorrectPostureSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
+          playErgonomicVoiceAlert('long_incorrect', {
+            playChime: currentThresh.soundEnabled,
+            playVoice: currentThresh.voiceAlertEnabled,
+          });
+        } else if (newContinuous === currentThresh.longSittingSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
+          playErgonomicVoiceAlert('long_sitting', {
+            playChime: currentThresh.soundEnabled,
+            playVoice: currentThresh.voiceAlertEnabled,
+          });
         }
 
         return {
@@ -262,22 +443,28 @@ export default function App() {
       const jitterBpm = Math.round(74 + Math.sin(step * 0.3) * 6 + (Math.random() - 0.5) * 3);
       const jitterSpO2 = Number((98.2 + Math.cos(step * 0.2) * 0.8 + (Math.random() - 0.5) * 0.3).toFixed(1));
 
-      // Posture cycle: Mostly good (0), occasionally slouching (1), or brief absent (2)
+      // Posture cycle:
+      // 0 - 14: Tư thế ĐÚNG (inZone = true)
+      // 15 - 21: Tư thế SAI (inZone = true) -> Kích hoạt nhắc nhở: "Xin hãy ngồi thẳng lưng lên!"
+      // 22 - 27: NGOÀI VÙNG QUAN SÁT (inZone = false) -> Kích hoạt nhắc nhở: "Bạn đang ngồi ngoài vùng quan sát..."
       let simPosture = 0;
       let label = 'Tư thế ĐÚNG';
       let angle = 158;
+      let inZone = true;
       let warning: string | undefined = undefined;
 
-      if (step % 20 > 14) {
+      const cycle = step % 28;
+      if (cycle >= 14 && cycle < 21) {
         simPosture = 1;
-        label = 'Tư thế SAI';
+        label = 'Tư thế SAI (Cúi gù)';
         angle = 125;
-        warning = 'Cot song dang bi gu hoac cui co';
-      } else if (step % 45 === 0) {
-        simPosture = 4;
-        label = 'NGỒI LÀM VIỆC QUÁ LÂU';
-        angle = 140;
-        warning = 'Cần đứng dậy vận động sau 45 phút';
+        warning = 'Cột sống đang bị gù hoặc cúi cổ';
+      } else if (cycle >= 21) {
+        simPosture = 2;
+        label = 'NGOÀI VÙNG QUAN SÁT';
+        inZone = false;
+        angle = 0;
+        warning = 'Người ngồi lệch ngoài vùng quan sát của Camera';
       }
 
       handleIncomingTelemetry({
@@ -285,11 +472,11 @@ export default function App() {
         spo2: jitterSpO2,
         postureStatus: simPosture,
         postureLabel: label,
-        trackingActive: true,
-        inZone: true,
+        trackingActive: simPosture !== 2,
+        inZone: inZone,
         timestamp: new Date().toISOString(),
         source: 'Raspberry Pi 4 (Giả Lập)',
-        confidence: 97,
+        confidence: inZone ? 97 : 12,
         angleNeck: angle,
         postureWarning: warning,
       });
@@ -337,6 +524,82 @@ export default function App() {
     saveFirebaseConfig(newCfg);
   };
 
+  const handleRefreshHistory = async () => {
+    setIsSyncingHistory(true);
+    try {
+      const remoteLogs = await fetchFirebaseHistory(firebaseConfig, 100);
+      if (remoteLogs && remoteLogs.length > 0) {
+        setHistory(prev => {
+          const map = new Map<string, TelemetryLog>();
+          remoteLogs.forEach(l => map.set(l.timestamp, l));
+          prev.forEach(l => {
+            if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+          });
+          const merged = Array.from(map.values())
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+            .slice(0, 200);
+          syncHistoricalLogs(merged);
+          return merged;
+        });
+        setClearNotice(`Đã tải về ${remoteLogs.length} bản ghi lịch sử lưu trên Firebase Firestore!`);
+        setTimeout(() => setClearNotice(null), 4000);
+      } else {
+        setClearNotice('Chưa có bản ghi lịch sử nào trên Firebase Firestore.');
+        setTimeout(() => setClearNotice(null), 3000);
+      }
+    } catch (err: any) {
+      console.warn('Lỗi đồng bộ lịch sử:', err);
+      setClearNotice(`Lỗi đồng bộ lịch sử: ${err.message || 'Kiểm tra kết nối Firebase'}`);
+      setTimeout(() => setClearNotice(null), 4000);
+    } finally {
+      setIsSyncingHistory(false);
+    }
+  };
+
+  const handleSaveSnapshot = () => {
+    if (telemetry.bpm === 0 && telemetry.spo2 === 0 && telemetry.postureStatus === -1) {
+      setClearNotice('Chưa có số liệu đang hoạt động để lưu mốc!');
+      setTimeout(() => setClearNotice(null), 3000);
+      return;
+    }
+
+    const snapEntry: TelemetryLog = {
+      id: `snap-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      timeFormatted: new Date().toLocaleTimeString('vi-VN'),
+      bpm: telemetry.bpm,
+      spo2: telemetry.spo2,
+      postureStatus: telemetry.postureStatus,
+      postureLabel: telemetry.postureLabel,
+      trackingActive: telemetry.trackingActive,
+      hasAlert: telemetry.postureStatus === 1 || telemetry.postureStatus === 3 || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax)),
+      alertType: telemetry.postureStatus === 1 ? 'Sai tư thế' : undefined,
+    };
+
+    setHistory(prev => [snapEntry, ...prev.slice(0, 199)]);
+    saveTelemetryHistoryToFirebase(firebaseConfig, snapEntry).catch(() => {});
+    setClearNotice('Đã lưu mốc dữ liệu hiện tại vào Firebase Firestore và bộ nhớ thiết bị!');
+    setTimeout(() => setClearNotice(null), 4000);
+  };
+
+  const handleClearHistory = async () => {
+    setHistory([]);
+    try {
+      localStorage.removeItem('theodoisk_telemetry_history_v2');
+    } catch {}
+    clearLocalHistoricalRecords();
+
+    try {
+      await clearFirebaseHistory(firebaseConfig);
+      setClearNotice('Đã xóa sạch toàn bộ lịch sử trên thiết bị và Firebase Firestore.');
+      setTimeout(() => setClearNotice(null), 4000);
+    } catch (err) {
+      console.warn('Lỗi xóa lịch sử từ Firebase:', err);
+      setClearNotice('Đã xóa lịch sử bộ nhớ trong máy.');
+      setTimeout(() => setClearNotice(null), 4000);
+    }
+  };
+
   // If user is not authenticated, show LoginScreen
   if (!currentUser) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
@@ -356,6 +619,7 @@ export default function App() {
         onOpenRpiGuideModal={() => isManager && setIsRpiGuideModalOpen(true)}
         onOpenSettingsModal={() => isManager && setIsSettingsModalOpen(true)}
         soundEnabled={thresholds.soundEnabled}
+        voiceAlertEnabled={thresholds.voiceAlertEnabled}
         toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
         lastUpdate={lastUpdate}
       />
@@ -514,7 +778,11 @@ export default function App() {
         {/* 5. History Audit Logs & CSV Export */}
         <HistoryLogs
           history={history}
-          onClearHistory={() => setHistory([])}
+          onClearHistory={handleClearHistory}
+          onRefreshHistory={handleRefreshHistory}
+          onSaveSnapshot={handleSaveSnapshot}
+          isSyncing={isSyncingHistory}
+          firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
           isManager={isManager}
         />
       </main>
