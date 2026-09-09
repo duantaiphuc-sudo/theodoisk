@@ -88,14 +88,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h1 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-tight truncate group-hover:text-sky-600 transition">
-                  <span className="sm:hidden">Sức Khỏe & Tư Thế IoT</span>
+                  <span className="sm:hidden font-extrabold">HealthOffice</span>
                   <span className="hidden sm:inline">Hệ Thống Theo Dõi Sức Khỏe & Tư Thế</span>
                 </h1>
-                <span className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
                   Pi 4 IoT
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium truncate">
+              <p className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium truncate">
                 <span className="truncate">MAX30102 & AI Camera</span>
               </p>
             </div>
@@ -245,23 +245,23 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Mobile Compact Controls */}
-        <div className="flex md:hidden items-center gap-2 shrink-0">
+        <div className="flex md:hidden items-center gap-1.5 shrink-0">
           {/* Mobile Role Badge (Clickable) */}
           {currentUser && (
             <button
               onClick={() => setShowProfileModal(true)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold whitespace-nowrap cursor-pointer active:scale-95 transition ${
                 isManager 
                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
                   : 'bg-sky-50 text-sky-700 border-sky-200'
               }`}
             >
               {isManager ? (
-                <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                <Shield className="w-3 h-3 text-indigo-600" />
               ) : (
-                <User className="w-3.5 h-3.5 text-sky-600" />
+                <User className="w-3 h-3 text-sky-600" />
               )}
-              <span>{isManager ? 'Quản Lý' : 'User'}</span>
+              <span>{isManager ? 'Quản Lý' : 'Nhân Viên'}</span>
             </button>
           )}
 
@@ -269,12 +269,12 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={toggleSound}
             aria-label="Toggle Sound"
-            className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 bg-slate-100 border border-slate-200 active:scale-95 transition cursor-pointer"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-700 bg-slate-100 border border-slate-200 active:scale-95 transition cursor-pointer shrink-0"
           >
             {soundEnabled ? (
-              <Volume2 className="w-4 h-4 text-emerald-600" />
+              <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
             ) : (
-              <VolumeX className="w-4 h-4 text-slate-400" />
+              <VolumeX className="w-3.5 h-3.5 text-slate-400" />
             )}
           </button>
 
@@ -282,9 +282,9 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Open Mobile Menu"
-            className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 bg-slate-100 border border-slate-200 active:scale-95 transition cursor-pointer"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-700 bg-slate-100 border border-slate-200 active:scale-95 transition cursor-pointer shrink-0"
           >
-            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            {mobileMenuOpen ? <X className="w-3.5 h-3.5" /> : <Menu className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>

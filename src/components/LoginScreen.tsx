@@ -83,17 +83,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="relative min-h-screen w-full flex flex-col font-sans select-none overflow-x-hidden">
-      {/* 1. FULL-SCREEN BACKGROUND LAYER (Unmodified, 100% sharp, zero blur overlay) */}
-      <div className="fixed inset-0 w-full h-full z-0 overflow-hidden bg-slate-900">
+      {/* 1. FULL-SCREEN BACKGROUND LAYER (Desktop: 100% sharp full-bleed wallpaper; Mobile: soft ambient light background) */}
+      <div className="fixed inset-0 w-full h-full z-0 overflow-hidden bg-slate-100">
         {!imageLoadFailed ? (
-          <img 
-            src={bgImage} 
-            alt="Giám sát sức khỏe văn phòng" 
-            className="w-full h-full object-cover object-center pointer-events-none"
-            loading="eager"
-            onError={() => setImageLoadFailed(true)}
-            referrerPolicy="no-referrer"
-          />
+          <>
+            {/* Desktop Wallpaper: 100% sharp, zero blur, object-cover centered */}
+            <img 
+              src={bgImage} 
+              alt="Giám sát sức khỏe văn phòng" 
+              className="hidden sm:block w-full h-full object-cover object-center pointer-events-none"
+              loading="eager"
+              onError={() => setImageLoadFailed(true)}
+              referrerPolicy="no-referrer"
+            />
+            {/* Mobile Ambient Glow: Soft light ambiance matching the sunny room tones */}
+            <div className="sm:hidden absolute inset-0 bg-gradient-to-b from-sky-100/70 via-slate-50 to-slate-100 pointer-events-none" />
+            <img 
+              src={bgImage} 
+              alt="Ambient" 
+              className="sm:hidden absolute inset-0 w-full h-full object-cover blur-3xl opacity-20 scale-110 pointer-events-none"
+              aria-hidden="true"
+            />
+          </>
         ) : (
           /* High-Fidelity Vector Scene matching nenweb.png if /nenweb.png file is not yet placed in public */
           <div className="relative w-full h-full bg-gradient-to-br from-sky-100 via-white to-amber-50 flex items-center justify-between p-8 overflow-hidden pointer-events-none">
@@ -113,22 +124,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
       {/* 2. TOP HEADER NAVIGATION (Balanced, single-line, all interactive) */}
       <header className="relative z-30 w-full border-b border-white/40 bg-white/95 backdrop-blur-md shadow-xs">
-        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & Brand (Clickable -> Opens Overview) */}
           <button
             onClick={() => handleOpenModal('overview')}
-            className="flex items-center gap-3 shrink-0 group text-left cursor-pointer transition active:scale-95"
+            className="flex items-center gap-2 sm:gap-3 shrink-0 group text-left cursor-pointer transition active:scale-95"
             title="Nhấp để xem Tổng quan hệ thống"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 shrink-0 group-hover:rotate-6 transition-transform">
-              <Activity className="w-5 h-5 animate-pulse" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 shrink-0 group-hover:rotate-6 transition-transform">
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
             </div>
             <div className="shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900 group-hover:text-sky-600 transition whitespace-nowrap">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-extrabold text-sm sm:text-base lg:text-lg tracking-tight text-slate-900 group-hover:text-sky-600 transition whitespace-nowrap">
                   HealthOffice
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
+                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
                   Pi 4 IoT
                 </span>
               </div>
@@ -182,7 +193,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </nav>
 
           {/* Right Header Status / Action */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Status indicator */}
             <button
               onClick={() => handleOpenModal('overview')}
@@ -192,23 +203,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               <span className="whitespace-nowrap">Hệ thống trực tuyến</span>
             </button>
 
-            {/* Header Login Button (Prominent, balanced, no wrapping) */}
+            {/* Header Login Button (Prominent, responsive, no wrapping) */}
             <button
               onClick={() => setIsLoginModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-xl text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-md shadow-sky-500/20 active:scale-95 transition cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 h-9 sm:h-10 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-md shadow-sky-500/20 active:scale-95 transition cursor-pointer whitespace-nowrap shrink-0"
               title="Nhấp để mở khung đăng nhập"
             >
-              <Lock className="w-4 h-4 shrink-0" />
+              <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span className="whitespace-nowrap">Đăng Nhập</span>
             </button>
 
-            {/* Mobile Hamburger Toggle */}
+            {/* Mobile Hamburger Toggle (Ensured visible & accessible on all screens) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer shrink-0"
+              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer shrink-0 active:scale-95"
               aria-label="Open menu"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -271,8 +282,118 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         )}
       </header>
 
-      {/* 3. LOGIN MODAL (Only rendered when user clicks 'Đăng Nhập', no bottom bar) */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 pointer-events-none">
+      {/* 3. MAIN BODY (Desktop: full view with modal trigger; Mobile: uncropped 16:9 hero card & welcome CTA) */}
+      <main className="relative z-20 flex-1 flex flex-col items-center justify-center p-3.5 sm:p-6 lg:p-8">
+        {/* MOBILE HERO SHOWCASE & QUICK ACCESS (Displayed on mobile screens: perfectly uncropped 16:9 with all 4 cards & office worker complete!) */}
+        {!isLoginModalOpen && (
+          <div className="sm:hidden w-full max-w-sm mx-auto space-y-3 animate-fadeIn py-1">
+            {/* 16:9 Uncropped Hero Frame (Clean, zero overlapping badges, zero buttons) */}
+            <div className="relative w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200/90 bg-white">
+              <div className="relative aspect-[1672/941] w-full bg-slate-100 overflow-hidden">
+                <img
+                  src={bgImage}
+                  alt="Không gian giám sát sức khỏe văn phòng"
+                  className="w-full h-full object-contain pointer-events-none"
+                  loading="eager"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+
+            {/* Mobile Welcome & CTA Card */}
+            <div className="w-full rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-sm p-4 text-slate-800 space-y-3">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-sky-700 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200">
+                  <Activity className="w-3 h-3 text-sky-600" />
+                  <span>Raspberry Pi 4 • Firebase IoT</span>
+                </span>
+                <h1 className="text-base font-extrabold text-slate-900 mt-1.5 tracking-tight leading-snug">
+                  Giám Sát Sức Khỏe & Tư Thế Thông Minh
+                </h1>
+                <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                  Đo nhịp tim, SpO₂ tự động và phân tích góc nghiêng cột sống công thái học theo thời gian thực.
+                </p>
+              </div>
+
+              {/* Prominent Login CTA Button */}
+              <button
+                type="button"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-md shadow-sky-500/25 active:scale-[0.98] transition cursor-pointer"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Đăng Nhập Vào Hệ Thống</span>
+              </button>
+
+              {/* 4 Feature Badges in 2x2 grid */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleOpenModal('sensor')}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                    <Heart className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-900 block text-[11px] truncate">MAX30102</span>
+                    <span className="text-[10px] text-slate-500 block truncate">Nhịp tim & SpO₂</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenModal('camera')}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Camera className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-900 block text-[11px] truncate">Camera AI</span>
+                    <span className="text-[10px] text-slate-500 block truncate">Tư thế cột sống</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenModal('guide')}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                    <Clock className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-900 block text-[11px] truncate">Giải Lao</span>
+                    <span className="text-[10px] text-slate-500 block truncate">Nhắc nhở tự động</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenModal('hardware')}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Cpu className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-900 block text-[11px] truncate">Pi 4 IoT</span>
+                    <span className="text-[10px] text-slate-500 block truncate">Đồng bộ đám mây</span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Demo Account Tip */}
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                <span>Tài khoản thử nghiệm:</span>
+                <span className="font-mono text-slate-700 font-semibold">admin / 123456</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* LOGIN MODAL */}
         {isLoginModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-xs animate-fadeIn pointer-events-auto">
             {/* Backdrop click to close */}

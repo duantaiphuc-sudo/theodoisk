@@ -124,6 +124,9 @@ export default function App() {
     continuousSittingSeconds: 0,
   });
 
+  // Mobile quick view filter tab
+  const [mobileActiveTab, setMobileActiveTab] = useState<'all' | 'biometrics' | 'posture' | 'timers' | 'logs'>('all');
+
   // 8. History Log Records with local persistence fallback
   const [history, setHistory] = useState<TelemetryLog[]>(() => {
     try {
@@ -625,7 +628,7 @@ export default function App() {
       />
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 overflow-hidden">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 pb-24 sm:pb-8 space-y-3.5 sm:space-y-6 overflow-hidden">
         {/* Success clear notification */}
         {clearNotice && (
           <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs shadow-xs">
@@ -733,22 +736,47 @@ export default function App() {
           </div>
         )}
 
+        {/* Mobile Thumb Navigation Segmented Tabs (Light Mode High Contrast) */}
+        <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner">
+          {[
+            { id: 'all', label: 'Tất Cả' },
+            { id: 'biometrics', label: 'Chỉ Số' },
+            { id: 'posture', label: 'Tư Thế' },
+            { id: 'timers', label: 'Thời Gian' },
+            { id: 'logs', label: 'Nhật Ký' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setMobileActiveTab(tab.id as any)}
+              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer text-center ${
+                mobileActiveTab === tab.id
+                  ? 'bg-white text-sky-700 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {/* 1. Metric Cards (Heart Rate, SpO2, Posture, Monitor Zone) */}
-        <MetricCards 
-          telemetry={telemetry} 
-          thresholds={thresholds} 
-          hasData={hasReceivedData} 
-        />
+        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
+          <MetricCards 
+            telemetry={telemetry} 
+            thresholds={thresholds} 
+            hasData={hasReceivedData} 
+          />
+        </div>
 
         {/* 2. Middle Row: Anatomical Posture Visualizer & Trend Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+          <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:block' : 'block'}`}>
             <PostureVisualizer 
               telemetry={telemetry} 
               hasData={hasReceivedData} 
             />
           </div>
-          <div className="lg:col-span-6">
+          <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
             <TrendChart
               history={history}
               hrMin={thresholds.hrMin}
@@ -760,31 +788,37 @@ export default function App() {
         </div>
 
         {/* 3. Activity Timers (Sitting, Moving, Bad Posture, Continuous) */}
-        <TimeCounters
-          timeStats={timeStats}
-          thresholds={thresholds}
-          onResetTimers={handleResetTimers}
-          hasData={hasReceivedData}
-        />
+        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' ? 'hidden sm:block' : 'block'}`}>
+          <TimeCounters
+            timeStats={timeStats}
+            thresholds={thresholds}
+            onResetTimers={handleResetTimers}
+            hasData={hasReceivedData}
+          />
+        </div>
 
         {/* 4. Monitor Zone & Calibration */}
-        <MonitorZoneCard
-          zone={zone}
-          setZone={setZone}
-          telemetry={telemetry}
-          isManager={isManager}
-        />
+        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' && mobileActiveTab !== 'posture' ? 'hidden sm:block' : 'block'}`}>
+          <MonitorZoneCard
+            zone={zone}
+            setZone={setZone}
+            telemetry={telemetry}
+            isManager={isManager}
+          />
+        </div>
 
         {/* 5. History Audit Logs & CSV Export */}
-        <HistoryLogs
-          history={history}
-          onClearHistory={handleClearHistory}
-          onRefreshHistory={handleRefreshHistory}
-          onSaveSnapshot={handleSaveSnapshot}
-          isSyncing={isSyncingHistory}
-          firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
-          isManager={isManager}
-        />
+        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'logs' ? 'hidden sm:block' : 'block'}`}>
+          <HistoryLogs
+            history={history}
+            onClearHistory={handleClearHistory}
+            onRefreshHistory={handleRefreshHistory}
+            onSaveSnapshot={handleSaveSnapshot}
+            isSyncing={isSyncingHistory}
+            firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
+            isManager={isManager}
+          />
+        </div>
       </main>
 
       {/* Footer */}

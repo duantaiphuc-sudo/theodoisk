@@ -29,16 +29,16 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
 
   if (!hasData || postureStatus === -1) {
     return (
-      <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
+      <div className="rounded-2xl bg-white border border-slate-200 p-3.5 sm:p-5 lg:p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
               <span>Mô Hình & Chẩn Đoán Tư Thế</span>
-              <span className="text-xs font-normal text-slate-500">AI Skeleton Analysis</span>
+              <span className="text-[11px] sm:text-xs font-normal text-slate-500">AI Skeleton Analysis</span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">Trực quan hóa tư thế cột sống & góc nghiêng cổ từ camera</p>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Trực quan hóa tư thế cột sống & góc nghiêng cổ từ camera</p>
           </div>
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+          <span className="self-start sm:self-auto px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
             Chờ luồng Camera Pi 4
           </span>
         </div>

@@ -200,7 +200,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-600/30 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
+        className="fixed bottom-4 right-3.5 sm:bottom-5 sm:right-5 z-40 flex items-center gap-2 p-2.5 sm:px-4 sm:py-3 rounded-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-600/30 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
+        title="Hỏi Trợ Lý AI"
       >
         <Bot className="w-5 h-5 animate-pulse" />
         <span className="text-xs font-bold hidden sm:inline">Hỏi Trợ Lý AI</span>
