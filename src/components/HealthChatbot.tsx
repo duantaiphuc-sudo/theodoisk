@@ -1,23 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  MessageSquare, 
   X, 
   Send, 
   Bot, 
   Sparkles, 
-  User, 
-  Calendar, 
   Clock, 
-  Heart, 
-  Activity, 
-  AlertTriangle, 
   RotateCcw,
-  CheckCircle2,
-  TrendingUp,
   HelpCircle
 } from 'lucide-react';
 import { HealthTelemetry, UserRole, ChatMessage } from '../types';
-import { queryHistoricalData, HistoricalQueryResult } from '../services/historyService';
+import { queryHistoricalData } from '../services/historyService';
 
 interface HealthChatbotProps {
   telemetry: HealthTelemetry;
@@ -31,8 +23,6 @@ interface HealthChatbotProps {
 export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   telemetry,
   role,
-  sittingSeconds,
-  badPostureSeconds,
   hasData,
   userName = 'bạn',
 }) => {
@@ -61,7 +51,6 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
     const lower = text.toLowerCase();
 
     // 1. Check if query is asking for historical / time-based data retrieval
-    // Keywords: "ngày trước", "giờ trước", "tiếng trước", "hôm qua", "hôm kia", "lịch sử", "truy xuất", "hôm nay", "tuần này", "hồi trước"
     const hasTimeKeyword = 
       lower.includes('ngày trước') ||
       lower.includes('giờ trước') ||
@@ -211,7 +200,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-600/30 transition-all transform hover:scale-105 active:scale-95"
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-600/30 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
       >
         <Bot className="w-5 h-5 animate-pulse" />
         <span className="text-xs font-bold hidden sm:inline">Hỏi Trợ Lý AI</span>
@@ -223,19 +212,19 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
 
       {/* Floating Chatbot Window */}
       {isOpen && (
-        <div className="fixed bottom-16 sm:bottom-20 left-2 right-2 sm:left-auto sm:right-5 z-50 sm:w-[420px] max-w-[calc(100vw-16px)] h-[560px] max-h-[82vh] rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-slate-100">
+        <div className="fixed bottom-16 sm:bottom-20 left-2 right-2 sm:left-auto sm:right-5 z-50 sm:w-[420px] max-w-[calc(100vw-16px)] h-[560px] max-h-[82vh] rounded-2xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-slate-800">
           {/* Header */}
-          <div className="p-3.5 border-b border-slate-800 bg-slate-950/90 flex items-center justify-between">
+          <div className="p-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
+              <div className="p-1.5 rounded-lg bg-sky-100 text-sky-700 border border-sky-200">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                   <span>Trợ Lý Sức Khỏe AI & Truy Xuất Dữ Liệu</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 </h3>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-slate-500">
                   {role === 'manager' ? 'Chế độ Quản Trị Viên (Admin)' : 'Chế độ Người Dùng Cá Nhân (User)'} • Raspberry Pi 4
                 </p>
               </div>
@@ -253,13 +242,13 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                   ]);
                 }}
                 title="Làm mới hội thoại"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition text-xs"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition text-xs cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -267,35 +256,37 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           </div>
 
           {/* Quick Info bar */}
-          <div className="px-3 py-1.5 bg-slate-950/60 border-b border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-mono">
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3 text-sky-400" />
+              <Clock className="w-3 h-3 text-sky-600" />
               Truy xuất dữ liệu: 1h, 3 ngày, hôm qua...
             </span>
-            <span className="text-emerald-400 font-semibold">Ready</span>
+            <span className="text-emerald-600 font-bold">Ready</span>
           </div>
 
           {/* Messages list */}
-          <div className="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs">
+          <div className="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs bg-white">
             {messages.map(m => (
               <div
                 key={m.id}
                 className={`flex gap-2.5 ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {m.sender === 'bot' && (
-                  <div className="w-6 h-6 rounded-full bg-sky-600/30 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30 mt-0.5">
+                  <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200 mt-0.5">
                     <Bot className="w-3.5 h-3.5" />
                   </div>
                 )}
                 <div
                   className={`max-w-[85%] p-3 rounded-xl leading-relaxed whitespace-pre-line ${
                     m.sender === 'user'
-                      ? 'bg-sky-600 text-white rounded-br-none shadow-sm'
-                      : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-bl-none'
+                      ? 'bg-sky-600 text-white rounded-br-none shadow-xs font-medium'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
                   }`}
                 >
                   <p>{m.text}</p>
-                  <span className="block text-[9px] text-slate-500 mt-1 text-right font-mono">
+                  <span className={`block text-[9px] mt-1 text-right font-mono ${
+                    m.sender === 'user' ? 'text-sky-100' : 'text-slate-400'
+                  }`}>
                     {m.time}
                   </span>
                 </div>
@@ -304,13 +295,13 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
 
             {isTyping && (
               <div className="flex gap-2.5 justify-start items-center">
-                <div className="w-6 h-6 rounded-full bg-sky-600/30 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
+                <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 text-xs flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-bounce"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-bounce delay-100"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-bounce delay-200"></span>
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce delay-100"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce delay-200"></span>
                   <span className="text-[11px] ml-1">Đang tra cứu dữ liệu...</span>
                 </div>
               </div>
@@ -320,9 +311,9 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           </div>
 
           {/* Quick prompts */}
-          <div className="px-3 py-2 bg-slate-950/70 border-t border-slate-800/80 space-y-1">
-            <div className="text-[10px] text-slate-400 flex items-center gap-1">
-              <HelpCircle className="w-3 h-3 text-indigo-400" />
+          <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 space-y-1">
+            <div className="text-[10px] text-slate-500 flex items-center gap-1">
+              <HelpCircle className="w-3 h-3 text-indigo-600" />
               <span>Gợi ý câu hỏi nhanh:</span>
             </div>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
@@ -330,7 +321,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                 <button
                   key={i}
                   onClick={() => handleSend(q)}
-                  className="whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] bg-slate-800/90 hover:bg-slate-700 text-slate-300 transition shrink-0 border border-slate-700/80 hover:border-sky-500/50"
+                  className="whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] bg-white hover:bg-slate-100 text-slate-700 transition shrink-0 border border-slate-200 hover:border-sky-500 cursor-pointer shadow-2xs font-medium"
                 >
                   {q}
                 </button>
@@ -344,19 +335,19 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="p-3 border-t border-slate-800 bg-slate-950 flex items-center gap-2"
+            className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
           >
             <input
               type="text"
               placeholder="VD: Nhịp tim của tôi 3 ngày trước thế nào?"
               value={input}
               onChange={e => setInput(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+              className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition"
             />
             <button
               type="submit"
               disabled={!input.trim()}
-              className="p-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-500 transition disabled:opacity-40 shadow-sm"
+              className="p-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-500 transition disabled:opacity-40 shadow-xs cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
             </button>

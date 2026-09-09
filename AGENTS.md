@@ -1,24 +1,24 @@
-# UI/UX Pro Max Design System & Intelligence Specification
+# UI/UX Pro Max Design System & Intelligence Specification (Light Theme Edition)
 
-This project follows the **UI/UX Pro Max** design intelligence system, adapted for a real-time Medical & Health IoT Telemetry Dashboard connected to Raspberry Pi 4 and Firebase.
+This project follows the **UI/UX Pro Max** design intelligence system, adapted for a real-time Medical & Health IoT Telemetry Dashboard connected to Raspberry Pi 4 and Firebase, running in **Full Light Mode (Giao diện sáng)**.
 
 ---
 
-## 1. Core Archetype & Design Tokens
+## 1. Core Archetype & Design Tokens (Light Mode)
 
 - **Domain**: Real-time Health IoT, Ergonomic Posture Monitoring & Biometric Telemetry Dashboard.
-- **Visual Aesthetic**: Refined Deep Slate Command Center with optical contrast, mathematical padding, and zero visual clutter (anti-slop).
+- **Visual Aesthetic**: Refined Modern Clinical & Executive Light Command Center with optical contrast, mathematical padding, and zero visual clutter (anti-slop).
 - **Surface Elevation Scale**:
-  - `Canvas (L0)`: `#020617` (`bg-slate-950`)
-  - `Card Surface (L1)`: `#0f172a` (`bg-slate-900`) with `border border-slate-800/80`
-  - `Elevated Surface (L2)`: `#1e293b` (`bg-slate-850` / `bg-slate-800/60`) with `border border-slate-700/60`
-  - `Interactive / Hover`: `hover:bg-slate-800 hover:border-slate-700`
-- **Functional Semantic Accents**:
-  - **Healthy / Optimal / Safe**: Emerald (`emerald-400`, `emerald-500`, `bg-emerald-500/15`, `border-emerald-500/30`)
-  - **Live Connectivity / Sync**: Sky (`sky-400`, `sky-500`, `bg-sky-500/15`, `border-sky-500/30`)
-  - **Warning / Stale / Attention**: Amber (`amber-400`, `amber-500`, `bg-amber-500/15`, `border-amber-500/30`)
-  - **Danger / Critical / Incorrect Posture**: Rose (`rose-400`, `rose-500`, `bg-rose-500/15`, `border-rose-500/30`)
-  - **Inactive / Off**: Slate (`slate-400`, `slate-500`, `bg-slate-800/40`)
+  - `Canvas (L0)`: `#f8fafc` (`bg-slate-50` / `bg-neutral-50`)
+  - `Card Surface (L1)`: `#ffffff` (`bg-white`) with `border border-slate-200/90 shadow-sm`
+  - `Elevated Surface (L2)`: `#f1f5f9` (`bg-slate-100`) with `border border-slate-300/80`
+  - `Interactive / Hover`: `hover:bg-slate-100/80 hover:border-slate-300`
+- **Functional Semantic Accents (Light Mode High Contrast)**:
+  - **Healthy / Optimal / Safe**: Emerald (`emerald-600`, `text-emerald-700`, `bg-emerald-50`, `border-emerald-200`)
+  - **Live Connectivity / Sync**: Sky (`sky-600`, `text-sky-700`, `bg-sky-50`, `border-sky-200`)
+  - **Warning / Stale / Attention**: Amber (`amber-600`, `text-amber-800`, `bg-amber-50`, `border-amber-200`)
+  - **Danger / Critical / Incorrect Posture**: Rose (`rose-600`, `text-rose-700`, `bg-rose-50`, `border-rose-200`)
+  - **Inactive / Off**: Slate (`text-slate-600`, `bg-slate-100`, `border-slate-200`)
 
 ---
 
@@ -27,9 +27,9 @@ This project follows the **UI/UX Pro Max** design intelligence system, adapted f
 - **Primary Font**: `Plus Jakarta Sans`, system sans-serif fallback
 - **Monospace Font**: `JetBrains Mono` for BPM, SpO2 percentages, timestamps, and coordinates
 - **Type Scale**:
-  - **Display / Key Stat Numbers**: `text-2xl sm:text-3xl font-extrabold tracking-tight font-mono`
-  - **Card Headers / Section Titles**: `text-sm sm:text-base font-bold tracking-tight text-white`
-  - **Body / Descriptive**: `text-xs sm:text-sm text-slate-300 leading-relaxed`
+  - **Display / Key Stat Numbers**: `text-2xl sm:text-3xl font-extrabold tracking-tight font-mono text-slate-900`
+  - **Card Headers / Section Titles**: `text-sm sm:text-base font-bold tracking-tight text-slate-900`
+  - **Body / Descriptive**: `text-xs sm:text-sm text-slate-600 leading-relaxed`
   - **Micro / Badges / Meta**: `text-[10px] sm:text-xs font-semibold uppercase tracking-wider`
 - **Label Integrity**:
   - Text inside buttons, chips, status pills, or metric badges **MUST sit on one line** with `whitespace-nowrap`.
@@ -59,4 +59,4 @@ This project follows the **UI/UX Pro Max** design intelligence system, adapted f
 2. **No Arbitrary Purple/Cyan Gradients**: Use purposeful semantic colors tied to medical states.
 3. **No Nested Card Clutter**: Flatten depth using crisp 1px borders, subtle dividers, and proportional padding instead of card-inside-card syndrome.
 4. **No Horizontal Viewport Overflow**: Ensure zero horizontal scroll on mobile devices (`320px` to `428px` phone widths).
-5. **Legibility & WCAG AA**: All text against dark surfaces must meet $\ge 4.5:1$ contrast ratio. Never place dim gray text on colored backgrounds.
+5. **Legibility & WCAG AA**: All text against light surfaces must meet $\ge 4.5:1$ contrast ratio. Never place faint light-gray text on white backgrounds.

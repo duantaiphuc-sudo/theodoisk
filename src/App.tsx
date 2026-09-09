@@ -606,7 +606,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <Header
         currentUser={currentUser}
@@ -628,44 +628,44 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 overflow-hidden">
         {/* Success clear notification */}
         {clearNotice && (
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-md">
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs shadow-xs">
+            <span className="flex items-center gap-2 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               {clearNotice}
             </span>
-            <button onClick={() => setClearNotice(null)} className="text-emerald-400 hover:text-white font-bold ml-2">✕</button>
+            <button onClick={() => setClearNotice(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2">✕</button>
           </div>
         )}
 
         {/* Banner when Firebase has data from previous sessions or stale data */}
         {hasReceivedData && !isSimulating && (
-          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs shadow-md transition-all ${
+          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs shadow-xs transition-all ${
             telemetry.isStale
-              ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
-              : 'bg-slate-900/80 border-slate-800 text-slate-300'
+              ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+              : 'bg-white border-slate-200 text-slate-800'
           }`}>
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                 telemetry.isStale 
-                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                  : 'bg-sky-500/20 text-sky-400 border-sky-500/30'
+                  ? 'bg-amber-100 text-amber-700 border-amber-300'
+                  : 'bg-sky-50 text-sky-600 border-sky-200'
               }`}>
-                {telemetry.isStale ? <AlertTriangle className="w-4 h-4 text-amber-400" /> : <Radio className="w-4 h-4 text-sky-400 animate-pulse" />}
+                {telemetry.isStale ? <AlertTriangle className="w-4 h-4 text-amber-600" /> : <Radio className="w-4 h-4 text-sky-600 animate-pulse" />}
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-white text-xs sm:text-sm">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
                     {telemetry.isStale ? 'Bản Ghi Lưu Trên Firebase' : 'Dữ Liệu Trực Tuyến Từ Firebase'}
                   </span>
                   <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
                     telemetry.isStale
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                   }`}>
                     {telemetry.isStale ? '⚠️ Bản ghi cũ (Pi 4 Offline)' : 'Trực tuyến'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {telemetry.isStale
                     ? `Dữ liệu (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi trước đó từ devices/${firebaseConfig.documentId || 'pi4_node_1'}. Bấm nút bên cạnh để đưa màn hình về trạng thái chờ rỗng (--).`
                     : `Đồng bộ từ document "${firebaseConfig.documentId || 'pi4_node_1'}". Cập nhật lúc ${lastUpdate}.`}
@@ -678,7 +678,7 @@ export default function App() {
                   onClick={handleClearFirebaseData}
                   disabled={isClearingFirebase}
                   title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
-                  className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-rose-600/90 hover:bg-rose-500 text-white transition shadow-sm flex items-center gap-1.5 text-xs"
+                  className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-rose-600 hover:bg-rose-700 text-white transition shadow-xs flex items-center gap-1.5 text-xs cursor-pointer"
                 >
                   <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
                   <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
@@ -690,16 +690,16 @@ export default function App() {
 
         {/* Empty data notification bar when no packet has arrived yet */}
         {!hasReceivedData && !isSimulating && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-xl bg-slate-900/80 border border-sky-500/30 text-sky-200 text-xs shadow-md">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-xl bg-white border border-sky-200 text-slate-800 text-xs shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
-                <Radio className="w-4 h-4 animate-pulse text-sky-400" />
+              <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200">
+                <Radio className="w-4 h-4 animate-pulse text-sky-600" />
               </div>
               <div>
-                <span className="font-bold text-white block text-xs sm:text-sm">
+                <span className="font-bold text-slate-900 block text-xs sm:text-sm">
                   Đang chờ luồng dữ liệu từ Raspberry Pi 4 (Collection: devices • Doc: {firebaseConfig.documentId || 'pi4_node_1'})
                 </span>
-                <span className="text-slate-400 text-[11px]">
+                <span className="text-slate-500 text-[11px]">
                   Màn hình đang ở chế độ chờ sạch sẽ. Khi có dữ liệu gửi lên từ cảm biến, các chỉ số sẽ tự động cập nhật ngay tức thì.
                 </span>
               </div>
@@ -707,7 +707,7 @@ export default function App() {
             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <button
                 onClick={() => setIsSimulating(true)}
-                className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm text-xs"
+                className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-700 text-white transition shadow-xs text-xs cursor-pointer"
               >
                 Bật Giả Lập Thử Nghiệm
               </button>
@@ -717,16 +717,16 @@ export default function App() {
 
         {/* Notification bar if simulation is active */}
         {isSimulating && (
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
+              <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
               <span>
                 <b>Chế độ mô phỏng đang bật:</b> Đang tạo dữ liệu nhịp tim và tư thế tự động để bạn kiểm thử toàn bộ giao diện và âm thanh cảnh báo.
               </span>
             </div>
             <button
               onClick={() => setIsSimulating(false)}
-              className="underline font-semibold hover:text-white ml-2"
+              className="underline font-semibold hover:text-amber-950 ml-2 cursor-pointer"
             >
               Chuyển về lắng nghe Firebase thực tế
             </button>
@@ -788,28 +788,28 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-4 sm:py-5 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white py-4 sm:py-5 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
           {isManager ? (
-            <div className="flex items-center gap-3 text-slate-400">
-              <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-400 transition">
+            <div className="flex items-center gap-3 text-slate-600">
+              <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-600 transition">
                 Cấu hình Firebase
               </button>
               <span>•</span>
-              <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-400 transition">
+              <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-600 transition">
                 Hướng dẫn Pi 4
               </button>
               <span>•</span>
-              <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-400 transition">
+              <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-600 transition">
                 Ngưỡng đo cảnh báo
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-slate-400 text-xs">
-              <span>Tài khoản: <b>{currentUser.fullName}</b> (Nhân viên)</span>
+            <div className="flex items-center gap-2 text-slate-600 text-xs">
+              <span>Tài khoản: <b className="text-slate-900">{currentUser.fullName}</b> (Nhân viên)</span>
               <span>•</span>
-              <button onClick={handleLogout} className="text-sky-400 hover:underline">
+              <button onClick={handleLogout} className="text-sky-600 hover:underline">
                 Đăng xuất
               </button>
             </div>

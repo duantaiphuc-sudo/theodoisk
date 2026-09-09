@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Cpu, Copy, Check, Terminal, FileCode, CheckCircle2, ChevronRight } from 'lucide-react';
+import { X, Cpu, Copy, Check, Terminal, FileCode } from 'lucide-react';
 
 interface RaspberryPiGuideModalProps {
   isOpen: boolean;
@@ -101,7 +101,6 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # 1. Khởi tạo Firebase Admin SDK
-# Tải file ServiceAccountKey.json từ Firebase Console -> Project Settings -> Service Accounts
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred, {
     'projectId': '${projectId || 'theodoisk-66ddb'}'
@@ -112,13 +111,9 @@ db = firestore.client()
 print("🚀 Đang chạy bộ đẩy dữ liệu từ Raspberry Pi 4 lên Firebase '${projectId || 'theodoisk-66ddb'}'...")
 
 def read_max30102():
-    # Giả lập đọc hoặc thay bằng thư viện max30102 (I2C)
-    # import max30102
     return 74, 98.4  # bpm, spo2
 
 def detect_posture_mediapipe():
-    # 0: Đúng, 1: Sai, 2: Vắng, 3: Sai lâu, 4: Ngồi lâu
-    # Đọc từ Camera Raspberry Pi qua OpenCV / MediaPipe
     return 0, True, True  # posture_status, in_zone, tracking_active
 
 try:
@@ -143,8 +138,6 @@ try:
         doc_ref = db.collection("theodoisk").document("live")
         doc_ref.set(payload)
 
-        # ⭐️ Tự động lưu lịch sử vĩnh viễn vào collection 'theodoisk_history'
-        # Lưu khi có cảnh báo sai tư thế/nhịp tim hoặc định kỳ 30 giây
         current_time = time.time()
         if posture_status in [1, 3] or int(bpm) > 100 or (current_time - last_history_save > 30):
             db.collection("theodoisk_history").document(f"rec_{int(current_time*1000)}").set(payload)
@@ -152,7 +145,7 @@ try:
             print(f"   💾 Đã lưu 1 bản ghi vào lịch sử Firestore 'theodoisk_history'!")
 
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Đã gửi: BPM={bpm}, SpO2={spo2}%, Posture={posture_status}")
-        time.sleep(1.5)  # Cập nhật mỗi 1.5 - 2 giây
+        time.sleep(1.5)
 
 except KeyboardInterrupt:
     print("\\n🛑 Dừng chương trình Raspberry Pi 4.")
@@ -167,7 +160,6 @@ import json
 import time
 from datetime import datetime
 
-# URL Firebase Realtime Database của bạn
 DATABASE_URL = "https://${projectId || 'theodoisk-66ddb'}-default-rtdb.firebaseio.com/theodoisk.json"
 
 print("📡 Đang gửi dữ liệu từ Raspberry Pi 4 qua REST API...")
@@ -176,7 +168,7 @@ while True:
     data = {
         "bpm": 76,
         "spo2": 98.5,
-        "posture_status": 0,    # 0: Đúng, 1: Sai, 2: Vắng, 3: Sai lâu, 4: Ngồi lâu
+        "posture_status": 0,
         "tracking_active": True,
         "in_zone": True,
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -200,65 +192,65 @@ while True:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl text-slate-100 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-800 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-900">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
               <Cpu className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Hướng Dẫn Kết Nối Raspberry Pi 4 & Firebase</h3>
-              <p className="text-xs text-slate-400">Cách cài đặt code Python đẩy dữ liệu lên dự án <span className="text-sky-400 font-mono">{projectId || 'theodoisk'}</span></p>
+              <h3 className="text-base font-bold text-slate-900">Hướng Dẫn Kết Nối Raspberry Pi 4 & Firebase</h3>
+              <p className="text-xs text-slate-500">Cách cài đặt code Python đẩy dữ liệu lên dự án <span className="text-sky-700 font-mono font-bold">{projectId || 'theodoisk'}</span></p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab navigation */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 px-5 pt-3 gap-2 overflow-x-auto">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-5 pt-3 gap-2 overflow-x-auto">
           <button
             onClick={() => setActiveTab('camera')}
-            className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'camera'
-                ? 'border-sky-400 text-sky-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             📷 Truyền ảnh Camera (OpenCV)
           </button>
           <button
             onClick={() => setActiveTab('firestore')}
-            className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'firestore'
-                ? 'border-sky-400 text-sky-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Python (Firestore Cơ Bản)
           </button>
           <button
             onClick={() => setActiveTab('rtdb')}
-            className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'rtdb'
-                ? 'border-sky-400 text-sky-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Python (Realtime DB)
           </button>
           <button
             onClick={() => setActiveTab('wiring')}
-            className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'wiring'
-                ? 'border-sky-400 text-sky-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Sơ đồ đấu dây cảm biến
@@ -269,39 +261,39 @@ while True:
         <div className="p-5 overflow-y-auto space-y-4 text-xs">
           {activeTab === 'camera' && (
             <>
-              <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-800/50 text-sky-200 leading-relaxed">
-                <div className="font-semibold text-sky-300 mb-1 flex items-center gap-1.5">
+              <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-slate-700 leading-relaxed">
+                <div className="font-bold text-sky-800 mb-1 flex items-center gap-1.5">
                   <Terminal className="w-4 h-4" /> Cách truyền hình ảnh trực tiếp từ Raspberry Pi 4 lên Web:
                 </div>
-                <p className="text-slate-300 mt-1">
+                <p className="text-slate-600 mt-1">
                   1. Camera Pi 4 chụp khung hình bằng <b>OpenCV</b>.
                   <br />
-                  2. Resize ảnh về kích thước nhỏ <code className="text-amber-300 font-mono">320x240</code> và nén JPEG chất lượng 50% (Dung lượng mỗi ảnh chỉ <b>~10KB - 15KB</b>, gửi mượt mà qua mạng Internet mà không tốn băng thông).
+                  2. Resize ảnh về kích thước nhỏ <code className="text-amber-800 bg-white px-1 rounded font-mono font-bold">320x240</code> và nén JPEG chất lượng 50% (Dung lượng mỗi ảnh chỉ <b>~10KB - 15KB</b>, gửi mượt mà qua mạng Internet mà không tốn băng thông).
                   <br />
-                  3. Mã hóa chuỗi Base64 và đặt vào trường <code className="text-emerald-400 font-mono">"image"</code> trong tài liệu Firestore <code className="text-sky-300 font-mono">devices/pi4_node_1</code>.
+                  3. Mã hóa chuỗi Base64 và đặt vào trường <code className="text-emerald-700 bg-white px-1 rounded font-mono font-bold">"image"</code> trong tài liệu Firestore <code className="text-sky-700 bg-white px-1 rounded font-mono font-bold">devices/pi4_node_1</code>.
                   <br />
                   4. Giao diện Web tự động bắt sự kiện và hiển thị ảnh trực tiếp theo thời gian thực!
                 </p>
-                <div className="mt-2 font-mono text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-emerald-400">
+                <div className="mt-2 font-mono text-[11px] bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 text-emerald-400">
                   pip install firebase-admin opencv-python
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <FileCode className="w-4 h-4 text-sky-400" />
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileCode className="w-4 h-4 text-sky-600" />
                     Mã nguồn Python gửi Ảnh Camera & Cảm biến (send_camera_telemetry.py):
                   </span>
                   <button
                     onClick={() => handleCopy(pythonCameraCode)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center gap-1 text-[11px] transition"
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 text-[11px] transition border border-slate-200 cursor-pointer font-medium"
                   >
-                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedScript ? 'Đã sao chép' : 'Sao chép mã'}</span>
                   </button>
                 </div>
-                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto max-h-[340px] leading-relaxed">
+                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-200 overflow-x-auto max-h-[340px] leading-relaxed">
                   {pythonCameraCode}
                 </pre>
               </div>
@@ -310,33 +302,33 @@ while True:
 
           {activeTab === 'firestore' && (
             <>
-              <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-800/50 text-sky-200 leading-relaxed">
-                <div className="font-semibold text-sky-300 mb-1 flex items-center gap-1.5">
+              <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-slate-700 leading-relaxed">
+                <div className="font-bold text-sky-800 mb-1 flex items-center gap-1.5">
                   <Terminal className="w-4 h-4" /> 1. Cài đặt thư viện trên Raspberry Pi 4:
                 </div>
-                <code className="block bg-slate-950 px-3 py-1.5 rounded-lg text-emerald-400 font-mono text-[11px] my-1 border border-slate-800">
+                <code className="block bg-slate-900 px-3 py-1.5 rounded-lg text-emerald-400 font-mono text-[11px] my-1 border border-slate-800">
                   pip install firebase-admin opencv-python mediapipe
                 </code>
                 <span>
-                  Lấy file key từ <b>Firebase Console → Project Settings → Service Accounts → Generate new private key</b> và lưu tên là <code className="text-amber-300">serviceAccountKey.json</code> cùng thư mục với file script.
+                  Lấy file key từ <b>Firebase Console → Project Settings → Service Accounts → Generate new private key</b> và lưu tên là <code className="text-amber-800 bg-white px-1 rounded font-mono font-bold">serviceAccountKey.json</code> cùng thư mục với file script.
                 </span>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <FileCode className="w-4 h-4 text-sky-400" />
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileCode className="w-4 h-4 text-sky-600" />
                     Mã nguồn Python cho Raspberry Pi 4 (rpi_publisher.py):
                   </span>
                   <button
                     onClick={() => handleCopy(pythonFirestoreCode)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition cursor-pointer font-medium"
                   >
-                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedScript ? 'Đã sao chép' : 'Sao chép mã'}</span>
                   </button>
                 </div>
-                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-[280px]">
+                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-[280px]">
                   {pythonFirestoreCode}
                 </pre>
               </div>
@@ -345,24 +337,24 @@ while True:
 
           {activeTab === 'rtdb' && (
             <>
-              <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-800/50 text-sky-200">
+              <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-slate-700">
                 <p>
-                  Cách dùng REST API đơn giản nhất: Không cần cài thư viện phức tạp, chỉ cần lệnh <code className="text-emerald-400">requests.put</code> là dữ liệu nhảy thẳng lên web!
+                  Cách dùng REST API đơn giản nhất: Không cần cài thư viện phức tạp, chỉ cần lệnh <code className="text-emerald-700 bg-white px-1 rounded font-mono font-bold">requests.put</code> là dữ liệu nhảy thẳng lên web!
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-slate-300">Mã Python REST API:</span>
+                  <span className="font-bold text-slate-800">Mã Python REST API:</span>
                   <button
                     onClick={() => handleCopy(pythonRtdbCode)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition cursor-pointer font-medium"
                   >
-                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedScript ? 'Đã sao chép' : 'Sao chép mã'}</span>
                   </button>
                 </div>
-                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-[280px]">
+                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-[280px]">
                   {pythonRtdbCode}
                 </pre>
               </div>
@@ -371,31 +363,31 @@ while True:
 
           {activeTab === 'wiring' && (
             <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <h4 className="font-bold text-sky-400 text-sm">Sơ đồ nối chân Cảm biến MAX30102 với Raspberry Pi 4:</h4>
-                <div className="grid grid-cols-2 gap-2 text-slate-300 font-mono text-[11px]">
-                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
-                    <span className="text-amber-400 font-bold">VIN (VCC)</span> → Chân Pin 1 (3.3V)
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <h4 className="font-bold text-sky-800 text-sm">Sơ đồ nối chân Cảm biến MAX30102 với Raspberry Pi 4:</h4>
+                <div className="grid grid-cols-2 gap-2 text-slate-700 font-mono text-[11px]">
+                  <div className="p-2 rounded bg-white border border-slate-200">
+                    <span className="text-amber-700 font-bold">VIN (VCC)</span> → Chân Pin 1 (3.3V)
                   </div>
-                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
-                    <span className="text-slate-400 font-bold">GND</span> → Chân Pin 6 hoặc Pin 9 (GND)
+                  <div className="p-2 rounded bg-white border border-slate-200">
+                    <span className="text-slate-600 font-bold">GND</span> → Chân Pin 6 hoặc Pin 9 (GND)
                   </div>
-                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
-                    <span className="text-sky-400 font-bold">SDA</span> → Chân Pin 3 (GPIO 2 - I2C1 SDA)
+                  <div className="p-2 rounded bg-white border border-slate-200">
+                    <span className="text-sky-700 font-bold">SDA</span> → Chân Pin 3 (GPIO 2 - I2C1 SDA)
                   </div>
-                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
-                    <span className="text-emerald-400 font-bold">SCL</span> → Chân Pin 5 (GPIO 3 - I2C1 SCL)
+                  <div className="p-2 rounded bg-white border border-slate-200">
+                    <span className="text-emerald-700 font-bold">SCL</span> → Chân Pin 5 (GPIO 3 - I2C1 SCL)
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-400 pt-1">
-                  💡 Nhớ bật giao tiếp I2C trên Raspberry Pi bằng lệnh: <code className="text-amber-300 font-mono">sudo raspi-config → Interface Options → I2C → Enable</code>
+                <p className="text-[11px] text-slate-500 pt-1">
+                  💡 Nhớ bật giao tiếp I2C trên Raspberry Pi bằng lệnh: <code className="text-amber-800 bg-white px-1 rounded font-mono font-bold">sudo raspi-config → Interface Options → I2C → Enable</code>
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <h4 className="font-bold text-sky-400 text-sm">Camera Raspberry Pi hoặc ESP32-CAM:</h4>
-                <p className="text-slate-300">
-                  Cắm camera vào cổng CSI trên Raspberry Pi 4. Sử dụng MediaPipe Pose Landmarks để tính góc nghiêng giữa mũi, tai, vai và thắt lưng. Khi góc cúi quá 30°, gán mã tư thế là <code className="text-rose-400 font-mono font-bold">1 (Tư thế Sai)</code>.
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <h4 className="font-bold text-sky-800 text-sm">Camera Raspberry Pi hoặc ESP32-CAM:</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  Cắm camera vào cổng CSI trên Raspberry Pi 4. Sử dụng MediaPipe Pose Landmarks để tính góc nghiêng giữa mũi, tai, vai và thắt lưng. Khi góc cúi quá 30°, gán mã tư thế là <code className="text-rose-700 bg-white px-1 rounded font-mono font-bold">1 (Tư thế Sai)</code>.
                 </p>
               </div>
             </div>
@@ -403,10 +395,10 @@ while True:
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-end">
+        <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm"
+            className="px-4 py-2 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
           >
             Đã Hiểu
           </button>
