@@ -13,11 +13,11 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDatabase, ref, onValue, set, get, remove } from 'firebase/database';
-import { FirebaseConnectionConfig, HealthTelemetry, TelemetryLog } from '../types';
+import { FirebaseConnectionConfig, HealthTelemetry, TelemetryLog, UserTaskNotification, TaskStatus } from '../types';
 
 export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
   projectId: 'theodoisk-66ddb',
-  apiKey: 'AIzaSyAYVIfVEKOAtjGUcYfjib1WU2GjzhzXZpQ',
+  apiKey: 'AIzaSyAYVIfVEKOAtjGUcYfjib1WU2GjzHzXZpQ',
   databaseURL: 'https://theodoisk-66ddb-default-rtdb.firebaseio.com',
   collectionName: 'theodoisk',
   documentId: 'live',
@@ -66,7 +66,8 @@ export function initializeFirebaseApp(config: FirebaseConnectionConfig) {
   const found = existingApps.find(a => a.name === appName);
 
   const effectiveProjectId = config.projectId || 'theodoisk-66ddb';
-  const effectiveApiKey = config.apiKey || 'AIzaSyAYVIfVEKOAtjGUcYfjib1WU2GjzhzXZpQ';
+  const effectiveApiKey = config.apiKey || 'AIzaSyAYVIfVEKOAtjGUcYfjib1WU2GjzHzXZpQ';
+  const appId = '1:591309225754:web:b4c57256f26247781b76a3';
 
   if (found) {
     // If config has changed (e.g. user provided real API key), re-initialize
@@ -76,6 +77,8 @@ export function initializeFirebaseApp(config: FirebaseConnectionConfig) {
         projectId: effectiveProjectId,
         apiKey: effectiveApiKey,
         authDomain: `${effectiveProjectId}.firebaseapp.com`,
+        appId: appId,
+        storageBucket: `${effectiveProjectId}.firebasestorage.app`,
       }, appName);
     }
     return found;
@@ -85,6 +88,8 @@ export function initializeFirebaseApp(config: FirebaseConnectionConfig) {
     projectId: effectiveProjectId,
     apiKey: effectiveApiKey,
     authDomain: `${effectiveProjectId}.firebaseapp.com`,
+    appId: appId,
+    storageBucket: `${effectiveProjectId}.firebasestorage.app`,
   };
   if (config.databaseURL) {
     firebaseOptions.databaseURL = config.databaseURL;
@@ -445,11 +450,27 @@ export function normalizeHistoryLog(docId: string, raw: any): TelemetryLog {
   }
 
   let timeFormatted = raw.time_formatted || raw.timeFormatted;
-  if (!timeFormatted && timestamp) {
+  let dateFormatted = raw.date_formatted || raw.dateFormatted;
+  let dateTimeFormatted = raw.datetime_formatted || raw.dateTimeFormatted;
+
+  if (timestamp) {
     try {
-      timeFormatted = new Date(timestamp).toLocaleTimeString('vi-VN');
+      const d = new Date(timestamp);
+      if (!isNaN(d.getTime())) {
+        if (!timeFormatted) {
+          timeFormatted = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        if (!dateFormatted) {
+          dateFormatted = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+        if (!dateTimeFormatted) {
+          dateTimeFormatted = `${dateFormatted} ${timeFormatted}`;
+        }
+      }
     } catch {
-      timeFormatted = '--:--:--';
+      timeFormatted = timeFormatted || '--:--:--';
+      dateFormatted = dateFormatted || '--/--/----';
+      dateTimeFormatted = dateTimeFormatted || '--';
     }
   }
 
@@ -457,6 +478,8 @@ export function normalizeHistoryLog(docId: string, raw: any): TelemetryLog {
     id: docId || raw.id || `rec-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     timestamp: String(timestamp),
     timeFormatted: timeFormatted || new Date().toLocaleTimeString('vi-VN'),
+    dateFormatted: dateFormatted || new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    dateTimeFormatted: dateTimeFormatted || `${dateFormatted || ''} ${timeFormatted || ''}`.trim(),
     bpm: Math.round(bpm),
     spo2: Number(spo2.toFixed(1)),
     postureStatus,
@@ -477,13 +500,23 @@ export async function saveTelemetryHistoryToFirebase(
   try {
     const app = initializeFirebaseApp(config);
     const histColName = getHistoryCollectionName(config);
-    const timestampMs = new Date(entry.timestamp).getTime() || Date.now();
+    const now = new Date();
+    const timestampMs = Date.now();
     const docId = `rec_${timestampMs}_${Math.random().toString(36).substr(2, 5)}`;
+
+    const parsedD = entry.timestamp ? new Date(entry.timestamp) : now;
+    const validD = isNaN(parsedD.getTime()) ? now : parsedD;
+    const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateYMD = validD.toISOString().split('T')[0];
 
     const payload = {
       id: docId,
-      timestamp: entry.timestamp || new Date().toISOString(),
-      time_formatted: entry.timeFormatted,
+      timestamp: validD.toISOString(),
+      date: dateYMD,
+      date_formatted: dateFormatted,
+      time_formatted: timeFormatted,
+      datetime_formatted: `${dateFormatted} ${timeFormatted}`,
       bpm: entry.bpm,
       spo2: entry.spo2,
       posture_status: entry.postureStatus,
@@ -491,7 +524,7 @@ export async function saveTelemetryHistoryToFirebase(
       tracking_active: entry.trackingActive,
       has_alert: entry.hasAlert,
       alert_type: entry.alertType || '',
-      created_at: new Date().toISOString(),
+      created_at: now.toISOString(),
       device: 'Raspberry Pi 4 / Monitor Node'
     };
 
@@ -499,13 +532,175 @@ export async function saveTelemetryHistoryToFirebase(
       const rtdb = getDatabase(app);
       const histRef = ref(rtdb, `${histColName}/${docId}`);
       await set(histRef, payload);
+      // Also write to theodoisk_history if different
+      if (histColName !== 'theodoisk_history') {
+        const theodoiskHistRef = ref(rtdb, `theodoisk_history/${docId}`);
+        await set(theodoiskHistRef, payload);
+      }
     } else {
       const db = getFirestore(app);
       const docRef = doc(db, histColName, docId);
       await setDoc(docRef, payload, { merge: true });
+      // Always also save to theodoisk_history collection so users viewing theodoisk_history in Firebase Console see all records
+      if (histColName !== 'theodoisk_history') {
+        const primaryDocRef = doc(db, 'theodoisk_history', docId);
+        await setDoc(primaryDocRef, payload, { merge: true });
+      }
     }
   } catch (error) {
     console.warn('Lỗi ghi bản ghi lịch sử lên Firebase:', error);
+  }
+}
+
+/**
+ * Batch upload multiple historical telemetry logs to Firebase Firestore / RTDB.
+ * Ensures that all recorded local data points (e.g. 136 data points) are saved to Firebase.
+ */
+export async function batchSaveTelemetryHistoryToFirebase(
+  config: FirebaseConnectionConfig,
+  entries: TelemetryLog[]
+): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!entries || entries.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  try {
+    const app = initializeFirebaseApp(config);
+    const histColName = getHistoryCollectionName(config);
+    const now = new Date();
+
+    if (config.useRealtimeDb && config.databaseURL) {
+      const rtdb = getDatabase(app);
+      let count = 0;
+      for (const entry of entries.slice(0, 150)) {
+        const parsedD = entry.timestamp ? new Date(entry.timestamp) : now;
+        const validD = isNaN(parsedD.getTime()) ? now : parsedD;
+        const docId = entry.id && entry.id.startsWith('rec_') 
+          ? entry.id 
+          : `rec_${validD.getTime()}_${Math.random().toString(36).substr(2, 5)}`;
+        const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const payload = {
+          id: docId,
+          timestamp: validD.toISOString(),
+          date: validD.toISOString().split('T')[0],
+          date_formatted: dateFormatted,
+          time_formatted: timeFormatted,
+          datetime_formatted: `${dateFormatted} ${timeFormatted}`,
+          bpm: entry.bpm,
+          spo2: entry.spo2,
+          posture_status: entry.postureStatus,
+          posture_label: entry.postureLabel,
+          tracking_active: entry.trackingActive,
+          has_alert: entry.hasAlert,
+          alert_type: entry.alertType || '',
+          created_at: now.toISOString(),
+          device: 'Raspberry Pi 4 / Monitor Node'
+        };
+        await set(ref(rtdb, `${histColName}/${docId}`), payload);
+        if (histColName !== 'theodoisk_history') {
+          await set(ref(rtdb, `theodoisk_history/${docId}`), payload);
+        }
+        count++;
+      }
+      return { success: true, count };
+    } else {
+      const db = getFirestore(app);
+      let totalSynced = 0;
+
+      // Strategy: Try batch write first (chunk size 40)
+      const chunkSize = 40;
+      for (let i = 0; i < entries.length; i += chunkSize) {
+        const chunk = entries.slice(i, i + chunkSize);
+        
+        try {
+          const batch = writeBatch(db);
+          chunk.forEach(entry => {
+            const parsedD = entry.timestamp ? new Date(entry.timestamp) : now;
+            const validD = isNaN(parsedD.getTime()) ? now : parsedD;
+            const docId = entry.id && entry.id.startsWith('rec_')
+              ? entry.id
+              : `rec_${validD.getTime()}_${Math.random().toString(36).substr(2, 5)}`;
+            const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const payload = {
+              id: docId,
+              timestamp: validD.toISOString(),
+              date: validD.toISOString().split('T')[0],
+              date_formatted: dateFormatted,
+              time_formatted: timeFormatted,
+              datetime_formatted: `${dateFormatted} ${timeFormatted}`,
+              bpm: Number(entry.bpm || 0),
+              spo2: Number(entry.spo2 || 0),
+              posture_status: Number(entry.postureStatus ?? 0),
+              posture_label: entry.postureLabel || 'Tư thế ĐÚNG',
+              tracking_active: Boolean(entry.trackingActive),
+              has_alert: Boolean(entry.hasAlert),
+              alert_type: entry.alertType || '',
+              created_at: now.toISOString(),
+              device: 'Raspberry Pi 4 / Monitor Node'
+            };
+
+            const docRef1 = doc(db, histColName, docId);
+            batch.set(docRef1, payload, { merge: true });
+
+            if (histColName !== 'theodoisk_history') {
+              const docRef2 = doc(db, 'theodoisk_history', docId);
+              batch.set(docRef2, payload, { merge: true });
+            }
+          });
+
+          await batch.commit();
+          totalSynced += chunk.length;
+        } catch (batchErr) {
+          console.warn('writeBatch thất bại, chuyển sang ghi trực tiếp từng tài liệu setDoc:', batchErr);
+          // Fallback: write individually with setDoc so batch failure never drops all records
+          for (const entry of chunk) {
+            try {
+              const parsedD = entry.timestamp ? new Date(entry.timestamp) : now;
+              const validD = isNaN(parsedD.getTime()) ? now : parsedD;
+              const docId = entry.id && entry.id.startsWith('rec_')
+                ? entry.id
+                : `rec_${validD.getTime()}_${Math.random().toString(36).substr(2, 5)}`;
+              const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+              const payload = {
+                id: docId,
+                timestamp: validD.toISOString(),
+                date: validD.toISOString().split('T')[0],
+                date_formatted: dateFormatted,
+                time_formatted: timeFormatted,
+                datetime_formatted: `${dateFormatted} ${timeFormatted}`,
+                bpm: Number(entry.bpm || 0),
+                spo2: Number(entry.spo2 || 0),
+                posture_status: Number(entry.postureStatus ?? 0),
+                posture_label: entry.postureLabel || 'Tư thế ĐÚNG',
+                tracking_active: Boolean(entry.trackingActive),
+                has_alert: Boolean(entry.hasAlert),
+                alert_type: entry.alertType || '',
+                created_at: now.toISOString(),
+                device: 'Raspberry Pi 4 / Monitor Node'
+              };
+
+              await setDoc(doc(db, histColName, docId), payload, { merge: true });
+              if (histColName !== 'theodoisk_history') {
+                await setDoc(doc(db, 'theodoisk_history', docId), payload, { merge: true });
+              }
+              totalSynced++;
+            } catch (singleErr) {
+              console.error('Lỗi lưu bản ghi đơn lẻ:', singleErr);
+            }
+          }
+        }
+      }
+
+      return { success: totalSynced > 0, count: totalSynced };
+    }
+  } catch (error: any) {
+    console.error('Lỗi batchSaveTelemetryHistoryToFirebase:', error);
+    return { success: false, count: 0, error: error?.message || 'Lỗi không xác định khi lưu lên Firebase' };
   }
 }
 
@@ -533,22 +728,38 @@ export async function fetchFirebaseHistory(
     } else {
       const db = getFirestore(app);
       const collRef = collection(db, histColName);
+      let logs: TelemetryLog[] = [];
       
       try {
         const q = query(collRef, orderBy('timestamp', 'desc'), limit(maxRecords));
         const snap = await getDocs(q);
         if (!snap.empty) {
-          return snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+          logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
         }
       } catch (orderErr) {
         // Fallback without orderBy (in case index is still building or missing)
         const snap = await getDocs(collRef);
         if (!snap.empty) {
-          const logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-          return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, maxRecords);
+          logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
         }
       }
-      return [];
+
+      // If current collection is not theodoisk_history, also fetch from theodoisk_history to ensure no records are missed
+      if (histColName !== 'theodoisk_history') {
+        try {
+          const primaryRef = collection(db, 'theodoisk_history');
+          const primarySnap = await getDocs(query(primaryRef, limit(maxRecords)));
+          if (!primarySnap.empty) {
+            const primaryLogs = primarySnap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+            const map = new Map<string, TelemetryLog>();
+            logs.forEach(l => map.set(l.id, l));
+            primaryLogs.forEach(l => map.set(l.id, l));
+            logs = Array.from(map.values());
+          }
+        } catch {}
+      }
+
+      return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, maxRecords);
     }
   } catch (err) {
     console.warn('Không thể tải lịch sử từ Firebase:', err);
@@ -624,26 +835,284 @@ export function subscribeToFirebaseHistory(
 }
 
 /**
- * Delete all historical records from Firebase history collection.
+ * Delete all historical records from all Firebase history collections
+ * (including theodoisk_history, devices_history, and configured history names).
+ * Uses batched deletions with pagination loop to guarantee complete wipeout.
  */
-export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Promise<void> {
+export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Promise<{ success: boolean; deletedCount: number }> {
   const app = initializeFirebaseApp(config);
   const histColName = getHistoryCollectionName(config);
 
+  // Targets all collections that store telemetry logs
+  const targetCollections = Array.from(new Set<string>([
+    'theodoisk_history',
+    'devices_history',
+    histColName,
+    `${config.collectionName}_history`,
+  ]));
+
+  let totalDeleted = 0;
+
+  // 1. Remove from Realtime Database if configured
   if (config.useRealtimeDb && config.databaseURL) {
-    const rtdb = getDatabase(app);
-    const histRef = ref(rtdb, histColName);
-    await remove(histRef);
-  } else {
-    const db = getFirestore(app);
-    const collRef = collection(db, histColName);
-    const snap = await getDocs(collRef);
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => {
-        batch.delete(d.ref);
-      });
-      await batch.commit();
+    try {
+      const rtdb = getDatabase(app);
+      for (const col of targetCollections) {
+        await remove(ref(rtdb, col)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Lỗi khi xóa RTDB history:', e);
     }
   }
+
+  // 2. Delete all records from Firestore collections in safe chunks
+  try {
+    const db = getFirestore(app);
+    for (const col of targetCollections) {
+      let keepDeleting = true;
+      let loopCount = 0;
+      while (keepDeleting && loopCount < 50) {
+        loopCount++;
+        const q = query(collection(db, col), limit(350));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          keepDeleting = false;
+          break;
+        }
+
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => {
+          batch.delete(d.ref);
+        });
+        await batch.commit();
+        totalDeleted += snap.docs.length;
+
+        if (snap.docs.length < 350) {
+          keepDeleting = false;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi khi xóa tài liệu Firestore history:', err);
+    throw err;
+  }
+
+  return { success: true, deletedCount: totalDeleted };
 }
+
+/**
+ * Delete a single telemetry log entry from all history collections in Firebase.
+ */
+export async function deleteSingleTelemetryLogFromFirebase(
+  config: FirebaseConnectionConfig,
+  logId: string
+): Promise<void> {
+  try {
+    const app = initializeFirebaseApp(config);
+    const histColName = getHistoryCollectionName(config);
+    const targetCollections = Array.from(new Set<string>([
+      'theodoisk_history',
+      'devices_history',
+      histColName,
+      `${config.collectionName}_history`,
+    ]));
+
+    // 1. Firestore deletion
+    const db = getFirestore(app);
+    for (const col of targetCollections) {
+      await deleteDoc(doc(db, col, logId)).catch(() => {});
+    }
+
+    // 2. Realtime Database deletion
+    if (config.useRealtimeDb && config.databaseURL) {
+      const rtdb = getDatabase(app);
+      for (const col of targetCollections) {
+        await remove(ref(rtdb, `${col}/${logId}`)).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn('Lỗi khi xóa bản ghi đơn lẻ trên Firebase:', err);
+  }
+}
+
+/**
+ * Send a task or broadcast notification to Firebase Firestore.
+ */
+export async function sendTaskNotificationToFirebase(
+  config: FirebaseConnectionConfig,
+  notif: Omit<UserTaskNotification, 'id' | 'createdAt' | 'status'>
+): Promise<UserTaskNotification> {
+  const app = initializeFirebaseApp(config);
+  const db = getFirestore(app);
+  const now = new Date();
+  const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  const fullNotif: UserTaskNotification = {
+    ...notif,
+    id,
+    status: 'pending',
+    createdAt: now.toISOString(),
+  };
+
+  try {
+    await setDoc(doc(db, 'notifications', id), fullNotif);
+  } catch (err) {
+    console.warn('Lỗi lưu thông báo vào Firestore:', err);
+  }
+
+  // Backup to localStorage
+  try {
+    const saved = localStorage.getItem('theodoisk_task_notifications');
+    const list: UserTaskNotification[] = saved ? JSON.parse(saved) : [];
+    localStorage.setItem('theodoisk_task_notifications', JSON.stringify([fullNotif, ...list.slice(0, 99)]));
+  } catch {}
+
+  return fullNotif;
+}
+
+/**
+ * Real-time listener for tasks and notifications from Firebase Firestore.
+ */
+export function subscribeToTaskNotifications(
+  config: FirebaseConnectionConfig,
+  currentUserId: string,
+  onUpdate: (notifications: UserTaskNotification[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const collRef = collection(db, 'notifications');
+    const q = query(collRef, orderBy('createdAt', 'desc'), limit(60));
+
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        const notifs: UserTaskNotification[] = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            targetUserId: data.targetUserId || 'all',
+            targetUserName: data.targetUserName || '',
+            senderId: data.senderId || 'Admin',
+            senderName: data.senderName || 'Quản trị viên',
+            type: data.type || 'task',
+            title: data.title || '',
+            content: data.content || '',
+            priority: data.priority || 'normal',
+            status: data.status || 'pending',
+            deadline: data.deadline,
+            createdAt: data.createdAt || new Date().toISOString(),
+            acknowledgedAt: data.acknowledgedAt,
+            completedAt: data.completedAt,
+          };
+        });
+        onUpdate(notifs);
+      },
+      err => {
+        // Fallback without orderBy
+        try {
+          const fallbackUnsub = onSnapshot(collRef, snapFallback => {
+            const notifs: UserTaskNotification[] = snapFallback.docs.map(d => {
+              const data = d.data();
+              return {
+                id: d.id,
+                targetUserId: data.targetUserId || 'all',
+                targetUserName: data.targetUserName || '',
+                senderId: data.senderId || 'Admin',
+                senderName: data.senderName || 'Quản trị viên',
+                type: data.type || 'task',
+                title: data.title || '',
+                content: data.content || '',
+                priority: data.priority || 'normal',
+                status: data.status || 'pending',
+                deadline: data.deadline,
+                createdAt: data.createdAt || new Date().toISOString(),
+                acknowledgedAt: data.acknowledgedAt,
+                completedAt: data.completedAt,
+              };
+            });
+            notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            onUpdate(notifs);
+          });
+          return fallbackUnsub;
+        } catch (e) {
+          onError?.(err);
+        }
+      }
+    );
+
+    return unsub;
+  } catch (err) {
+    onError?.(err as Error);
+    return () => {};
+  }
+}
+
+/**
+ * Update task status (acknowledged or completed) in Firebase Firestore.
+ */
+export async function updateTaskStatusInFirebase(
+  config: FirebaseConnectionConfig,
+  taskId: string,
+  newStatus: TaskStatus
+): Promise<void> {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const updateData: any = { status: newStatus };
+    if (newStatus === 'acknowledged') {
+      updateData.acknowledgedAt = new Date().toISOString();
+    } else if (newStatus === 'completed') {
+      updateData.completedAt = new Date().toISOString();
+    }
+    await setDoc(doc(db, 'notifications', taskId), updateData, { merge: true });
+  } catch (err) {
+    console.warn('Lỗi cập nhật trạng thái thông báo/task:', err);
+  }
+
+  // Also update in localStorage backup
+  try {
+    const saved = localStorage.getItem('theodoisk_task_notifications');
+    if (saved) {
+      const list: UserTaskNotification[] = JSON.parse(saved);
+      const updated = list.map(item => {
+        if (item.id === taskId) {
+          return {
+            ...item,
+            status: newStatus,
+            acknowledgedAt: newStatus === 'acknowledged' ? new Date().toISOString() : item.acknowledgedAt,
+            completedAt: newStatus === 'completed' ? new Date().toISOString() : item.completedAt,
+          };
+        }
+        return item;
+      });
+      localStorage.setItem('theodoisk_task_notifications', JSON.stringify(updated));
+    }
+  } catch {}
+}
+
+/**
+ * Delete a notification/task from Firebase Firestore.
+ */
+export async function deleteTaskFromFirebase(
+  config: FirebaseConnectionConfig,
+  taskId: string
+): Promise<void> {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    await deleteDoc(doc(db, 'notifications', taskId));
+  } catch (err) {
+    console.warn('Lỗi xóa task từ Firebase:', err);
+  }
+
+  try {
+    const saved = localStorage.getItem('theodoisk_task_notifications');
+    if (saved) {
+      const list: UserTaskNotification[] = JSON.parse(saved);
+      localStorage.setItem('theodoisk_task_notifications', JSON.stringify(list.filter(t => t.id !== taskId)));
+    }
+  } catch {}
+}
+

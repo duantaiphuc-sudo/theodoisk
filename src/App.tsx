@@ -6,7 +6,8 @@ import {
   AlertThresholds, 
   TelemetryLog, 
   FirebaseConnectionConfig,
-  AuthUser
+  AuthUser,
+  UserTaskNotification
 } from './types';
 import { 
   getSavedFirebaseConfig, 
@@ -16,12 +17,16 @@ import {
   fetchFirebaseHistory,
   subscribeToFirebaseHistory,
   saveTelemetryHistoryToFirebase,
+  batchSaveTelemetryHistoryToFirebase,
   clearFirebaseHistory,
   getHistoryCollectionName,
+  deleteSingleTelemetryLogFromFirebase,
+  subscribeToTaskNotifications,
 } from './services/firebase';
 import { getCurrentUser, saveCurrentUser, logout } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
+import { notificationManager } from './services/notificationService';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { MetricCards } from './components/MetricCards';
@@ -33,13 +38,19 @@ import { HistoryLogs } from './components/HistoryLogs';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
+import { UserProfileModal } from './components/UserProfileModal';
+import { UserManagementModal } from './components/UserManagementModal';
+import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
 import { HealthChatbot } from './components/HealthChatbot';
 import { Sparkles, AlertTriangle, Radio, Trash2 } from 'lucide-react';
 
 export default function App() {
   // 0. Authentication State
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
-  const isManager = currentUser?.role === 'manager';
+  const isManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
 
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
@@ -77,6 +88,7 @@ export default function App() {
           soundEnabled: true,
           voiceAlertEnabled: true,
           outOfZoneAlertEnabled: true,
+          browserNotificationEnabled: true,
           ...parsed,
         };
       }
@@ -91,6 +103,7 @@ export default function App() {
       soundEnabled: true,
       voiceAlertEnabled: true,
       outOfZoneAlertEnabled: true,
+      browserNotificationEnabled: true,
     };
   });
 
@@ -143,6 +156,18 @@ export default function App() {
     return [];
   });
   const [isSyncingHistory, setIsSyncingHistory] = useState(false);
+
+  // 9. Task & Broadcast Notifications State
+  const [taskNotifications, setTaskNotifications] = useState<UserTaskNotification[]>([]);
+
+  // Subscribe to real-time task notifications from Firebase Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsub = subscribeToTaskNotifications(firebaseConfig, currentUser.id, (notifs) => {
+      setTaskNotifications(notifs);
+    });
+    return () => unsub();
+  }, [currentUser, firebaseConfig]);
 
   // Refs for audio throttle & last alert timestamp & Firebase history throttle
   const lastAlertPlayedRef = useRef<number>(0);
@@ -264,13 +289,51 @@ export default function App() {
       }
     }
 
+    // 4. Browser Notification API (Triggers system notification even when browser window is minimized or user is on another tab)
+    if (hasAlert && currentThresholds.browserNotificationEnabled) {
+      let notifTitle = '⚠️ Cảnh Báo Sức Khỏe - HealthOffice';
+      let notifBody = '';
+
+      if (isBadPosture) {
+        notifTitle = data.postureStatus === 3 ? '🚨 Cảnh Báo: Sai Tư Thế Quá Lâu!' : '⚠️ Nhắc Nhở Tư Thế Ngồi';
+        notifBody = data.postureStatus === 3
+          ? 'Bạn đang ngồi sai tư thế liên tục hơn 2 phút. Hãy ngồi thẳng lưng để bảo vệ cột sống!'
+          : 'Phát hiện tư thế gù lưng hoặc nghiêng vẹo. Xin hãy điều chỉnh lại tư thế ngồi!';
+      } else if (isAbnormalHR) {
+        notifTitle = '❤️ Cảnh Báo Nhịp Tim Bất Thường';
+        notifBody = `Nhịp tim hiện tại là ${data.bpm} bpm (${alertType}). Hãy thả lỏng và hít thở đều!`;
+      } else if (isAbnormalSpO2) {
+        notifTitle = '🫁 Cảnh Báo Nồng Độ Oxy SpO₂ Thấp';
+        notifBody = `Nồng độ oxy SpO₂ đang ở mức ${data.spo2}%. Hãy hít thở sâu hoặc kiểm tra lại cảm biến!`;
+      } else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
+        notifTitle = '👀 Nhắc Nhở Vùng Giám Sát';
+        notifBody = 'Bạn đang ngồi lệch hoặc ra ngoài vùng camera AI. Hãy ngồi vào vị trí để tiếp tục đo!';
+      }
+
+      if (notifBody) {
+        notificationManager.sendNotification({
+          title: notifTitle,
+          body: notifBody,
+          tag: alertType || 'health_alert',
+        });
+      }
+    }
+
     lastInZoneStatusRef.current = data.inZone;
 
-    // Create telemetry log entry
+    // Create telemetry log entry with full date and time
+    const packetDate = data.timestamp ? new Date(data.timestamp) : new Date();
+    const validPacketDate = isNaN(packetDate.getTime()) ? new Date() : packetDate;
+    const timeFormatted = validPacketDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateFormatted = validPacketDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dateTimeFormatted = `${dateFormatted} ${timeFormatted}`;
+
     const newEntry: TelemetryLog = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      timestamp: data.timestamp || new Date().toISOString(),
-      timeFormatted: new Date().toLocaleTimeString('vi-VN'),
+      id: `rec-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: validPacketDate.toISOString(),
+      timeFormatted,
+      dateFormatted,
+      dateTimeFormatted,
       bpm: data.bpm,
       spo2: data.spo2,
       postureStatus: data.postureStatus,
@@ -280,39 +343,40 @@ export default function App() {
       alertType,
     };
 
-    // Add to local history (deduplicating rapid identical samples)
+    // Add to local history (deduplicating rapid identical samples within 2 seconds)
     setHistory(prev => {
       if (prev.length > 0) {
         const first = prev[0];
         const sameMetrics = first.bpm === newEntry.bpm && first.spo2 === newEntry.spo2 && first.postureStatus === newEntry.postureStatus;
         const timeDiff = Math.abs(new Date(newEntry.timestamp).getTime() - new Date(first.timestamp).getTime());
-        if (sameMetrics && timeDiff < 3000) {
+        if (sameMetrics && timeDiff < 2000) {
           return prev;
         }
       }
-      return [newEntry, ...prev.slice(0, 199)];
+      return [newEntry, ...prev.slice(0, 299)];
     });
 
     // Save to Firebase Firestore / RTDB history collection:
     // We write to Firebase if:
     // 1. There is an active alert (abnormal posture or vital sign)
     // 2. Posture status changed (e.g. from Good to Bad)
-    // 3. Or at least 25 seconds elapsed since last Firebase history write (heartbeat recording)
+    // 3. Or at least 8 seconds elapsed since last Firebase history write (frequent recording so telemetry is saved continuously)
     const nowTime = Date.now();
     const timeSinceLastRemote = nowTime - lastFirebaseHistorySaveRef.current;
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
     lastPostureStatusRef.current = data.postureStatus;
 
-    const shouldSaveRemote = (data.bpm > 0 || data.spo2 > 0 || data.postureStatus >= 0) &&
-      (hasAlert || postureChanged || timeSinceLastRemote > 25000);
+    const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus >= 0 && data.postureStatus !== 2);
+    const shouldSaveRemote = hasValidMetrics &&
+      (hasAlert || postureChanged || timeSinceLastRemote > 6000);
 
-    if (shouldSaveRemote && firebaseConfig.autoConnect && !isSimulating) {
+    if (shouldSaveRemote && firebaseConfig.autoConnect) {
       lastFirebaseHistorySaveRef.current = nowTime;
       saveTelemetryHistoryToFirebase(firebaseConfig, newEntry).catch(err => {
         console.warn('Ghi log lịch sử Firebase thất bại:', err);
       });
     }
-  }, [firebaseConfig, isSimulating]);
+  }, [firebaseConfig]);
 
   // Subscribe to Firebase Live Telemetry
   useEffect(() => {
@@ -530,6 +594,16 @@ export default function App() {
   const handleRefreshHistory = async () => {
     setIsSyncingHistory(true);
     try {
+      // 1. If there are local records, upload them to Firebase Firestore
+      let uploadedCount = 0;
+      if (history.length > 0) {
+        const upRes = await batchSaveTelemetryHistoryToFirebase(firebaseConfig, history);
+        if (upRes.success) {
+          uploadedCount = upRes.count;
+        }
+      }
+
+      // 2. Fetch all latest records from Firebase Firestore
       const remoteLogs = await fetchFirebaseHistory(firebaseConfig, 100);
       if (remoteLogs && remoteLogs.length > 0) {
         setHistory(prev => {
@@ -544,7 +618,10 @@ export default function App() {
           syncHistoricalLogs(merged);
           return merged;
         });
-        setClearNotice(`Đã tải về ${remoteLogs.length} bản ghi lịch sử lưu trên Firebase Firestore!`);
+        setClearNotice(`Đã đồng bộ thành công! Đẩy lên ${uploadedCount} bản ghi và tải về ${remoteLogs.length} bản ghi từ Firebase Firestore.`);
+        setTimeout(() => setClearNotice(null), 4500);
+      } else if (uploadedCount > 0) {
+        setClearNotice(`Đã lưu thành công ${uploadedCount} bản ghi lên Firebase Firestore (bộ sưu tập theodoisk_history)!`);
         setTimeout(() => setClearNotice(null), 4000);
       } else {
         setClearNotice('Chưa có bản ghi lịch sử nào trên Firebase Firestore.');
@@ -553,6 +630,29 @@ export default function App() {
     } catch (err: any) {
       console.warn('Lỗi đồng bộ lịch sử:', err);
       setClearNotice(`Lỗi đồng bộ lịch sử: ${err.message || 'Kiểm tra kết nối Firebase'}`);
+      setTimeout(() => setClearNotice(null), 4000);
+    } finally {
+      setIsSyncingHistory(false);
+    }
+  };
+
+  const handleBatchUploadAllToFirebase = async () => {
+    if (history.length === 0) {
+      setClearNotice('Chưa có dữ liệu nào trong lịch sử để lưu lên Firebase!');
+      setTimeout(() => setClearNotice(null), 3000);
+      return;
+    }
+    setIsSyncingHistory(true);
+    try {
+      const res = await batchSaveTelemetryHistoryToFirebase(firebaseConfig, history);
+      if (res.success) {
+        setClearNotice(`Đã lưu thành công ${res.count} bản ghi lên Firebase Firestore (bộ sưu tập theodoisk_history & ${getHistoryCollectionName(firebaseConfig)})!`);
+      } else {
+        setClearNotice(`Lỗi lưu lên Firebase: ${res.error || 'Vui lòng kiểm tra quyền ghi Firestore'}`);
+      }
+      setTimeout(() => setClearNotice(null), 5000);
+    } catch (err: any) {
+      setClearNotice(`Lỗi đẩy dữ liệu: ${err?.message || 'Kiểm tra mạng'}`);
       setTimeout(() => setClearNotice(null), 4000);
     } finally {
       setIsSyncingHistory(false);
@@ -585,21 +685,38 @@ export default function App() {
     setTimeout(() => setClearNotice(null), 4000);
   };
 
+  const handleDeleteSingleLog = async (logId: string) => {
+    setHistory(prev => prev.filter(item => item.id !== logId));
+    try {
+      await deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId);
+      setClearNotice('Đã xóa bản ghi thành công khỏi thiết bị và Firebase Firestore.');
+      setTimeout(() => setClearNotice(null), 3000);
+    } catch (err: any) {
+      console.warn('Lỗi khi xóa bản ghi đơn lẻ:', err);
+      setClearNotice('Đã xóa bản ghi khỏi thiết bị.');
+      setTimeout(() => setClearNotice(null), 3000);
+    }
+  };
+
   const handleClearHistory = async () => {
+    setIsClearingFirebase(true);
     setHistory([]);
     try {
       localStorage.removeItem('theodoisk_telemetry_history_v2');
+      localStorage.removeItem('theodoisk_historical_records_v1');
     } catch {}
     clearLocalHistoricalRecords();
 
     try {
-      await clearFirebaseHistory(firebaseConfig);
-      setClearNotice('Đã xóa sạch toàn bộ lịch sử trên thiết bị và Firebase Firestore.');
-      setTimeout(() => setClearNotice(null), 4000);
+      const res = await clearFirebaseHistory(firebaseConfig);
+      setClearNotice(`Đã xóa sạch hoàn toàn ${res.deletedCount} bản ghi lịch sử trên Firebase Firestore & thiết bị!`);
+      setTimeout(() => setClearNotice(null), 4500);
     } catch (err) {
       console.warn('Lỗi xóa lịch sử từ Firebase:', err);
       setClearNotice('Đã xóa lịch sử bộ nhớ trong máy.');
       setTimeout(() => setClearNotice(null), 4000);
+    } finally {
+      setIsClearingFirebase(false);
     }
   };
 
@@ -621,6 +738,10 @@ export default function App() {
         onOpenFirebaseModal={() => isManager && setIsFirebaseModalOpen(true)}
         onOpenRpiGuideModal={() => isManager && setIsRpiGuideModalOpen(true)}
         onOpenSettingsModal={() => isManager && setIsSettingsModalOpen(true)}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
+        onOpenUserManagementModal={() => isManager && setIsUserManagementOpen(true)}
+        notifications={taskNotifications}
+        onOpenTasksModal={() => isManager && setIsUserManagementOpen(true)}
         soundEnabled={thresholds.soundEnabled}
         voiceAlertEnabled={thresholds.voiceAlertEnabled}
         toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
@@ -737,7 +858,7 @@ export default function App() {
         )}
 
         {/* Mobile Thumb Navigation Segmented Tabs (Light Mode High Contrast) */}
-        <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner">
+        <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner scrollbar-none">
           {[
             { id: 'all', label: 'Tất Cả' },
             { id: 'biometrics', label: 'Chỉ Số' },
@@ -748,7 +869,7 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setMobileActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer text-center ${
+              className={`flex-1 min-w-[66px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
                 mobileActiveTab === tab.id
                   ? 'bg-white text-sky-700 shadow-xs border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900'
@@ -812,6 +933,7 @@ export default function App() {
           <HistoryLogs
             history={history}
             onClearHistory={handleClearHistory}
+            onDeleteSingleLog={handleDeleteSingleLog}
             onRefreshHistory={handleRefreshHistory}
             onSaveSnapshot={handleSaveSnapshot}
             isSyncing={isSyncingHistory}
@@ -838,12 +960,20 @@ export default function App() {
               <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-600 transition">
                 Ngưỡng đo cảnh báo
               </button>
+              <span>•</span>
+              <button onClick={() => setIsUserManagementOpen(true)} className="hover:text-indigo-600 text-indigo-700 font-semibold transition">
+                Quản lý tài khoản
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-slate-600 text-xs">
               <span>Tài khoản: <b className="text-slate-900">{currentUser.fullName}</b> (Nhân viên)</span>
               <span>•</span>
-              <button onClick={handleLogout} className="text-sky-600 hover:underline">
+              <button onClick={() => setIsProfileModalOpen(true)} className="text-sky-600 hover:underline">
+                Hồ sơ sức khỏe
+              </button>
+              <span>•</span>
+              <button onClick={handleLogout} className="text-rose-600 hover:underline">
                 Đăng xuất
               </button>
             </div>
@@ -860,6 +990,39 @@ export default function App() {
         hasData={hasReceivedData}
         userName={currentUser.fullName}
       />
+
+      {/* On-screen Realtime Task & Broadcast Notification Banner */}
+      <UserTaskAlertBanner
+        notifications={taskNotifications}
+        currentUser={currentUser}
+        firebaseConfig={firebaseConfig}
+      />
+
+      {/* User Health Profile Modal (Age, Weight, Height, Target Metrics) */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        currentUser={currentUser}
+        onUpdateUser={(updated) => {
+          setCurrentUser(updated);
+          saveCurrentUser(updated);
+        }}
+        onOpenUserManagement={() => setIsUserManagementOpen(true)}
+      />
+
+      {/* Admin User Management Modal (List of logged-in accounts, role assignment, and task assignments) */}
+      {isManager && (
+        <UserManagementModal
+          isOpen={isUserManagementOpen}
+          onClose={() => setIsUserManagementOpen(false)}
+          currentUser={currentUser}
+          firebaseConfig={firebaseConfig}
+          onSwitchUser={(newUser) => {
+            setCurrentUser(newUser);
+            saveCurrentUser(newUser);
+          }}
+        />
+      )}
 
       {/* Modals (Only Manager has access) */}
       {isManager && (

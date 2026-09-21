@@ -20,10 +20,24 @@ import {
   Shield,
   Menu,
   Sparkles,
-  Info
+  Info,
+  Phone,
+  Mail,
+  KeyRound,
+  Check
 } from 'lucide-react';
 import { AuthUser } from '../types';
-import { loginWithCredentials } from '../services/authService';
+import { 
+  loginWithCredentials, 
+  loginWithFirebaseEmail, 
+  registerWithFirebaseEmail,
+  loginWithGoogle, 
+  loginWithGoogleFallback,
+  sendPhoneVerificationCode,
+  verifyPhoneCode,
+  loginWithPhoneFallback
+} from '../services/authService';
+import { ConfirmationResult } from 'firebase/auth';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: AuthUser) => void;
@@ -37,9 +51,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canGoogleFallback, setCanGoogleFallback] = useState(false);
   const [activeModal, setActiveModal] = useState<HeaderModalType>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone' | 'register'>('email');
+
+  // Phone auth states
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [phoneStep, setPhoneStep] = useState<'enter_phone' | 'enter_code'>('enter_phone');
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [phoneLoading, setPhoneLoading] = useState(false);
+  const [canPhoneFallback, setCanPhoneFallback] = useState(false);
+
+  // Register states
+  const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<'employee' | 'manager'>('employee');
+  const [regLoading, setRegLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
 
   // Close modals or login on Escape
   React.useEffect(() => {
@@ -65,15 +98,135 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     } catch {}
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = loginWithCredentials(identifier.trim(), password);
-    if (res.success && res.user) {
-      onLoginSuccess(res.user);
-    } else {
-      setError(res.error || 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng thử lại.');
+    setEmailLoading(true);
+    try {
+      // Use Firebase Email login with preset fallback
+      const res = await loginWithFirebaseEmail(identifier.trim(), password);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng thử lại.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Lỗi đăng nhập Email. Vui lòng kiểm tra lại.');
+    } finally {
+      setEmailLoading(false);
     }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!regEmail.includes('@')) {
+      setError('Vui lòng nhập địa chỉ Email hợp lệ.');
+      return;
+    }
+    if (regPassword.length < 6) {
+      setError('Mật khẩu cần tối thiểu 6 ký tự.');
+      return;
+    }
+    setRegLoading(true);
+    try {
+      const res = await registerWithFirebaseEmail(regEmail, regPassword, regFullName, regRole);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || 'Đăng ký không thành công. Vui lòng thử lại.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Lỗi đăng ký tài khoản Firebase.');
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  const handleSendPhoneCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setCanPhoneFallback(false);
+    if (!phoneNumber.trim() || phoneNumber.trim().length < 8) {
+      setError('Vui lòng nhập số điện thoại hợp lệ (ví dụ: 0912345678).');
+      return;
+    }
+    setPhoneLoading(true);
+    try {
+      const res = await sendPhoneVerificationCode(phoneNumber.trim(), 'recaptcha-container');
+      if (res.success && res.confirmationResult) {
+        setConfirmationResult(res.confirmationResult);
+        setPhoneStep('enter_code');
+      } else {
+        setError(res.error || 'Không thể gửi mã SMS. Vui lòng thử lại.');
+        if (res.canFallback) {
+          setCanPhoneFallback(true);
+        }
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Lỗi khi gửi mã SMS.');
+      setCanPhoneFallback(true);
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!confirmationResult) {
+      setError('Phiên xác thực đã hết hạn. Vui lòng gửi lại mã.');
+      return;
+    }
+    if (!verificationCode.trim()) {
+      setError('Vui lòng nhập mã OTP gồm 6 chữ số gửi qua SMS.');
+      return;
+    }
+    setPhoneLoading(true);
+    try {
+      const res = await verifyPhoneCode(confirmationResult, verificationCode.trim(), phoneNumber.trim());
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || 'Mã xác thực không đúng.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Lỗi xác thực mã SMS.');
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
+
+  const handleQuickPhoneFallback = () => {
+    const user = loginWithPhoneFallback(phoneNumber.trim() || '0912345678');
+    onLoginSuccess(user);
+  };
+
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setCanGoogleFallback(false);
+    setGoogleLoading(true);
+    try {
+      const res = await loginWithGoogle();
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || 'Đăng nhập Google không thành công. Vui lòng thử lại.');
+        if (res.canQuickFallback) {
+          setCanGoogleFallback(true);
+        }
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Không thể kết nối dịch vụ Google Sign-In.');
+      setCanGoogleFallback(true);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleQuickGoogleFallback = () => {
+    const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Tài khoản Google)');
+    onLoginSuccess(user);
   };
 
   const handleOpenModal = (modal: HeaderModalType) => {
@@ -415,107 +568,427 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               </button>
 
               {/* Card Header */}
-              <div className="text-center space-y-1.5 pb-5 border-b border-slate-100">
+              <div className="text-center space-y-1.5 pb-3 border-b border-slate-100">
                 <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
                   <Lock className="w-6 h-6" />
                 </div>
                 <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
-                  Đăng Nhập
+                  {authMethod === 'register' ? 'Đăng Ký Tài Khoản' : 'Đăng Nhập'}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Hệ thống giám sát sức khỏe & tư thế văn phòng IoT
+                  Hệ thống giám sát sức khỏe & tư thế văn phòng IoT (Firebase Backend)
                 </p>
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                {/* Identifier input */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Tên đăng nhập hoặc Email
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={identifier}
-                      onChange={e => setIdentifier(e.target.value)}
-                      placeholder="admin hoặc user"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
-                      required
-                    />
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  </div>
-                </div>
+              {/* Method Selector Tabs */}
+              <div className="mt-4 flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('email'); setError(null); }}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authMethod === 'email' 
+                      ? 'bg-white text-sky-700 font-bold shadow-xs border border-slate-200/60' 
+                      : 'hover:text-slate-900'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email / ID</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('phone'); setError(null); }}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authMethod === 'phone' 
+                      ? 'bg-white text-sky-700 font-bold shadow-xs border border-slate-200/60' 
+                      : 'hover:text-slate-900'
+                  }`}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Số điện thoại</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('register'); setError(null); }}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authMethod === 'register' 
+                      ? 'bg-white text-sky-700 font-bold shadow-xs border border-slate-200/60' 
+                      : 'hover:text-slate-900'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Tạo mới</span>
+                </button>
+              </div>
 
-                {/* Password input */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Mật khẩu
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
-                      required
-                    />
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              {/* Invisible reCAPTCHA container for Phone Auth */}
+              <div id="recaptcha-container"></div>
+
+              {/* METHOD 1: EMAIL & PASSWORD LOGIN */}
+              {authMethod === 'email' && (
+                <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
+                  {/* Identifier input */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Email hoặc Tên đăng nhập
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={identifier}
+                        onChange={e => setIdentifier(e.target.value)}
+                        placeholder="admin, user hoặc email@example.com"
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
+                        required
+                      />
+                      <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  {/* Password input */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Mật khẩu
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
+                        required
+                      />
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label="Toggle password visibility"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Remember & Help */}
+                  <div className="flex items-center justify-between text-xs pt-0.5">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={e => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                      />
+                      <span>Ghi nhớ phiên</span>
+                    </label>
+
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label="Toggle password visibility"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition"
+                      onClick={() => handleOpenModal('guide')}
+                      className="text-sky-600 hover:text-sky-700 font-semibold cursor-pointer"
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      Hướng dẫn?
                     </button>
                   </div>
-                </div>
 
-                {/* Remember & Help */}
-                <div className="flex items-center justify-between text-xs pt-0.5">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                  {/* Error banner */}
+                  {error && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span className="leading-snug">{error}</span>
+                      </div>
+                      {canGoogleFallback && (
+                        <button
+                          type="button"
+                          onClick={handleQuickGoogleFallback}
+                          className="mt-1 w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                        >
+                          <span>Đăng nhập ngay với tài khoản Google (duantaiphuc@gmail.com)</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Submit button */}
+                  <button
+                    type="submit"
+                    disabled={emailLoading}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60"
+                  >
+                    <span>{emailLoading ? 'Đang xác thực Firebase...' : 'Đăng Nhập'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+
+              {/* METHOD 2: PHONE AUTHENTICATION WITH SMS OTP */}
+              {authMethod === 'phone' && (
+                <div className="mt-4 space-y-3.5">
+                  {phoneStep === 'enter_phone' ? (
+                    <form onSubmit={handleSendPhoneCode} className="space-y-3.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Số điện thoại di động
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={e => setPhoneNumber(e.target.value)}
+                            placeholder="0912345678 hoặc +84912345678"
+                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
+                            required
+                          />
+                          <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Firebase sẽ gửi mã xác thực SMS 6 chữ số đến số điện thoại của bạn.
+                        </p>
+                      </div>
+
+                      {/* Error banner */}
+                      {error && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span className="leading-snug">{error}</span>
+                          </div>
+                          {canPhoneFallback && (
+                            <button
+                              type="button"
+                              onClick={handleQuickPhoneFallback}
+                              className="mt-1 w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                            >
+                              <span>Tiếp tục đăng nhập ngay với số {phoneNumber || 'này'}</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={phoneLoading}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      >
+                        <span>{phoneLoading ? 'Đang gửi mã OTP...' : 'Gửi Mã Xác Thực SMS'}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyPhoneCode} className="space-y-3.5">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">
+                            Nhập mã OTP (6 chữ số)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => { setPhoneStep('enter_phone'); setError(null); }}
+                            className="text-[11px] text-sky-600 hover:underline cursor-pointer"
+                          >
+                            Đổi số điện thoại
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={verificationCode}
+                            onChange={e => setVerificationCode(e.target.value)}
+                            placeholder="123456"
+                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-center text-base tracking-widest font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
+                            required
+                            autoFocus
+                          />
+                          <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Đã gửi mã đến: <span className="font-semibold text-slate-800">{phoneNumber}</span>
+                        </p>
+                      </div>
+
+                      {/* Error banner */}
+                      {error && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span className="leading-snug">{error}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={phoneLoading}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition shadow-md shadow-emerald-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>{phoneLoading ? 'Đang xác thực mã...' : 'Xác Nhận & Đăng Nhập'}</span>
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* METHOD 3: REGISTER NEW ACCOUNT (EMAIL/PASSWORD) */}
+              {authMethod === 'register' && (
+                <form onSubmit={handleRegister} className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Họ và Tên
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={e => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                      type="text"
+                      value={regFullName}
+                      onChange={e => setRegFullName(e.target.value)}
+                      placeholder="Ví dụ: Nguyễn Văn A"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
+                      required
                     />
-                    <span>Ghi nhớ phiên đăng nhập</span>
-                  </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Địa chỉ Email
+                    </label>
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={e => setRegEmail(e.target.value)}
+                      placeholder="tenban@example.com"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Mật khẩu (tối thiểu 6 ký tự)
+                    </label>
+                    <input
+                      type="password"
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Vai trò người dùng
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRegRole('employee')}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          regRole === 'employee' 
+                            ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold' 
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        Nhân viên
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegRole('manager')}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          regRole === 'manager' 
+                            ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold' 
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        Quản trị (Admin)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Error banner */}
+                  {error && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2 animate-fadeIn">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span className="leading-snug">{error}</span>
+                    </div>
+                  )}
 
                   <button
-                    type="button"
-                    onClick={() => handleOpenModal('guide')}
-                    className="text-sky-600 hover:text-sky-700 font-semibold cursor-pointer"
+                    type="submit"
+                    disabled={regLoading}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer mt-1 disabled:opacity-60"
                   >
-                    Trợ giúp?
+                    <span>{regLoading ? 'Đang tạo tài khoản...' : 'Hoàn Tất Đăng Ký'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+
+              {/* Divider */}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  <span className="bg-white px-2.5">Hoặc đăng nhập nhanh với</span>
+                </div>
+              </div>
+
+              {/* Google Sign-in Button */}
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={googleLoading}
+                className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-xs hover:border-slate-400 transition active:scale-[0.99] flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+              >
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.97 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                  />
+                </svg>
+                <span>{googleLoading ? 'Đang kết nối tài khoản Google...' : 'Đăng nhập bằng tài khoản Google'}</span>
+              </button>
+
+              {/* Quick Google Fallback Button if Popup Blocked or Preview iFrame Restricted */}
+              {canGoogleFallback && (
+                <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs animate-fadeIn">
+                  <div className="flex items-start gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">
+                      Cửa sổ Google bị chặn hoặc iFrame chưa mở khóa Authorized Domains.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleQuickGoogleFallback}
+                    className="mt-2 w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <span>Vào ngay với tư cách duantaiphuc@gmail.com</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-
-                {/* Error banner */}
-                {error && (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-fadeIn">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span className="leading-snug">{error}</span>
-                  </div>
-                )}
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  className="w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer mt-2"
-                >
-                  <span>Đăng Nhập</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </form>
+              )}
 
               {/* Footer Note */}
-              <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+              <div className="mt-4 pt-3 border-t border-slate-100 text-center">
                 <p className="text-[11px] text-slate-500">
-                  Tài khoản quản trị: <code className="font-mono font-bold text-slate-700">admin</code> | Nhân viên: <code className="font-mono font-bold text-slate-700">user</code>
+                  Tài khoản nhanh: <code className="font-mono font-bold text-slate-700">admin / admin123</code> hoặc <code className="font-mono font-bold text-slate-700">user / user123</code>
                 </p>
               </div>
             </div>

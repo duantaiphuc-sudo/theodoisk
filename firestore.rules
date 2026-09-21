@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Telemetry current state
+    match /theodoisk/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Telemetry history
+    match /theodoisk_history/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Devices telemetry history
+    match /devices_history/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Custom telemetry collections configured by users
+    match /{collectionName}/{docId} {
+      allow read, write: if collectionName.matches('.*_history') || collectionName == 'theodoisk' || collectionName == 'devices';
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Notifications and assigned tasks
+    match /notifications/{notifId} {
+      allow read, write: if true;
+    }
+  }
+}

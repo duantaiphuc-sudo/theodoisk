@@ -273,16 +273,16 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
           </div>
 
           <div className="mt-2 sm:mt-3">
-            <div className={`inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold border shadow-2xs whitespace-nowrap ${postureBadgeStyle}`}>
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold border shadow-2xs whitespace-nowrap ${postureBadgeStyle}`}>
               <span className={`w-1.5 h-1.5 rounded-full bg-current ${!isAbsent ? 'animate-ping' : ''}`}></span>
-              <span className="truncate max-w-[120px] sm:max-w-none">{displayedPostureLabel}</span>
+              <span className="whitespace-nowrap">{displayedPostureLabel}</span>
             </div>
             {isAbsent ? (
-              <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-1 truncate">
+              <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-1 leading-snug">
                 Chưa có người ngồi
               </p>
             ) : telemetry.postureWarning ? (
-              <p className="text-[10px] sm:text-[11px] text-rose-600 font-medium mt-1 truncate">
+              <p className="text-[10px] sm:text-[11px] text-rose-600 font-medium mt-1 leading-snug">
                 {telemetry.postureWarning}
               </p>
             ) : null}

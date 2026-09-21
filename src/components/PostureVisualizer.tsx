@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, AlertOctagon, Info, CameraOff, Camera, Maximize2, UserX, Volume2 } from 'lucide-react';
+import { CheckCircle, AlertOctagon, Info, CameraOff, Camera, UserX, Volume2, UserCheck } from 'lucide-react';
 import { HealthTelemetry } from '../types';
 import { playErgonomicVoiceAlert } from '../services/sound';
 
@@ -11,7 +11,6 @@ interface PostureVisualizerProps {
 export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry, hasData = true }) => {
   const { postureStatus, postureLabel, image, inZone, trackingActive } = telemetry;
   const [viewMode, setViewMode] = useState<'skeleton' | 'camera'>('skeleton');
-  const [isZoomed, setIsZoomed] = useState(false);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
 
   const handleTestPostureVoice = () => {
@@ -120,21 +119,23 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             <button
               type="button"
               onClick={() => setViewMode('skeleton')}
+              title="Xem mô hình giải phẫu tư thế ngồi"
               className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'skeleton' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>Mô hình 2D</span>
+              <UserCheck className="w-3.5 h-3.5 text-sky-600" />
             </button>
             <button
               type="button"
               onClick={() => setViewMode('camera')}
+              title="Xem hình ảnh trực tiếp từ Camera AI"
               className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'camera' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Camera className="w-3.5 h-3.5" />
-              <span>Camera Thật</span>
+              <span>Camera</span>
               {image && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>}
             </button>
           </div>
@@ -179,28 +180,17 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                   className="w-full h-full object-contain bg-black"
                 />
                 {/* Live Badge Overlay */}
-                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[10px] font-mono text-emerald-400">
+                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[10px] font-mono text-emerald-400 z-10 whitespace-nowrap">
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                  <span>PI4_CAMERA • LIVE</span>
+                  <span>PI4_CAMERA • TRỰC TIẾP</span>
                 </div>
 
-                <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsZoomed(true)}
-                    className="p-1.5 rounded-lg bg-black/70 hover:bg-slate-800 text-white transition border border-white/10 cursor-pointer"
-                    title="Phóng to ảnh camera"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-xs">
-                  <span className="font-semibold text-white flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-400' : isBad ? 'bg-rose-400' : 'bg-amber-400'}`}></span>
-                    {postureLabel}
+                <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between gap-2 bg-black/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-xs z-10">
+                  <span className="font-semibold text-white flex items-center gap-1.5 truncate">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isGood ? 'bg-emerald-400' : isBad ? 'bg-rose-400' : 'bg-amber-400'}`}></span>
+                    <span className="truncate">{postureLabel}</span>
                   </span>
-                  <span className="text-[11px] font-mono text-slate-300">
+                  <span className="text-[11px] font-mono text-slate-300 shrink-0 whitespace-nowrap">
                     {telemetry.timestamp ? new Date(telemetry.timestamp).toLocaleTimeString('vi-VN') : ''}
                   </span>
                 </div>
@@ -217,9 +207,10 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                 <button
                   type="button"
                   onClick={() => setViewMode('skeleton')}
-                  className="mt-3 px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-sky-300 transition cursor-pointer"
+                  className="mt-3 px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-sky-300 transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Xem mô hình đồ họa 2D
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Xem mô hình mô phỏng</span>
                 </button>
               </div>
             )}
@@ -352,33 +343,9 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                   {/* Dashed outline of empty seating spot */}
                   <circle cx="95" cy="50" r="16" fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 4" opacity="0.6" />
                   <path d="M95 68 L95 145" stroke="#94a3b8" strokeWidth="4" strokeDasharray="5 5" opacity="0.6" />
-                  
-                  {/* Yellow Empty Seat Indicator Badge */}
-                  <rect x="35" y="88" width="130" height="36" rx="6" fill="#fffbeb" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3 2" />
-                  <text x="100" y="103" fill="#b45309" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
-                    NGOÀI VÙNG GIÁM SÁT
-                  </text>
-                  <text x="100" y="117" fill="#64748b" fontSize="8.5" fontFamily="sans-serif" textAnchor="middle">
-                    (Ghế trống • Chưa có người)
-                  </text>
                 </g>
               )}
             </svg>
-
-            {/* Real-time Indicator Tag */}
-            <div className="mt-2 text-center">
-              <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-md border ${
-                isAbsent ? 'text-amber-800 bg-amber-50 border-amber-200' :
-                isGood ? 'text-emerald-800 bg-emerald-50 border-emerald-200' :
-                isBad ? 'text-rose-800 bg-rose-50 border-rose-200' :
-                isSittingLong ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-slate-600 bg-slate-100 border-slate-200'
-              }`}>
-                {isAbsent ? 'Chờ đối tượng ngồi vào vùng' :
-                 isGood ? '✓ Góc cột sống 105° (Tối ưu)' :
-                 isBad ? '⚠ Góc cúi cổ > 32° (Có nguy cơ)' :
-                 isSittingLong ? '⏰ Cần giải lao 5 phút' : 'Chờ đối tượng vào vùng'}
-              </span>
-            </div>
           </div>
         )}
 
@@ -453,41 +420,6 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           )}
         </div>
       </div>
-
-      {/* Full-screen Zoom Modal for Camera Image */}
-      {isZoomed && image && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fadeIn">
-          <div className="relative max-w-4xl w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-sky-600" />
-                <span className="font-bold text-slate-900 text-sm">Khung Hình Camera AI Trực Tiếp (Raspberry Pi 4)</span>
-                <span className="text-[11px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded">
-                  LIVE FRAME
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsZoomed(false)}
-                className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition cursor-pointer"
-              >
-                Đóng (✕)
-              </button>
-            </div>
-            <div className="p-4 bg-black flex items-center justify-center min-h-[360px] max-h-[75vh] overflow-hidden">
-              <img
-                src={image}
-                alt="Enlarged Pi Camera Frame"
-                className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
-              />
-            </div>
-            <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex items-center justify-between">
-              <span>Trạng thái: <b className="text-slate-900">{postureLabel}</b></span>
-              <span>Cập nhật: <b className="text-sky-700 font-mono">{telemetry.timestamp ? new Date(telemetry.timestamp).toLocaleTimeString('vi-VN') : ''}</b></span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

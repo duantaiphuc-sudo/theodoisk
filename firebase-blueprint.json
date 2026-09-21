@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "TelemetryLog": {
+      "title": "TelemetryLog",
+      "description": "Biometric and posture telemetry log from IoT sensors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "bpm": { "type": "number" },
+        "spo2": { "type": "number" },
+        "posture_status": { "type": "number" },
+        "posture_label": { "type": "string" },
+        "tracking_active": { "type": "boolean" },
+        "has_alert": { "type": "boolean" },
+        "alert_type": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["timestamp", "bpm", "spo2"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with health metrics and role-based access",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "employee"] },
+        "department": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string" },
+        "height": { "type": "number" },
+        "weight": { "type": "number" },
+        "maxSittingHours": { "type": "number" },
+        "healthNotes": { "type": "string" },
+        "status": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role"]
+    },
+    "UserTaskNotification": {
+      "title": "UserTaskNotification",
+      "description": "Broadcast notifications and assigned tasks from admin to users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "targetUserName": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "type": { "type": "string", "enum": ["task", "health_alert", "general"] },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "priority": { "type": "string", "enum": ["normal", "high", "urgent"] },
+        "status": { "type": "string", "enum": ["pending", "acknowledged", "completed"] },
+        "deadline": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "targetUserId", "title", "content"]
+    }
+  },
+  "firestore": {
+    "/theodoisk/live": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "bpm": { "type": "number" },
+          "spo2": { "type": "number" },
+          "posture_status": { "type": "number" },
+          "posture_label": { "type": "string" },
+          "tracking_active": { "type": "boolean" },
+          "timestamp": { "type": "string" }
+        }
+      },
+      "description": "Current real-time telemetry from IoT device"
+    },
+    "/theodoisk_history/{logId}": {
+      "schema": { "$ref": "#/entities/TelemetryLog" },
+      "description": "Historical telemetry logs"
+    },
+    "/devices_history/{logId}": {
+      "schema": { "$ref": "#/entities/TelemetryLog" },
+      "description": "Historical telemetry logs under devices namespace"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Registered user profiles and roles"
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/UserTaskNotification" },
+      "description": "Assigned tasks and notifications"
+    }
+  }
+}

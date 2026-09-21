@@ -10,6 +10,7 @@ import {
   Sparkles,
   Shield,
   User,
+  Users,
   LogOut,
   Menu,
   X,
@@ -18,9 +19,13 @@ import {
   CheckCircle2,
   Database,
   Key,
-  Layers
+  Layers,
+  Bell,
+  CheckSquare,
+  Clock
 } from 'lucide-react';
-import { FirebaseConnectionConfig, AuthUser } from '../types';
+import { FirebaseConnectionConfig, AuthUser, UserTaskNotification } from '../types';
+import { updateTaskStatusInFirebase } from '../services/firebase';
 
 interface HeaderProps {
   currentUser: AuthUser | null;
@@ -32,6 +37,10 @@ interface HeaderProps {
   onOpenFirebaseModal: () => void;
   onOpenRpiGuideModal: () => void;
   onOpenSettingsModal: () => void;
+  onOpenProfileModal?: () => void;
+  onOpenUserManagementModal?: () => void;
+  notifications?: UserTaskNotification[];
+  onOpenTasksModal?: () => void;
   soundEnabled: boolean;
   voiceAlertEnabled?: boolean;
   toggleSound: () => void;
@@ -48,6 +57,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenFirebaseModal,
   onOpenRpiGuideModal,
   onOpenSettingsModal,
+  onOpenProfileModal,
+  onOpenUserManagementModal,
+  notifications = [],
+  onOpenTasksModal,
   soundEnabled,
   voiceAlertEnabled,
   toggleSound,
@@ -57,24 +70,42 @@ export const Header: React.FC<HeaderProps> = ({
   const [showSystemInfoModal, setShowSystemInfoModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showConnectionInfoModal, setShowConnectionInfoModal] = useState(false);
+  const [showNotificationsPopover, setShowNotificationsPopover] = useState(false);
   const [refreshToast, setRefreshToast] = useState(false);
 
-  const isManager = currentUser?.role === 'manager';
+  const isManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
+  const userTasks = (notifications || []).filter(n => {
+    if (!currentUser) return false;
+    return n.targetUserId === 'all' || 
+           n.targetUserId === currentUser.id || 
+           n.targetUserId === currentUser.email ||
+           n.targetUserId === currentUser.username;
+  });
+  const pendingUserTasksCount = userTasks.filter(t => t.status !== 'completed').length;
 
   const handleRefreshClick = () => {
     setRefreshToast(true);
     setTimeout(() => setRefreshToast(false), 2000);
   };
 
+  const handleOpenProfile = () => {
+    if (onOpenProfileModal) {
+      onOpenProfileModal();
+    } else {
+      setShowProfileModal(true);
+    }
+  };
+
   return (
-    <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-40 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 transition-all shadow-xs">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Brand & Title (Clickable -> Opens System Info Modal) */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+    <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-40 px-3 sm:px-6 lg:px-8 py-2.5 transition-all shadow-xs">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+        {/* Left: Brand & Title - Fixed never to clip or truncate words */}
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={() => setShowSystemInfoModal(true)}
-            className="flex items-center gap-2.5 sm:gap-3 group text-left cursor-pointer transition active:scale-95"
+            className="flex items-center gap-2.5 sm:gap-3 group text-left cursor-pointer transition active:scale-95 shrink-0"
             title="Nhấp để xem Thông tin Hệ thống & Chẩn đoán"
           >
             <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-500/20 shrink-0 group-hover:rotate-6 transition-transform">
@@ -85,38 +116,37 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
 
-            <div className="min-w-0">
+            <div className="shrink-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-tight truncate group-hover:text-sky-600 transition">
-                  <span className="sm:hidden font-extrabold">HealthOffice</span>
-                  <span className="hidden sm:inline">Hệ Thống Theo Dõi Sức Khỏe & Tư Thế</span>
+                <h1 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-normal group-hover:text-sky-600 transition whitespace-nowrap">
+                  <span>Hệ Thống Theo Dõi Sức Khỏe & Tư Thế</span>
                 </h1>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 shrink-0 whitespace-nowrap">
                   Pi 4 IoT
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium truncate">
-                <span className="truncate">MAX30102 & AI Camera</span>
+              <p className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium whitespace-nowrap">
+                <span>MAX30102 & AI Camera</span>
               </p>
             </div>
           </button>
+        </div>
 
-          {/* Last Update Pill (Clickable -> Refresh feedback) */}
+        {/* Right: Desktop Action Bar (All buttons have strictly unified h-9 height, rounded-xl geometry, and balanced padding) */}
+        <div className="hidden md:flex items-center gap-2 shrink-0">
+          {/* Refresh & Last Update Pill */}
           {lastUpdate && (
             <button
               onClick={handleRefreshClick}
               title="Nhấp để làm mới dữ liệu"
-              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-mono border border-slate-200 transition cursor-pointer shrink-0"
+              className="flex items-center gap-2 h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-mono font-semibold border border-slate-200 transition cursor-pointer"
             >
-              <RefreshCw className={`w-3 h-3 ${refreshToast ? 'animate-spin text-sky-600' : 'text-slate-400'}`} />
-              <span>{lastUpdate}</span>
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${refreshToast ? 'animate-spin text-sky-600' : 'text-slate-500'}`} />
+              <span className="whitespace-nowrap">Làm mới: {lastUpdate}</span>
             </button>
           )}
-        </div>
 
-        {/* Right: Desktop Action Bar (Every item is interactive) */}
-        <div className="hidden md:flex items-center gap-2 shrink-0">
-          {/* Firebase Connection Pill (Interactive for both Manager & User) */}
+          {/* Firebase Connection Pill */}
           <button
             onClick={() => {
               if (isManager) {
@@ -126,7 +156,7 @@ export const Header: React.FC<HeaderProps> = ({
               }
             }}
             title={isManager ? "Nhấp để cấu hình Firebase Firestore" : "Nhấp để xem chi tiết kết nối"}
-            className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               isConnected
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                 : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
@@ -135,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
             {isConnected ? (
               <>
                 <Wifi className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span className="font-mono truncate max-w-[110px]">
+                <span className="font-mono truncate max-w-[100px] whitespace-nowrap">
                   {firebaseConfig.documentId || 'pi4_node_1'}
                 </span>
                 <span className="text-emerald-600 text-[10px]">●</span>
@@ -143,7 +173,7 @@ export const Header: React.FC<HeaderProps> = ({
             ) : (
               <>
                 <WifiOff className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                <span>Chờ kết nối</span>
+                <span className="whitespace-nowrap">Chờ kết nối</span>
               </>
             )}
           </button>
@@ -152,14 +182,14 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={toggleSimulation}
             title="Bật/Tắt chế độ mô phỏng dữ liệu test từ cảm biến"
-            className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               isSimulating
                 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>{isSimulating ? 'Đang giả lập' : 'Giả lập Pi 4'}</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span className="whitespace-nowrap">{isSimulating ? 'Đang giả lập' : 'Giả lập Pi 4'}</span>
           </button>
 
           {/* Raspberry Pi 4 Code Guide */}
@@ -167,19 +197,19 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenRpiGuideModal}
               title="Xem mã nguồn Python & hướng dẫn kết nối Raspberry Pi 4"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
             >
-              <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Code Pi 4</span>
+              <Cpu className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="whitespace-nowrap">Code Pi 4</span>
             </button>
           ) : (
             <button
               onClick={() => setShowSystemInfoModal(true)}
               title="Xem sơ đồ & thông tin phần cứng"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
             >
-              <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Phần cứng Pi 4</span>
+              <Cpu className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="whitespace-nowrap">Phần cứng Pi 4</span>
             </button>
           )}
 
@@ -188,9 +218,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenSettingsModal}
               title="Cài đặt ngưỡng cảnh báo BPM, SpO2 và thời gian"
-              className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+              <span className="whitespace-nowrap">Ngưỡng</span>
             </button>
           )}
 
@@ -204,41 +235,154 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'Âm thanh chuông đang BẬT (Bấm để tắt)'
                 : 'Âm thanh cảnh báo đang TẮT (Bấm để bật)'
             }
-            className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
           >
             {soundEnabled ? (
-              <Volume2 className="w-4 h-4 text-emerald-600" />
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="text-emerald-700 whitespace-nowrap">Bật loa</span>
+              </>
             ) : (
-              <VolumeX className="w-4 h-4 text-slate-400" />
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="text-slate-500 whitespace-nowrap">Tắt loa</span>
+              </>
             )}
           </button>
 
-          {/* User Profile & Role Indicator (Clickable -> Opens User Profile Modal) */}
+          {/* User Management Button for Admin */}
+          {isManager && onOpenUserManagementModal && (
+            <button
+              onClick={onOpenUserManagementModal}
+              title="Quản lý danh sách tài khoản đã đăng nhập trong hệ thống"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer shadow-2xs whitespace-nowrap"
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span>Quản lý tài khoản</span>
+            </button>
+          )}
+
+          {/* Notifications Bell Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotificationsPopover(!showNotificationsPopover)}
+              title="Thông báo & Task công việc"
+              className={`relative flex items-center justify-center w-9 h-9 rounded-xl border transition cursor-pointer ${
+                pendingUserTasksCount > 0 
+                  ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              {pendingUserTasksCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-extrabold flex items-center justify-center animate-pulse">
+                  {pendingUserTasksCount > 9 ? '9+' : pendingUserTasksCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Popover Dropdown */}
+            {showNotificationsPopover && (
+              <div 
+                className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-slate-200 shadow-xl z-50 p-4 animate-fadeIn"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-indigo-600" />
+                    <span className="text-xs font-bold text-slate-900">Nhiệm Vụ & Thông Báo ({userTasks.length})</span>
+                  </div>
+                  {isManager && onOpenUserManagementModal && (
+                    <button
+                      onClick={() => {
+                        setShowNotificationsPopover(false);
+                        onOpenUserManagementModal();
+                      }}
+                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                    >
+                      Quản lý / Giao việc
+                    </button>
+                  )}
+                </div>
+
+                {userTasks.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs">
+                    Không có thông báo hoặc task nào cần xử lý.
+                  </div>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-slate-100">
+                    {userTasks.slice(0, 6).map(t => {
+                      const isCompleted = t.status === 'completed';
+                      return (
+                        <div key={t.id} className="pt-2 first:pt-0 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                              t.priority === 'urgent' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {t.priority === 'urgent' ? 'Khẩn' : t.type === 'task' ? 'Task' : 'Nhắc nhở'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(t.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className={`text-xs font-bold ${isCompleted ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                            {t.title}
+                          </p>
+                          <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                            {t.content}
+                          </p>
+                          <div className="flex items-center justify-between pt-1 text-[11px]">
+                            <span className="text-slate-400">Từ: <b>{t.senderName}</b></span>
+                            <button
+                              onClick={async () => {
+                                await updateTaskStatusInFirebase(firebaseConfig, t.id, isCompleted ? 'pending' : 'completed');
+                              }}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                                isCompleted 
+                                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' 
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                              }`}
+                            >
+                              {isCompleted ? 'Mở lại' : '✓ Hoàn thành'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* User Profile & Role Indicator */}
           {currentUser && (
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
               <button
-                onClick={() => setShowProfileModal(true)}
-                title="Nhấp để xem Hồ sơ & Phân quyền tài khoản"
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition cursor-pointer hover:opacity-90 active:scale-95 ${
+                onClick={handleOpenProfile}
+                title="Nhấp để xem và cài đặt hồ sơ thể trạng, độ tuổi"
+                className={`flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer hover:opacity-90 active:scale-95 ${
                   isManager 
                     ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
                     : 'bg-sky-50 text-sky-700 border-sky-200'
                 }`}
               >
-                {isManager ? (
-                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                {currentUser.avatar ? (
+                  <img src={currentUser.avatar} alt="avatar" className="w-4 h-4 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                ) : isManager ? (
+                  <Shield className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 ) : (
-                  <User className="w-3.5 h-3.5 text-sky-600" />
+                  <User className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                 )}
-                <span>{isManager ? 'Quản Lý' : 'Nhân Viên'}</span>
+                <span className="truncate max-w-[110px] whitespace-nowrap">{currentUser.fullName || (isManager ? 'Admin' : 'Nhân Viên')}</span>
               </button>
 
               <button
                 onClick={onLogout}
                 title="Đăng xuất khỏi hệ thống"
-                className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition cursor-pointer"
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition cursor-pointer shrink-0"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -249,21 +393,42 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Mobile Role Badge (Clickable) */}
           {currentUser && (
             <button
-              onClick={() => setShowProfileModal(true)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold whitespace-nowrap cursor-pointer active:scale-95 transition ${
+              onClick={handleOpenProfile}
+              title="Xem hồ sơ & thông tin thể trạng"
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold whitespace-nowrap cursor-pointer active:scale-95 transition ${
                 isManager 
                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
                   : 'bg-sky-50 text-sky-700 border-sky-200'
               }`}
             >
-              {isManager ? (
+              {currentUser.avatar ? (
+                <img src={currentUser.avatar} alt="avatar" className="w-3.5 h-3.5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+              ) : isManager ? (
                 <Shield className="w-3 h-3 text-indigo-600" />
               ) : (
                 <User className="w-3 h-3 text-sky-600" />
               )}
-              <span>{isManager ? 'Quản Lý' : 'Nhân Viên'}</span>
+              <span className="truncate max-w-[80px]">{currentUser.fullName || (isManager ? 'Admin' : 'Nhân Viên')}</span>
             </button>
           )}
+
+          {/* Mobile Notifications Bell */}
+          <button
+            onClick={() => setShowNotificationsPopover(!showNotificationsPopover)}
+            aria-label="Toggle Notifications"
+            className={`relative flex items-center justify-center w-8 h-8 rounded-lg border active:scale-95 transition cursor-pointer shrink-0 ${
+              pendingUserTasksCount > 0 
+                ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                : 'bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5" />
+            {pendingUserTasksCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse">
+                {pendingUserTasksCount > 9 ? '9+' : pendingUserTasksCount}
+              </span>
+            )}
+          </button>
 
           {/* Mobile Sound Toggle */}
           <button
@@ -297,7 +462,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div 
               onClick={() => {
                 setMobileMenuOpen(false);
-                setShowProfileModal(true);
+                handleOpenProfile();
               }}
               className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition"
             >
@@ -309,7 +474,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">{currentUser.fullName}</p>
-                  <p className="text-[10px] text-slate-500">{currentUser.department || (isManager ? 'Quản trị viên' : 'Nhân viên')}</p>
+                  <p className="text-[10px] text-slate-500">{currentUser.department || (isManager ? 'Quản trị viên (Admin)' : 'Nhân viên')}</p>
                 </div>
               </div>
               <button
@@ -409,12 +574,25 @@ export const Header: React.FC<HeaderProps> = ({
                   <Cpu className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Xem Mã Nguồn & Hướng Dẫn Pi 4</span>
                 </button>
+
+                {onOpenUserManagementModal && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenUserManagementModal();
+                    }}
+                    className="col-span-2 flex items-center justify-center gap-1.5 p-2.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold cursor-pointer"
+                  >
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Quản Lý Danh Sách Tài Khoản</span>
+                  </button>
+                )}
               </>
             ) : (
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  setShowProfileModal(true);
+                  handleOpenProfile();
                 }}
                 className="flex items-center justify-center gap-1.5 p-2.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 font-semibold cursor-pointer"
               >

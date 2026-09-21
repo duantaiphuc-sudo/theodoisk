@@ -17,7 +17,7 @@ export interface HealthTelemetry {
   image?: string; // Base64 data URL or HTTP image URL from Pi Camera / Firebase
 }
 
-export type UserRole = 'employee' | 'manager';
+export type UserRole = 'admin' | 'manager' | 'employee';
 
 export interface AuthUser {
   id: string;
@@ -27,6 +27,16 @@ export interface AuthUser {
   role: UserRole;
   avatar?: string;
   department?: string;
+  phoneNumber?: string;
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+  height?: number; // cm
+  weight?: number; // kg
+  maxSittingHours?: number; // Mục tiêu thời gian ngồi tối đa (tiếng)
+  healthNotes?: string;
+  status?: 'active' | 'suspended';
+  lastLogin?: string;
+  createdAt?: string;
 }
 
 export interface HistoricalRecord {
@@ -68,12 +78,15 @@ export interface AlertThresholds {
   soundEnabled: boolean;
   voiceAlertEnabled: boolean; // Phát âm thanh giọng nói tiếng Việt nhắc nhở
   outOfZoneAlertEnabled: boolean; // Nhắc nhở bằng giọng nói khi rời ngoài vùng quan sát
+  browserNotificationEnabled: boolean; // Gửi thông báo trình duyệt kể cả khi ẩn/thu nhỏ cửa sổ
 }
 
 export interface TelemetryLog {
   id: string;
   timestamp: string;
   timeFormatted: string;
+  dateFormatted?: string; // DD/MM/YYYY
+  dateTimeFormatted?: string; // DD/MM/YYYY HH:mm:ss
   bpm: number;
   spo2: number;
   postureStatus: number;
@@ -98,4 +111,25 @@ export interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   time: string;
+}
+
+export type NotificationType = 'task' | 'health_alert' | 'general';
+export type NotificationPriority = 'normal' | 'high' | 'urgent';
+export type TaskStatus = 'pending' | 'acknowledged' | 'completed';
+
+export interface UserTaskNotification {
+  id: string;
+  targetUserId: string; // 'all' or specific user id / email
+  targetUserName?: string;
+  senderId: string;
+  senderName: string;
+  type: NotificationType;
+  title: string;
+  content: string;
+  priority: NotificationPriority;
+  status: TaskStatus;
+  deadline?: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+  completedAt?: string;
 }
