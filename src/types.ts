@@ -116,6 +116,7 @@ export interface ChatMessage {
 export type NotificationType = 'task' | 'health_alert' | 'general';
 export type NotificationPriority = 'normal' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'acknowledged' | 'completed';
+export type MainNavTab = 'overview' | 'zone' | 'logs' | 'tasks';
 
 export interface UserTaskNotification {
   id: string;

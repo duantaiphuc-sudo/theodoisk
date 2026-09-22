@@ -45,6 +45,8 @@ interface HeaderProps {
   voiceAlertEnabled?: boolean;
   toggleSound: () => void;
   lastUpdate: string | null;
+  onOpenMobileMenu?: () => void;
+  activeTabTitle?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -65,6 +67,8 @@ export const Header: React.FC<HeaderProps> = ({
   voiceAlertEnabled,
   toggleSound,
   lastUpdate,
+  onOpenMobileMenu,
+  activeTabTitle,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSystemInfoModal, setShowSystemInfoModal] = useState(false);

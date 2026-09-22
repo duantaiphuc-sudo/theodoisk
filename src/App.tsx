@@ -7,7 +7,8 @@ import {
   TelemetryLog, 
   FirebaseConnectionConfig,
   AuthUser,
-  UserTaskNotification
+  UserTaskNotification,
+  MainNavTab
 } from './types';
 import { 
   getSavedFirebaseConfig, 
@@ -22,12 +23,14 @@ import {
   getHistoryCollectionName,
   deleteSingleTelemetryLogFromFirebase,
   subscribeToTaskNotifications,
+  updateTaskStatusInFirebase,
 } from './services/firebase';
 import { getCurrentUser, saveCurrentUser, logout } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { notificationManager } from './services/notificationService';
-import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { TopNav } from './components/TopNav';
 import { LoginScreen } from './components/LoginScreen';
 import { MetricCards } from './components/MetricCards';
 import { PostureVisualizer } from './components/PostureVisualizer';
@@ -42,7 +45,20 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
 import { HealthChatbot } from './components/HealthChatbot';
-import { Sparkles, AlertTriangle, Radio, Trash2 } from 'lucide-react';
+import { 
+  Sparkles, 
+  AlertTriangle, 
+  Radio, 
+  Trash2, 
+  CheckCircle2, 
+  Clock, 
+  Bell, 
+  Target, 
+  FileText, 
+  Plus, 
+  Layers, 
+  ExternalLink 
+} from 'lucide-react';
 
 export default function App() {
   // 0. Authentication State
@@ -137,8 +153,13 @@ export default function App() {
     continuousSittingSeconds: 0,
   });
 
-  // Mobile quick view filter tab
-  const [mobileActiveTab, setMobileActiveTab] = useState<'all' | 'biometrics' | 'posture' | 'timers' | 'logs'>('all');
+  // Main vertical sidebar navigation tab: 'overview' | 'zone' | 'logs' | 'tasks'
+  const [mainNavTab, setMainNavTab] = useState<MainNavTab>('overview');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Mobile quick view filter tab inside overview
+  const [mobileActiveTab, setMobileActiveTab] = useState<'all' | 'biometrics' | 'posture' | 'timers'>('all');
 
   // 8. History Log Records with local persistence fallback
   const [history, setHistory] = useState<TelemetryLog[]>(() => {
@@ -720,266 +741,509 @@ export default function App() {
     }
   };
 
+  // Task notification filtering
+  const userTasks = (taskNotifications || []).filter(n => {
+    if (!currentUser) return false;
+    return n.targetUserId === 'all' || 
+           n.targetUserId === currentUser.id || 
+           n.targetUserId === currentUser.email ||
+           n.targetUserId === currentUser.username;
+  });
+  const pendingTasksCount = userTasks.filter(t => t.status !== 'completed').length;
+
+  const handleCompleteTask = async (taskId: string) => {
+    await updateTaskStatusInFirebase(firebaseConfig, taskId, 'completed');
+    setTaskNotifications(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed', completedAt: new Date().toISOString() } : t));
+  };
+
+  const handleAcknowledgeTask = async (taskId: string) => {
+    await updateTaskStatusInFirebase(firebaseConfig, taskId, 'acknowledged');
+    setTaskNotifications(prev => prev.map(t => t.id === taskId ? { ...t, status: 'acknowledged', acknowledgedAt: new Date().toISOString() } : t));
+  };
+
   // If user is not authenticated, show LoginScreen
   if (!currentUser) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
-      {/* Top Navigation */}
-      <Header
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
+      {/* 1. Left Vertical Sidebar: Fixed on desktop, Drawer on mobile */}
+      <Sidebar
+        activeTab={mainNavTab}
+        setActiveTab={setMainNavTab}
         currentUser={currentUser}
-        onLogout={handleLogout}
+        isManager={isManager}
+        pendingTasksCount={pendingTasksCount}
+        totalLogsCount={history.length}
         isConnected={isConnected}
         isSimulating={isSimulating}
         toggleSimulation={() => setIsSimulating(!isSimulating)}
-        firebaseConfig={firebaseConfig}
-        onOpenFirebaseModal={() => isManager && setIsFirebaseModalOpen(true)}
-        onOpenRpiGuideModal={() => isManager && setIsRpiGuideModalOpen(true)}
-        onOpenSettingsModal={() => isManager && setIsSettingsModalOpen(true)}
-        onOpenProfileModal={() => setIsProfileModalOpen(true)}
-        onOpenUserManagementModal={() => isManager && setIsUserManagementOpen(true)}
-        notifications={taskNotifications}
-        onOpenTasksModal={() => isManager && setIsUserManagementOpen(true)}
         soundEnabled={thresholds.soundEnabled}
-        voiceAlertEnabled={thresholds.voiceAlertEnabled}
         toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
-        lastUpdate={lastUpdate}
+        onOpenUserManagement={() => isManager && setIsUserManagementOpen(true)}
+        onOpenSettings={() => isManager && setIsSettingsModalOpen(true)}
+        onOpenRpiGuide={() => isManager && setIsRpiGuideModalOpen(true)}
+        onOpenFirebase={() => isManager && setIsFirebaseModalOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        onLogout={handleLogout}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+        onOpenMobile={() => setMobileSidebarOpen(true)}
+        isCollapsed={sidebarCollapsed}
+        setIsCollapsed={setSidebarCollapsed}
       />
 
-      {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 pb-24 sm:pb-8 space-y-3.5 sm:space-y-6 overflow-hidden">
-        {/* Success clear notification */}
-        {clearNotice && (
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs shadow-xs">
-            <span className="flex items-center gap-2 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              {clearNotice}
-            </span>
-            <button onClick={() => setClearNotice(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2">✕</button>
-          </div>
-        )}
+      {/* 2. Main Content Wrapper: Accommodates sidebar width on desktop */}
+      <div className={`flex-1 flex flex-col min-w-0 w-full transition-[padding] duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
+        {/* Top Header Bar */}
+        <TopNav
+          activeTab={mainNavTab}
+          onOpenMobileMenu={() => setMobileSidebarOpen(true)}
+          currentUser={currentUser}
+          isConnected={isConnected}
+          isSimulating={isSimulating}
+          toggleSimulation={() => setIsSimulating(!isSimulating)}
+          soundEnabled={thresholds.soundEnabled}
+          toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
+          lastUpdate={lastUpdate}
+          pendingTasksCount={pendingTasksCount}
+          onOpenTasks={() => setMainNavTab('tasks')}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          onLogout={handleLogout}
+        />
 
-        {/* Banner when Firebase has data from previous sessions or stale data */}
-        {hasReceivedData && !isSimulating && (
-          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs shadow-xs transition-all ${
-            telemetry.isStale
-              ? 'bg-amber-50/80 border-amber-200 text-amber-900'
-              : 'bg-white border-slate-200 text-slate-800'
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                telemetry.isStale 
-                  ? 'bg-amber-100 text-amber-700 border-amber-300'
-                  : 'bg-sky-50 text-sky-600 border-sky-200'
-              }`}>
-                {telemetry.isStale ? <AlertTriangle className="w-4 h-4 text-amber-600" /> : <Radio className="w-4 h-4 text-sky-600 animate-pulse" />}
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                    {telemetry.isStale ? 'Bản Ghi Lưu Trên Firebase' : 'Dữ Liệu Trực Tuyến Từ Firebase'}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
-                    telemetry.isStale
-                      ? 'bg-amber-100 text-amber-800 border-amber-300'
-                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  }`}>
-                    {telemetry.isStale ? '⚠️ Bản ghi cũ (Pi 4 Offline)' : 'Trực tuyến'}
-                  </span>
+        {/* Main Content Dashboard */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-8 space-y-4 sm:space-y-6">
+          {/* Success clear notification */}
+          {clearNotice && (
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs shadow-xs">
+              <span className="flex items-center gap-2 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                {clearNotice}
+              </span>
+              <button onClick={() => setClearNotice(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2 cursor-pointer">✕</button>
+            </div>
+          )}
+
+          {/* TAB 1: OVERVIEW (Trang chủ) */}
+          {mainNavTab === 'overview' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Banner when Firebase has data from previous sessions or stale data */}
+              {hasReceivedData && !isSimulating && (
+                <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs shadow-xs transition-all ${
+                  telemetry.isStale
+                    ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                    : 'bg-white border-slate-200 text-slate-800'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                      telemetry.isStale 
+                        ? 'bg-amber-100 text-amber-700 border-amber-300'
+                        : 'bg-sky-50 text-sky-600 border-sky-200'
+                    }`}>
+                      {telemetry.isStale ? <AlertTriangle className="w-4 h-4 text-amber-600" /> : <Radio className="w-4 h-4 text-sky-600 animate-pulse" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {telemetry.isStale ? 'Bản Ghi Lưu Trên Firebase' : 'Dữ Liệu Trực Tuyến Từ Firebase'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                          telemetry.isStale
+                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}>
+                          {telemetry.isStale ? '⚠️ Bản ghi cũ (Pi 4 Offline)' : 'Trực tuyến'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {telemetry.isStale
+                          ? `Dữ liệu (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi trước đó từ devices/${firebaseConfig.documentId || 'pi4_node_1'}. Bấm nút bên cạnh để đưa màn hình về trạng thái chờ rỗng (--).`
+                          : `Đồng bộ từ document "${firebaseConfig.documentId || 'pi4_node_1'}". Cập nhật lúc ${lastUpdate}.`}
+                      </p>
+                    </div>
+                  </div>
+                  {isManager && (
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                      <button
+                        onClick={handleClearFirebaseData}
+                        disabled={isClearingFirebase}
+                        title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
+                        className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-rose-600 hover:bg-rose-700 text-white transition shadow-xs flex items-center gap-1.5 text-xs cursor-pointer"
+                      >
+                        <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
+                        <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {telemetry.isStale
-                    ? `Dữ liệu (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi trước đó từ devices/${firebaseConfig.documentId || 'pi4_node_1'}. Bấm nút bên cạnh để đưa màn hình về trạng thái chờ rỗng (--).`
-                    : `Đồng bộ từ document "${firebaseConfig.documentId || 'pi4_node_1'}". Cập nhật lúc ${lastUpdate}.`}
-                </p>
+              )}
+
+              {/* Empty data notification bar when no packet has arrived yet */}
+              {!hasReceivedData && !isSimulating && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-xl bg-white border border-sky-200 text-slate-800 text-xs shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200">
+                      <Radio className="w-4 h-4 animate-pulse text-sky-600" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900 block text-xs sm:text-sm">
+                        Đang chờ luồng dữ liệu từ Raspberry Pi 4 (Collection: devices • Doc: {firebaseConfig.documentId || 'pi4_node_1'})
+                      </span>
+                      <span className="text-slate-500 text-[11px]">
+                        Màn hình đang ở chế độ chờ sạch sẽ. Khi có dữ liệu gửi lên từ cảm biến, các chỉ số sẽ tự động cập nhật ngay tức thì.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                    <button
+                      onClick={() => setIsSimulating(true)}
+                      className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-700 text-white transition shadow-xs text-xs cursor-pointer"
+                    >
+                      Bật Giả Lập Thử Nghiệm
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Notification bar if simulation is active */}
+              {isSimulating && (
+                <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
+                    <span>
+                      <b>Chế độ mô phỏng đang bật:</b> Đang tạo dữ liệu nhịp tim và tư thế tự động để bạn kiểm thử toàn bộ giao diện và âm thanh cảnh báo.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsSimulating(false)}
+                    className="underline font-semibold hover:text-amber-950 ml-2 cursor-pointer"
+                  >
+                    Dừng giả lập
+                  </button>
+                </div>
+              )}
+
+              {/* Mobile Thumb Navigation Segmented Tabs (Light Mode High Contrast) */}
+              <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner scrollbar-none">
+                {[
+                  { id: 'all', label: 'Tất Cả' },
+                  { id: 'biometrics', label: 'Chỉ Số' },
+                  { id: 'posture', label: 'Tư Thế' },
+                  { id: 'timers', label: 'Thời Gian' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setMobileActiveTab(tab.id as any)}
+                    className={`flex-1 min-w-[70px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
+                      mobileActiveTab === tab.id
+                        ? 'bg-white text-sky-700 shadow-xs border border-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 1. Metric Cards (Heart Rate, SpO2, Posture, Monitor Zone) */}
+              <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
+                <MetricCards 
+                  telemetry={telemetry} 
+                  thresholds={thresholds} 
+                  hasData={hasReceivedData} 
+                />
+              </div>
+
+              {/* 2. Middle Row: Anatomical Posture Visualizer & Trend Chart */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+                <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:block' : 'block'}`}>
+                  <PostureVisualizer 
+                    telemetry={telemetry} 
+                    hasData={hasReceivedData} 
+                  />
+                </div>
+                <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
+                  <TrendChart
+                    history={history}
+                    hrMin={thresholds.hrMin}
+                    hrMax={thresholds.hrMax}
+                    spo2Min={thresholds.spo2Min}
+                    hasData={hasReceivedData}
+                  />
+                </div>
+              </div>
+
+              {/* 3. Activity Timers (Sitting, Moving, Bad Posture, Continuous) */}
+              <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' ? 'hidden sm:block' : 'block'}`}>
+                <TimeCounters
+                  timeStats={timeStats}
+                  thresholds={thresholds}
+                  onResetTimers={handleResetTimers}
+                  hasData={hasReceivedData}
+                />
               </div>
             </div>
-            {isManager && (
-              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-                <button
-                  onClick={handleClearFirebaseData}
-                  disabled={isClearingFirebase}
-                  title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
-                  className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-rose-600 hover:bg-rose-700 text-white transition shadow-xs flex items-center gap-1.5 text-xs cursor-pointer"
-                >
-                  <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
-                  <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
+          )}
+
+          {/* TAB 2: MONITOR ZONE & CAMERA CALIBRATION (Chỉnh vùng) */}
+          {mainNavTab === 'zone' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Informative Header Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
+                      <Target className="w-5 h-5 text-sky-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                        Căn Chỉnh Vùng Quan Sát Camera AI (Bounding Box)
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5 leading-relaxed">
+                        Cấu hình tọa độ phần trăm hình chữ nhật quan sát của Camera Raspberry Pi 4. Khi người dùng di chuyển ra khỏi khung hình này, hệ thống sẽ cảnh báo trạng thái &quot;Ngoài vùng quan sát&quot;.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Real-time Zone Detection Status Indicator */}
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
+                    <span className="text-xs font-semibold text-slate-600">Trạng thái phát hiện:</span>
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
+                      telemetry.inZone 
+                        ? 'bg-emerald-100 text-emerald-800' 
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {telemetry.inZone ? 'Trong vùng chuẩn' : 'Ngoài vùng quan sát'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Monitor Zone Editor Card */}
+              <MonitorZoneCard
+                zone={zone}
+                setZone={setZone}
+                telemetry={telemetry}
+                isManager={isManager}
+              />
+            </div>
+          )}
+
+          {/* TAB 3: HISTORY AUDIT LOGS (Nhật ký dữ liệu) */}
+          {mainNavTab === 'logs' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Informative Header Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                        Nhật Ký Dữ Liệu & Lịch Sử Đo Đạc
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5 leading-relaxed">
+                        Tổng hợp lịch sử bản ghi telemetry (Nhịp tim, SpO2, Tư thế ngồi, Thời gian) được đồng bộ thời gian thực từ Raspberry Pi 4 lên Firebase Firestore.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-mono font-bold border border-slate-200">
+                      Tổng số bản ghi: {history.length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Width History Audit Logs */}
+              <HistoryLogs
+                history={history}
+                onClearHistory={handleClearHistory}
+                onDeleteSingleLog={handleDeleteSingleLog}
+                onRefreshHistory={handleRefreshHistory}
+                onSaveSnapshot={handleSaveSnapshot}
+                isSyncing={isSyncingHistory}
+                firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
+                isManager={isManager}
+              />
+            </div>
+          )}
+
+          {/* TAB 4: TASKS & NOTIFICATIONS (Giao việc & Task) */}
+          {mainNavTab === 'tasks' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Header Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                    <Bell className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                      Giao Việc & Nhắc Nhở Nhiệm Vụ
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                      Danh sách các nhiệm vụ, bài tập công thái học hoặc cảnh báo được quản lý phân công cho tài khoản của bạn.
+                    </p>
+                  </div>
+                </div>
+
+                {isManager && (
+                  <button
+                    onClick={() => setIsUserManagementOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tạo Task Mới</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Task Cards List */}
+              {userTasks.length === 0 ? (
+                <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">Không có nhiệm vụ nào cần xử lý</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Tất cả nhiệm vụ và bài tập nhắc nhở sức khỏe đã được hoàn thành. Hãy duy trì tư thế ngồi thẳng lưng!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {userTasks.map(task => {
+                    const isCompleted = task.status === 'completed';
+                    const isUrgent = task.priority === 'urgent';
+                    const isHigh = task.priority === 'high';
+
+                    return (
+                      <div
+                        key={task.id}
+                        className={`p-4 sm:p-5 rounded-2xl bg-white border transition-all ${
+                          isCompleted
+                            ? 'border-slate-200/70 bg-slate-50/50 opacity-75'
+                            : isUrgent
+                            ? 'border-rose-300 shadow-xs ring-1 ring-rose-200'
+                            : isHigh
+                            ? 'border-amber-300 shadow-xs'
+                            : 'border-slate-200 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                isUrgent
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : isHigh
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-sky-100 text-sky-800'
+                              }`}
+                            >
+                              {task.priority === 'urgent' ? 'Khẩn cấp' : task.priority === 'high' ? 'Ưu tiên cao' : 'Bình thường'}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                isCompleted
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : task.status === 'acknowledged'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {isCompleted ? '✓ Đã hoàn thành' : task.status === 'acknowledged' ? 'Đang thực hiện' : 'Chờ xử lý'}
+                            </span>
+                          </div>
+
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        <h4 className={`text-sm sm:text-base font-bold text-slate-900 ${isCompleted ? 'line-through text-slate-400' : ''}`}>
+                          {task.title}
+                        </h4>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                          {task.content}
+                        </p>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                          <span className="text-[11px]">
+                            Giao bởi: <b className="text-slate-700">{task.senderName}</b>
+                          </span>
+
+                          {!isCompleted && (
+                            <div className="flex items-center gap-2">
+                              {task.status === 'pending' && (
+                                <button
+                                  onClick={() => handleAcknowledgeTask(task.id)}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition cursor-pointer"
+                                >
+                                  Tiếp nhận
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleCompleteTask(task.id)}
+                                className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Hoàn thành</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="border-t border-slate-200 bg-white py-4 sm:py-5 text-center text-xs text-slate-500 mt-auto">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
+            {isManager ? (
+              <div className="flex items-center gap-3 text-slate-600">
+                <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
+                  Cấu hình Firebase
+                </button>
+                <span>•</span>
+                <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
+                  Hướng dẫn Pi 4
+                </button>
+                <span>•</span>
+                <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
+                  Ngưỡng đo cảnh báo
+                </button>
+                <span>•</span>
+                <button onClick={() => setIsUserManagementOpen(true)} className="hover:text-indigo-600 text-indigo-700 font-semibold transition cursor-pointer">
+                  Quản lý tài khoản
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-slate-600 text-xs">
+                <span>Tài khoản: <b className="text-slate-900">{currentUser.fullName}</b> (Nhân viên)</span>
+                <span>•</span>
+                <button onClick={() => setIsProfileModalOpen(true)} className="text-sky-600 hover:underline cursor-pointer">
+                  Hồ sơ sức khỏe
+                </button>
+                <span>•</span>
+                <button onClick={handleLogout} className="text-rose-600 hover:underline cursor-pointer">
+                  Đăng xuất
                 </button>
               </div>
             )}
           </div>
-        )}
-
-        {/* Empty data notification bar when no packet has arrived yet */}
-        {!hasReceivedData && !isSimulating && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-xl bg-white border border-sky-200 text-slate-800 text-xs shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200">
-                <Radio className="w-4 h-4 animate-pulse text-sky-600" />
-              </div>
-              <div>
-                <span className="font-bold text-slate-900 block text-xs sm:text-sm">
-                  Đang chờ luồng dữ liệu từ Raspberry Pi 4 (Collection: devices • Doc: {firebaseConfig.documentId || 'pi4_node_1'})
-                </span>
-                <span className="text-slate-500 text-[11px]">
-                  Màn hình đang ở chế độ chờ sạch sẽ. Khi có dữ liệu gửi lên từ cảm biến, các chỉ số sẽ tự động cập nhật ngay tức thì.
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-              <button
-                onClick={() => setIsSimulating(true)}
-                className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-700 text-white transition shadow-xs text-xs cursor-pointer"
-              >
-                Bật Giả Lập Thử Nghiệm
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Notification bar if simulation is active */}
-        {isSimulating && (
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
-              <span>
-                <b>Chế độ mô phỏng đang bật:</b> Đang tạo dữ liệu nhịp tim và tư thế tự động để bạn kiểm thử toàn bộ giao diện và âm thanh cảnh báo.
-              </span>
-            </div>
-            <button
-              onClick={() => setIsSimulating(false)}
-              className="underline font-semibold hover:text-amber-950 ml-2 cursor-pointer"
-            >
-              Chuyển về lắng nghe Firebase thực tế
-            </button>
-          </div>
-        )}
-
-        {/* Mobile Thumb Navigation Segmented Tabs (Light Mode High Contrast) */}
-        <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner scrollbar-none">
-          {[
-            { id: 'all', label: 'Tất Cả' },
-            { id: 'biometrics', label: 'Chỉ Số' },
-            { id: 'posture', label: 'Tư Thế' },
-            { id: 'timers', label: 'Thời Gian' },
-            { id: 'logs', label: 'Nhật Ký' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setMobileActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[66px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
-                mobileActiveTab === tab.id
-                  ? 'bg-white text-sky-700 shadow-xs border border-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 1. Metric Cards (Heart Rate, SpO2, Posture, Monitor Zone) */}
-        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
-          <MetricCards 
-            telemetry={telemetry} 
-            thresholds={thresholds} 
-            hasData={hasReceivedData} 
-          />
-        </div>
-
-        {/* 2. Middle Row: Anatomical Posture Visualizer & Trend Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
-          <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:block' : 'block'}`}>
-            <PostureVisualizer 
-              telemetry={telemetry} 
-              hasData={hasReceivedData} 
-            />
-          </div>
-          <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
-            <TrendChart
-              history={history}
-              hrMin={thresholds.hrMin}
-              hrMax={thresholds.hrMax}
-              spo2Min={thresholds.spo2Min}
-              hasData={hasReceivedData}
-            />
-          </div>
-        </div>
-
-        {/* 3. Activity Timers (Sitting, Moving, Bad Posture, Continuous) */}
-        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' ? 'hidden sm:block' : 'block'}`}>
-          <TimeCounters
-            timeStats={timeStats}
-            thresholds={thresholds}
-            onResetTimers={handleResetTimers}
-            hasData={hasReceivedData}
-          />
-        </div>
-
-        {/* 4. Monitor Zone & Calibration */}
-        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' && mobileActiveTab !== 'posture' ? 'hidden sm:block' : 'block'}`}>
-          <MonitorZoneCard
-            zone={zone}
-            setZone={setZone}
-            telemetry={telemetry}
-            isManager={isManager}
-          />
-        </div>
-
-        {/* 5. History Audit Logs & CSV Export */}
-        <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'logs' ? 'hidden sm:block' : 'block'}`}>
-          <HistoryLogs
-            history={history}
-            onClearHistory={handleClearHistory}
-            onDeleteSingleLog={handleDeleteSingleLog}
-            onRefreshHistory={handleRefreshHistory}
-            onSaveSnapshot={handleSaveSnapshot}
-            isSyncing={isSyncingHistory}
-            firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
-            isManager={isManager}
-          />
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4 sm:py-5 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
-          {isManager ? (
-            <div className="flex items-center gap-3 text-slate-600">
-              <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-600 transition">
-                Cấu hình Firebase
-              </button>
-              <span>•</span>
-              <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-600 transition">
-                Hướng dẫn Pi 4
-              </button>
-              <span>•</span>
-              <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-600 transition">
-                Ngưỡng đo cảnh báo
-              </button>
-              <span>•</span>
-              <button onClick={() => setIsUserManagementOpen(true)} className="hover:text-indigo-600 text-indigo-700 font-semibold transition">
-                Quản lý tài khoản
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-slate-600 text-xs">
-              <span>Tài khoản: <b className="text-slate-900">{currentUser.fullName}</b> (Nhân viên)</span>
-              <span>•</span>
-              <button onClick={() => setIsProfileModalOpen(true)} className="text-sky-600 hover:underline">
-                Hồ sơ sức khỏe
-              </button>
-              <span>•</span>
-              <button onClick={handleLogout} className="text-rose-600 hover:underline">
-                Đăng xuất
-              </button>
-            </div>
-          )}
-        </div>
-      </footer>
+        </footer>
+      </div>
 
       {/* Floating AI Ergonomic Health Chatbot with Data Retrieval */}
       <HealthChatbot
