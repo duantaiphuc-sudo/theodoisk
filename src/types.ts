@@ -63,6 +63,9 @@ export interface AuthUser {
   lastActive?: string;
   currentPresence?: 'Present' | 'Away';
   currentPosture?: 'correct' | 'incorrect' | 'absent';
+  currentPostureText?: string;
+  hasAlert?: boolean;
+  alertReason?: string;
   sittingMinutes?: number;
   bpm?: number;
   spo2?: number;

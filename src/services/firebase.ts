@@ -1171,6 +1171,9 @@ export function subscribeToUsers(
             lastActive: data.lastActive || '',
             currentPresence: data.currentPresence || 'Away',
             currentPosture: data.currentPosture || 'absent',
+            currentPostureText: data.currentPostureText || (data.currentPosture === 'incorrect' ? '⚠ Sai' : (data.currentPosture === 'correct' ? '✓ Đúng' : '– Vắng')),
+            hasAlert: Boolean(data.hasAlert),
+            alertReason: data.alertReason || '',
             sittingMinutes: Number(data.sittingMinutes || 0),
             bpm: Number(data.bpm || 0),
             spo2: Number(data.spo2 || 0)

@@ -24,6 +24,7 @@ import {
   deleteSingleTelemetryLogFromFirebase,
   subscribeToTaskNotifications,
   updateTaskStatusInFirebase,
+  updateUserRealtimePresence,
 } from './services/firebase';
 import { getCurrentUser, saveCurrentUser, logout } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
@@ -580,6 +581,43 @@ export default function App() {
 
     return () => clearInterval(simInterval);
   }, [isSimulating, handleIncomingTelemetry]);
+
+  // Broadcast active user's realtime presence & telemetry to Firestore so Admin Dashboard sees them live immediately
+  useEffect(() => {
+    if (!currentUser || !firebaseConfig.autoConnect) return;
+
+    const syncPresence = () => {
+      const isWaiting = telemetry.postureStatus === -1 && telemetry.bpm === 0 && telemetry.spo2 === 0;
+      const isBad = telemetry.postureStatus === 1 || telemetry.postureStatus === 3;
+      const isAbsent = !telemetry.trackingActive && (telemetry.postureStatus === 2 || isWaiting);
+
+      const presence: 'Present' | 'Away' = isWaiting ? 'Away' : (isAbsent ? 'Away' : 'Present');
+      const posture: 'correct' | 'incorrect' | 'absent' = isWaiting ? 'absent' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+      const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+
+      updateUserRealtimePresence(firebaseConfig, currentUser.id, {
+        isOnline: true,
+        lastActive: new Date().toISOString(),
+        currentPresence: presence,
+        currentPosture: posture,
+        currentPostureText: postureText,
+        sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
+        bpm: telemetry.bpm,
+        spo2: telemetry.spo2,
+        hasAlert: isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax)),
+        alertReason: isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        device: firebaseConfig.documentId || (currentUser.role === 'admin' ? 'pi4_node_3' : 'pi4_node_4')
+      }).catch(() => {});
+    };
+
+    // Immediate sync on metric update or simulation toggle
+    syncPresence();
+    const interval = setInterval(syncPresence, 2500);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [currentUser, firebaseConfig, telemetry, timeStats, thresholds, isSimulating]);
 
   const handleResetTimers = () => {
     setTimeStats({

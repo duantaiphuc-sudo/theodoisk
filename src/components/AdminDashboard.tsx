@@ -29,6 +29,7 @@ import { AuthUser, EmployeeNodeStatus, HealthTelemetry, TimeCalculations, Teleme
 import { WeeklyHealthTrendChart } from './WeeklyHealthTrendChart';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
 import { fetchAllUsers } from '../services/authService';
+import { subscribeToUsers, getSavedFirebaseConfig } from '../services/firebase';
 
 interface AdminDashboardProps {
   currentUser: AuthUser;
@@ -65,7 +66,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
       if (currentUser) {
         const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
-        map.set(curKey, currentUser);
+        const existing = map.get(curKey);
+        map.set(curKey, { ...(existing || {}), ...currentUser });
       }
       setRegisteredUsers(Array.from(map.values()));
     } catch (e) {
@@ -76,9 +78,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [currentUser]);
 
+  // Real-time listener for users collection in Firestore (detects mobile & remote device logins/simulations immediately)
   React.useEffect(() => {
     loadUsers();
-  }, [loadUsers]);
+    const config = getSavedFirebaseConfig();
+    const unsub = subscribeToUsers(config, (users) => {
+      const map = new Map<string, AuthUser>();
+      users.forEach(u => {
+        const key = (u.email || u.username || u.id).trim().toLowerCase();
+        map.set(key, u);
+      });
+      if (currentUser) {
+        const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
+        const existing = map.get(curKey);
+        map.set(curKey, { ...(existing || {}), ...currentUser });
+      }
+      setRegisteredUsers(Array.from(map.values()));
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [loadUsers, currentUser]);
 
   // Dynamically compute nodes from real registered users and real telemetry logs
   const nodes = React.useMemo<EmployeeNodeStatus[]>(() => {
@@ -87,6 +108,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return list.map((user, idx) => {
       const isCurrent = user.id === currentUser?.id || (user.email && user.email.toLowerCase() === currentUser?.email?.toLowerCase());
       const deviceId = `pi4_node_${idx + 1}`;
+
+      // Check if user has active real-time telemetry broadcast in Firestore (e.g. from mobile phone or other device)
+      const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
+      const isRecentlyActive = (Date.now() - lastActiveMs) < 30000; // active within 30s
+      const hasBroadcastTelemetry = isRecentlyActive && (Boolean(user.isOnline) || (user.bpm !== undefined && user.bpm > 0));
 
       // Search real history logs matching this user
       const userLogs = (historyLogs || []).filter(l => 
@@ -132,6 +158,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           isOnline: !isWaiting,
           hasAlert: isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110)),
           alertReason: isBad ? 'Ngồi sai tư thế' : undefined,
+          role: user.role
+        };
+      }
+
+      // Remote user broadcasting live telemetry from another device (e.g. mobile phone simulation or another Pi node)
+      if (hasBroadcastTelemetry) {
+        const isBad = user.currentPosture === 'incorrect';
+        const isAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent';
+        const postureText = user.currentPostureText || (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+
+        return {
+          id: `node-${user.id}`,
+          name: user.fullName || user.username,
+          email: user.email,
+          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
+          department: user.department || 'Nhân Viên Văn Phòng IoT',
+          device: user.device || deviceId,
+          presence: isAbsent ? 'Away' : 'Present',
+          posture: isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'),
+          postureText,
+          sittingMinutes: user.sittingMinutes || 0,
+          bpm: user.bpm || 0,
+          spo2: user.spo2 || 0,
+          isOnline: true,
+          hasAlert: Boolean(user.hasAlert || isBad),
+          alertReason: user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined),
           role: user.role
         };
       }
@@ -429,8 +481,12 @@ ${nodes.map(n => {
         </div>
       </div>
 
-      {/* 2.5 SECTION: BIỂU ĐỒ XU HƯỚNG THEO TUẦN (Mức TB nhịp tim & SpO2 từng tuần) */}
-      <WeeklyHealthTrendChart historyLogs={historyLogs} />
+      {/* 2.5 SECTION: TỔNG QUAN DỮ LIỆU ĐO ĐẠC THỜI GIAN THỰC */}
+      <WeeklyHealthTrendChart 
+        historyLogs={historyLogs} 
+        liveTelemetry={liveTelemetry} 
+        activeNodes={nodes} 
+      />
 
       {/* 3. SECTION: NHÂN VIÊN (Table or Plain Text View) */}
       {viewMode === 'visual' ? (
