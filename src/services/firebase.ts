@@ -4,6 +4,7 @@ import {
   doc, 
   onSnapshot, 
   collection, 
+  collectionGroup,
   query, 
   orderBy, 
   limit, 
@@ -535,20 +536,26 @@ export async function saveTelemetryHistoryToFirebase(
       user_name: entry.userName || ''
     };
 
+    const targetUserId = entry.userId || payload.user_id || 'user-default';
+
     if (config.useRealtimeDb && config.databaseURL) {
       const rtdb = getDatabase(app);
-      const histRef = ref(rtdb, `${histColName}/${docId}`);
-      await set(histRef, payload);
-      // Also write to theodoisk_history if different
+      // 1. Lưu theo từng tài khoản trên RTDB: users/{userId}/history/{docId}
+      await set(ref(rtdb, `users/${targetUserId}/history/${docId}`), payload);
+      // 2. Lưu tập trung để Admin / thiết bị truy vấn tổng quan
+      await set(ref(rtdb, `${histColName}/${docId}`), payload);
       if (histColName !== 'theodoisk_history') {
-        const theodoiskHistRef = ref(rtdb, `theodoisk_history/${docId}`);
-        await set(theodoiskHistRef, payload);
+        await set(ref(rtdb, `theodoisk_history/${docId}`), payload);
       }
     } else {
       const db = getFirestore(app);
+      // 1. Lưu lịch sử theo từng tài khoản riêng biệt: users/{userId}/history/{docId}
+      const userHistDocRef = doc(db, 'users', targetUserId, 'history', docId);
+      await setDoc(userHistDocRef, payload, { merge: true });
+
+      // 2. Lưu đồng thời vào theodoisk_history để quản trị viên & bộ lọc console Firebase thấy đầy đủ
       const docRef = doc(db, histColName, docId);
       await setDoc(docRef, payload, { merge: true });
-      // Always also save to theodoisk_history collection so users viewing theodoisk_history in Firebase Console see all records
       if (histColName !== 'theodoisk_history') {
         const primaryDocRef = doc(db, 'theodoisk_history', docId);
         await setDoc(primaryDocRef, payload, { merge: true });
@@ -561,7 +568,7 @@ export async function saveTelemetryHistoryToFirebase(
 
 /**
  * Batch upload multiple historical telemetry logs to Firebase Firestore / RTDB.
- * Ensures that all recorded local data points (e.g. 136 data points) are saved to Firebase.
+ * Ensures that all recorded local data points are saved to Firebase per user account.
  */
 export async function batchSaveTelemetryHistoryToFirebase(
   config: FirebaseConnectionConfig,
@@ -587,6 +594,8 @@ export async function batchSaveTelemetryHistoryToFirebase(
           : `rec_${validD.getTime()}_${Math.random().toString(36).substr(2, 5)}`;
         const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const targetUserId = entry.userId || 'user-default';
+
         const payload = {
           id: docId,
           timestamp: validD.toISOString(),
@@ -603,10 +612,12 @@ export async function batchSaveTelemetryHistoryToFirebase(
           alert_type: entry.alertType || '',
           created_at: now.toISOString(),
           device: entry.device || 'Raspberry Pi 4 / Monitor Node',
-          user_id: entry.userId || '',
+          user_id: targetUserId,
           user_email: entry.userEmail || '',
           user_name: entry.userName || ''
         };
+        // Lưu phân tách theo tài khoản
+        await set(ref(rtdb, `users/${targetUserId}/history/${docId}`), payload);
         await set(ref(rtdb, `${histColName}/${docId}`), payload);
         if (histColName !== 'theodoisk_history') {
           await set(ref(rtdb, `theodoisk_history/${docId}`), payload);
@@ -633,6 +644,7 @@ export async function batchSaveTelemetryHistoryToFirebase(
               : `rec_${validD.getTime()}_${Math.random().toString(36).substr(2, 5)}`;
             const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const targetUserId = entry.userId || 'user-default';
 
             const payload = {
               id: docId,
@@ -650,11 +662,16 @@ export async function batchSaveTelemetryHistoryToFirebase(
               alert_type: entry.alertType || '',
               created_at: now.toISOString(),
               device: entry.device || 'Raspberry Pi 4 / Monitor Node',
-              user_id: entry.userId || '',
+              user_id: targetUserId,
               user_email: entry.userEmail || '',
               user_name: entry.userName || ''
             };
 
+            // 1. Phân tách theo tài khoản: users/{userId}/history/{docId}
+            const userDocRef = doc(db, 'users', targetUserId, 'history', docId);
+            batch.set(userDocRef, payload, { merge: true });
+
+            // 2. Collection chung
             const docRef1 = doc(db, histColName, docId);
             batch.set(docRef1, payload, { merge: true });
 
@@ -668,7 +685,7 @@ export async function batchSaveTelemetryHistoryToFirebase(
           totalSynced += chunk.length;
         } catch (batchErr) {
           console.warn('writeBatch thất bại, chuyển sang ghi trực tiếp từng tài liệu setDoc:', batchErr);
-          // Fallback: write individually with setDoc so batch failure never drops all records
+          // Fallback: write individually with setDoc
           for (const entry of chunk) {
             try {
               const parsedD = entry.timestamp ? new Date(entry.timestamp) : now;
@@ -678,6 +695,7 @@ export async function batchSaveTelemetryHistoryToFirebase(
                 : `rec_${validD.getTime()}_${Math.random().toString(36).substr(2, 5)}`;
               const dateFormatted = entry.dateFormatted || validD.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
               const timeFormatted = entry.timeFormatted || validD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const targetUserId = entry.userId || 'user-default';
 
               const payload = {
                 id: docId,
@@ -694,9 +712,13 @@ export async function batchSaveTelemetryHistoryToFirebase(
                 has_alert: Boolean(entry.hasAlert),
                 alert_type: entry.alertType || '',
                 created_at: now.toISOString(),
-                device: 'Raspberry Pi 4 / Monitor Node'
+                device: 'Raspberry Pi 4 / Monitor Node',
+                user_id: targetUserId,
+                user_email: entry.userEmail || '',
+                user_name: entry.userName || ''
               };
 
+              await setDoc(doc(db, 'users', targetUserId, 'history', docId), payload, { merge: true });
               await setDoc(doc(db, histColName, docId), payload, { merge: true });
               if (histColName !== 'theodoisk_history') {
                 await setDoc(doc(db, 'theodoisk_history', docId), payload, { merge: true });
@@ -719,10 +741,13 @@ export async function batchSaveTelemetryHistoryToFirebase(
 
 /**
  * Query historical telemetry logs from Firebase.
+ * If `userId` is provided, fetches specifically from the account's partition `users/{userId}/history`.
+ * Otherwise, fetches from global/admin collections.
  */
 export async function fetchFirebaseHistory(
   config: FirebaseConnectionConfig,
-  maxRecords = 100
+  maxRecords = 100,
+  userId?: string
 ): Promise<TelemetryLog[]> {
   try {
     const app = initializeFirebaseApp(config);
@@ -730,7 +755,8 @@ export async function fetchFirebaseHistory(
 
     if (config.useRealtimeDb && config.databaseURL) {
       const rtdb = getDatabase(app);
-      const histRef = ref(rtdb, histColName);
+      const targetPath = userId ? `users/${userId}/history` : histColName;
+      const histRef = ref(rtdb, targetPath);
       const snap = await get(histRef);
       if (snap.exists()) {
         const val = snap.val();
@@ -740,9 +766,34 @@ export async function fetchFirebaseHistory(
       return [];
     } else {
       const db = getFirestore(app);
-      const collRef = collection(db, histColName);
       let logs: TelemetryLog[] = [];
-      
+
+      // 1. If user ID is given, read from their personal account history: users/{userId}/history
+      if (userId) {
+        try {
+          const userCollRef = collection(db, 'users', userId, 'history');
+          const q = query(userCollRef, orderBy('timestamp', 'desc'), limit(maxRecords));
+          const userSnap = await getDocs(q);
+          if (!userSnap.empty) {
+            logs = userSnap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+          } else {
+            const fallbackSnap = await getDocs(userCollRef);
+            if (!fallbackSnap.empty) {
+              logs = fallbackSnap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+            }
+          }
+        } catch (uErr) {
+          console.warn('Lỗi đọc users/{userId}/history:', uErr);
+        }
+
+        // If user already has logs in their personal collection, return them
+        if (logs.length > 0) {
+          return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, maxRecords);
+        }
+      }
+
+      // 2. Fallback / Global query (for Admin or legacy logs in theodoisk_history)
+      const collRef = collection(db, histColName);
       try {
         const q = query(collRef, orderBy('timestamp', 'desc'), limit(maxRecords));
         const snap = await getDocs(q);
@@ -750,14 +801,12 @@ export async function fetchFirebaseHistory(
           logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
         }
       } catch (orderErr) {
-        // Fallback without orderBy (in case index is still building or missing)
         const snap = await getDocs(collRef);
         if (!snap.empty) {
           logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
         }
       }
 
-      // If current collection is not theodoisk_history, also fetch from theodoisk_history to ensure no records are missed
       if (histColName !== 'theodoisk_history') {
         try {
           const primaryRef = collection(db, 'theodoisk_history');
@@ -772,6 +821,15 @@ export async function fetchFirebaseHistory(
         } catch {}
       }
 
+      // Filter by userId if requested and legacy logs were retrieved from global collection
+      if (userId) {
+        const lowerUid = userId.toLowerCase();
+        logs = logs.filter(l => 
+          (l.userId && l.userId.toLowerCase() === lowerUid) ||
+          (l.userEmail && l.userEmail.toLowerCase() === lowerUid)
+        );
+      }
+
       return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, maxRecords);
     }
   } catch (err) {
@@ -782,11 +840,13 @@ export async function fetchFirebaseHistory(
 
 /**
  * Real-time listener for the history collection.
+ * If `userId` is provided, listens specifically to `users/{userId}/history`.
  */
 export function subscribeToFirebaseHistory(
   config: FirebaseConnectionConfig,
   onHistory: (logs: TelemetryLog[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  userId?: string
 ): () => void {
   try {
     const app = initializeFirebaseApp(config);
@@ -794,7 +854,8 @@ export function subscribeToFirebaseHistory(
 
     if (config.useRealtimeDb && config.databaseURL) {
       const rtdb = getDatabase(app);
-      const histRef = ref(rtdb, histColName);
+      const targetPath = userId ? `users/${userId}/history` : histColName;
+      const histRef = ref(rtdb, targetPath);
       const unsub = onValue(
         histRef,
         snap => {
@@ -812,6 +873,35 @@ export function subscribeToFirebaseHistory(
       return () => unsub();
     } else {
       const db = getFirestore(app);
+
+      // If specific userId is given, listen to users/{userId}/history
+      if (userId) {
+        const userCollRef = collection(db, 'users', userId, 'history');
+        const qUser = query(userCollRef, orderBy('timestamp', 'desc'), limit(100));
+
+        const unsubUser = onSnapshot(
+          qUser,
+          snap => {
+            const logs: TelemetryLog[] = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+            onHistory(logs);
+          },
+          () => {
+            // Fallback without orderBy
+            try {
+              return onSnapshot(userCollRef, snapFallback => {
+                const logs: TelemetryLog[] = snapFallback.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+                const sorted = logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 100);
+                onHistory(sorted);
+              }, err2 => onError?.(err2));
+            } catch (e) {
+              onError?.(e as Error);
+            }
+          }
+        );
+        return unsubUser;
+      }
+
+      // Otherwise listen to global history collection
       const collRef = collection(db, histColName);
       const q = query(collRef, orderBy('timestamp', 'desc'), limit(100));
 
@@ -822,7 +912,6 @@ export function subscribeToFirebaseHistory(
           onHistory(logs);
         },
         err => {
-          // If query with orderBy fails (e.g. index error), fallback to direct collection listener
           try {
             const fallbackUnsub = onSnapshot(
               collRef,
@@ -918,7 +1007,8 @@ export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Pr
  */
 export async function deleteSingleTelemetryLogFromFirebase(
   config: FirebaseConnectionConfig,
-  logId: string
+  logId: string,
+  userId?: string
 ): Promise<void> {
   try {
     const app = initializeFirebaseApp(config);
@@ -935,12 +1025,18 @@ export async function deleteSingleTelemetryLogFromFirebase(
     for (const col of targetCollections) {
       await deleteDoc(doc(db, col, logId)).catch(() => {});
     }
+    if (userId) {
+      await deleteDoc(doc(db, 'users', userId, 'history', logId)).catch(() => {});
+    }
 
     // 2. Realtime Database deletion
     if (config.useRealtimeDb && config.databaseURL) {
       const rtdb = getDatabase(app);
       for (const col of targetCollections) {
         await remove(ref(rtdb, `${col}/${logId}`)).catch(() => {});
+      }
+      if (userId) {
+        await remove(ref(rtdb, `users/${userId}/history/${logId}`)).catch(() => {});
       }
     }
   } catch (err) {

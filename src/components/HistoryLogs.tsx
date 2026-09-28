@@ -382,9 +382,16 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                               <span className="font-mono text-slate-900 font-bold">
                                 {item.dateFormatted || '--/--/----'}
                               </span>
-                              <span className="font-mono text-[11px] text-slate-500">
-                                {item.timeFormatted}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono text-[11px] text-slate-500">
+                                  {item.timeFormatted}
+                                </span>
+                                {(item.userName || item.userEmail) && (
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 max-w-[120px] truncate" title={item.userEmail}>
+                                    {item.userName || item.userEmail}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -469,11 +476,16 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 return (
                   <div key={item.id} className="p-3 rounded-xl bg-slate-50/90 border border-slate-200 space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 font-mono text-xs">
+                      <div className="flex items-center gap-1.5 font-mono text-xs min-w-0">
                         <Calendar className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                         <span className="font-bold text-slate-900">{item.dateFormatted || '--/--/----'}</span>
                         <span className="text-slate-400">•</span>
                         <span className="text-slate-600">{item.timeFormatted}</span>
+                        {(item.userName || item.userEmail) && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 max-w-[90px] truncate" title={item.userEmail}>
+                            {item.userName || item.userEmail}
+                          </span>
+                        )}
                       </div>
                       
                       <div className="flex items-center gap-1.5">

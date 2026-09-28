@@ -26,8 +26,13 @@ service cloud.firestore {
       allow read, write: if collectionName.matches('.*_history') || collectionName == 'theodoisk' || collectionName == 'devices';
     }
 
-    // User profile documents
-    match /users/{userId} {
+    // User profile documents and user-specific history subcollections (e.g. /users/{userId}/history/{docId})
+    match /users/{userId}/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Collection group for history queries across users (for Admin dashboard)
+    match /{path=**}/history/{docId} {
       allow read, write: if true;
     }
 

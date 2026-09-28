@@ -396,7 +396,8 @@ export default function App() {
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
     lastPostureStatusRef.current = data.postureStatus;
 
-    const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus >= 0 && data.postureStatus !== 2);
+    // Valid metrics include posture state transitions (even absent/away status 2) or live vitals
+    const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus !== undefined && data.postureStatus >= 0);
     const shouldSaveRemote = hasValidMetrics &&
       (hasAlert || postureChanged || timeSinceLastRemote > 6000);
 
@@ -430,13 +431,16 @@ export default function App() {
     };
   }, [firebaseConfig, isSimulating, handleIncomingTelemetry]);
 
-  // Fetch & Subscribe to Firebase History Collection
+  // Fetch & Subscribe to Firebase History Collection (Per-account for employees, global for admin)
   useEffect(() => {
     let unsubHistory: (() => void) | null = null;
 
     if (firebaseConfig.autoConnect && !isSimulating) {
       setIsSyncingHistory(true);
-      fetchFirebaseHistory(firebaseConfig, 100)
+      // For employee accounts, query and listen to their own subcollection users/{userId}/history!
+      const activeUserId = (currentUser && currentUser.role !== 'admin') ? currentUser.id : undefined;
+
+      fetchFirebaseHistory(firebaseConfig, 100, activeUserId)
         .then(remoteLogs => {
           if (remoteLogs && remoteLogs.length > 0) {
             setHistory(prev => {
@@ -477,14 +481,15 @@ export default function App() {
         },
         err => {
           console.warn('Thông báo lắng nghe lịch sử Firebase:', err);
-        }
+        },
+        activeUserId
       );
     }
 
     return () => {
       if (unsubHistory) unsubHistory();
     };
-  }, [firebaseConfig, isSimulating]);
+  }, [firebaseConfig, isSimulating, currentUser]);
 
   // Second timer loop for web-calculated activity times
   useEffect(() => {
@@ -587,16 +592,18 @@ export default function App() {
     if (!currentUser || !firebaseConfig.autoConnect) return;
 
     const syncPresence = () => {
+      const isOutOfZone = telemetry.inZone === false || telemetry.trackingActive === false;
       const isWaiting = telemetry.postureStatus === -1 && telemetry.bpm === 0 && telemetry.spo2 === 0;
-      const isBad = telemetry.postureStatus === 1 || telemetry.postureStatus === 3;
-      const isAbsent = !telemetry.trackingActive && (telemetry.postureStatus === 2 || isWaiting);
+      // Trạng thái Vắng mặt: khi ngồi ngoài vùng camera, camera không bắt được người (trackingActive=false) hoặc trạng thái mã 2
+      const isAbsent = telemetry.postureStatus === 2 || isOutOfZone || isWaiting;
+      const isBad = !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
-      const presence: 'Present' | 'Away' = isWaiting ? 'Away' : (isAbsent ? 'Away' : 'Present');
+      const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
       const posture: 'correct' | 'incorrect' | 'absent' = isWaiting ? 'absent' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
       const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
       updateUserRealtimePresence(firebaseConfig, currentUser.id, {
-        isOnline: true,
+        isOnline: !isWaiting,
         lastActive: new Date().toISOString(),
         currentPresence: presence,
         currentPosture: posture,
@@ -604,8 +611,8 @@ export default function App() {
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
         bpm: telemetry.bpm,
         spo2: telemetry.spo2,
-        hasAlert: isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax)),
-        alertReason: isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        hasAlert: !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
+        alertReason: !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
         device: firebaseConfig.documentId || (currentUser.role === 'admin' ? 'pi4_node_3' : 'pi4_node_4')
       }).catch(() => {});
     };
@@ -760,7 +767,7 @@ export default function App() {
   const handleDeleteSingleLog = async (logId: string) => {
     setHistory(prev => prev.filter(item => item.id !== logId));
     try {
-      await deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId);
+      await deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId, currentUser?.id);
       setClearNotice('Đã xóa bản ghi thành công khỏi thiết bị và Firebase Firestore.');
       setTimeout(() => setClearNotice(null), 3000);
     } catch (err: any) {

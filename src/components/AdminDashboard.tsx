@@ -111,8 +111,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       // Check if user has active real-time telemetry broadcast in Firestore (e.g. from mobile phone or other device)
       const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
-      const isRecentlyActive = (Date.now() - lastActiveMs) < 30000; // active within 30s
-      const hasBroadcastTelemetry = isRecentlyActive && (Boolean(user.isOnline) || (user.bpm !== undefined && user.bpm > 0));
+      const isRecentlyActive = (Date.now() - lastActiveMs) < 60000; // active within 60s
+      const hasBroadcastTelemetry = isRecentlyActive && (Boolean(user.isOnline) || user.currentPresence !== undefined || (user.bpm !== undefined && user.bpm > 0));
 
       // Search real history logs matching this user
       const userLogs = (historyLogs || []).filter(l => 
@@ -124,9 +124,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       // Active user in this session with live telemetry
       if (isCurrent && liveTelemetry) {
-        const isBad = liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3;
-        const isWaiting = liveTelemetry.postureStatus === -1;
-        const isAbsent = !liveTelemetry.trackingActive && liveTelemetry.bpm === 0 && (isWaiting || liveTelemetry.postureStatus === 2);
+        const isOutOfZone = liveTelemetry.inZone === false || liveTelemetry.trackingActive === false;
+        const isWaiting = liveTelemetry.postureStatus === -1 && liveTelemetry.bpm === 0 && liveTelemetry.spo2 === 0;
+        const isAbsent = liveTelemetry.postureStatus === 2 || isOutOfZone || isWaiting;
+        const isBad = !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
         const sittingMins = timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0;
 
         let postureText = '✓ Đúng';
@@ -149,24 +150,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
           department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
           device: deviceId,
-          presence: isWaiting ? 'Away' : (isAbsent ? 'Away' : 'Present'),
+          presence: isAbsent ? 'Away' : 'Present',
           posture,
           postureText,
           sittingMinutes: sittingMins,
           bpm: liveTelemetry.bpm || 0,
           spo2: liveTelemetry.spo2 || 0,
           isOnline: !isWaiting,
-          hasAlert: isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110)),
-          alertReason: isBad ? 'Ngồi sai tư thế' : undefined,
+          hasAlert: !isAbsent && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
+          alertReason: !isAbsent && isBad ? 'Ngồi sai tư thế' : undefined,
           role: user.role
         };
       }
 
       // Remote user broadcasting live telemetry from another device (e.g. mobile phone simulation or another Pi node)
       if (hasBroadcastTelemetry) {
-        const isBad = user.currentPosture === 'incorrect';
         const isAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent';
-        const postureText = user.currentPostureText || (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+        const isBad = !isAbsent && user.currentPosture === 'incorrect';
+        const postureText = isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : (user.currentPostureText || '✓ Đúng'));
 
         return {
           id: `node-${user.id}`,
@@ -181,17 +182,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           sittingMinutes: user.sittingMinutes || 0,
           bpm: user.bpm || 0,
           spo2: user.spo2 || 0,
-          isOnline: true,
-          hasAlert: Boolean(user.hasAlert || isBad),
-          alertReason: user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined),
+          isOnline: Boolean(user.isOnline),
+          hasAlert: Boolean(!isAbsent && (user.hasAlert || isBad)),
+          alertReason: !isAbsent ? (user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined)) : undefined,
           role: user.role
         };
       }
 
       // If user has previous historical telemetry logs in Firestore
       if (latestLog) {
-        const isBad = latestLog.postureStatus === 1 || latestLog.postureStatus === 3;
-        const isAbsent = latestLog.postureStatus === 2;
+        const isAbsent = latestLog.postureStatus === 2 || latestLog.trackingActive === false;
+        const isBad = !isAbsent && (latestLog.postureStatus === 1 || latestLog.postureStatus === 3);
         return {
           id: `node-${user.id}`,
           name: user.fullName || user.username,
@@ -206,8 +207,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           bpm: latestLog.bpm || 0,
           spo2: latestLog.spo2 || 0,
           isOnline: false,
-          hasAlert: latestLog.hasAlert,
-          alertReason: latestLog.alertType,
+          hasAlert: Boolean(!isAbsent && latestLog.hasAlert),
+          alertReason: !isAbsent ? latestLog.alertType : undefined,
           role: user.role
         };
       }
