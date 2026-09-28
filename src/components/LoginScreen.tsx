@@ -24,7 +24,10 @@ import {
   Phone,
   Mail,
   KeyRound,
-  Check
+  Check,
+  Copy,
+  ExternalLink,
+  AlertTriangle
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { 
@@ -51,6 +54,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const [canGoogleFallback, setCanGoogleFallback] = useState(false);
   const [activeModal, setActiveModal] = useState<HeaderModalType>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -202,8 +208,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     onLoginSuccess(user);
   };
 
+  const handleCopyDomain = () => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      navigator.clipboard.writeText(hostname).then(() => {
+        setCopiedDomain(true);
+        setTimeout(() => setCopiedDomain(false), 3000);
+      });
+    }
+  };
+
+  const handleQuickLoginAs = (type: 'duantaiphuc' | 'admin' | 'user') => {
+    if (type === 'duantaiphuc') {
+      const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Admin)');
+      onLoginSuccess(user);
+    } else if (type === 'admin') {
+      const res = loginWithCredentials('admin', 'admin123');
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      }
+    } else {
+      const res = loginWithCredentials('user', 'user123');
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      }
+    }
+  };
+
   const handleGoogleLogin = async () => {
-    setError(null);
+    setGoogleError(null);
+    setIsUnauthorizedDomain(false);
     setCanGoogleFallback(false);
     setGoogleLoading(true);
     try {
@@ -211,21 +245,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       if (res.success && res.user) {
         onLoginSuccess(res.user);
       } else {
-        setError(res.error || 'Đăng nhập Google không thành công. Vui lòng thử lại.');
+        setGoogleError(res.error || 'Đăng nhập Google không thành công. Vui lòng thử lại.');
         if (res.canQuickFallback) {
           setCanGoogleFallback(true);
         }
+        if (res.isUnauthorizedDomain) {
+          setIsUnauthorizedDomain(true);
+        }
       }
     } catch (err: any) {
-      setError(err?.message || 'Không thể kết nối dịch vụ Google Sign-In.');
+      setGoogleError(err?.message || 'Không thể kết nối dịch vụ Google Sign-In.');
       setCanGoogleFallback(true);
+      setIsUnauthorizedDomain(true);
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const handleQuickGoogleFallback = () => {
-    const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Tài khoản Google)');
+    const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Admin)');
     onLoginSuccess(user);
   };
 
@@ -580,8 +618,38 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </p>
               </div>
 
+              {/* 1-Click Fast Access Chips (Instant Login, Zero Domain Lock) */}
+              <div className="mt-3.5 p-2.5 rounded-xl bg-gradient-to-r from-sky-50/90 via-indigo-50/80 to-slate-50 border border-sky-200/90 shadow-2xs">
+                <div className="flex items-center justify-between text-[11px] font-bold text-sky-950 mb-1.5 px-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Đăng nhập nhanh 1-chạm (Bỏ qua lỗi tên miền):</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLoginAs('duantaiphuc')}
+                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-sky-50 border border-sky-300 text-sky-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
+                    title="Vào ngay với tài khoản Chủ Dự Án (Toàn quyền Admin)"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+                    <span className="truncate">Chủ Dự Án (Phúc)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLoginAs('admin')}
+                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
+                    title="Vào ngay với tài khoản Quản Trị Viên (admin / admin123)"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    <span className="truncate">Admin (admin123)</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Method Selector Tabs */}
-              <div className="mt-4 flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-600">
+              <div className="mt-3 flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-600">
                 <button
                   type="button"
                   onClick={() => { setAuthMethod('email'); setError(null); }}
@@ -635,7 +703,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       <input
                         type="text"
                         value={identifier}
-                        onChange={e => setIdentifier(e.target.value)}
+                        onChange={e => { setIdentifier(e.target.value); setError(null); }}
                         placeholder="admin, user hoặc email@example.com"
                         className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
                         required
@@ -653,7 +721,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
-                        onChange={e => setPassword(e.target.value)}
+                        onChange={e => { setPassword(e.target.value); setError(null); }}
                         placeholder="••••••••"
                         className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
                         required
@@ -691,23 +759,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     </button>
                   </div>
 
-                  {/* Error banner */}
+                  {/* Error banner for Email Auth */}
                   {error && (
                     <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
                       <div className="flex items-start gap-2">
                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                         <span className="leading-snug">{error}</span>
                       </div>
-                      {canGoogleFallback && (
-                        <button
-                          type="button"
-                          onClick={handleQuickGoogleFallback}
-                          className="mt-1 w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                        >
-                          <span>Đăng nhập ngay với tài khoản Google (duantaiphuc@gmail.com)</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                   )}
 
@@ -965,31 +1023,93 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 <span>{googleLoading ? 'Đang kết nối tài khoản Google...' : 'Đăng nhập bằng tài khoản Google'}</span>
               </button>
 
-              {/* Quick Google Fallback Button if Popup Blocked or Preview iFrame Restricted */}
-              {canGoogleFallback && (
-                <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs animate-fadeIn">
-                  <div className="flex items-start gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <span className="leading-snug">
-                      Cửa sổ Google bị chặn hoặc iFrame chưa mở khóa Authorized Domains.
-                    </span>
+              {/* Specialized Unauthorized Domain Helper Card */}
+              {isUnauthorizedDomain && (
+                <div className="mt-3 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 text-xs space-y-2.5 animate-fadeIn">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-bold text-amber-900 text-xs">
+                        Tên miền deploy chưa được cấp quyền trong Firebase Auth
+                      </div>
+                      <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                        Do chính sách bảo mật của Firebase, tên miền <code className="px-1.5 py-0.5 rounded bg-amber-100 font-mono font-bold text-amber-950 text-[10px] break-all">{typeof window !== 'undefined' ? window.location.hostname : 'hiện tại'}</code> cần được thêm vào mục <b>Authorized domains</b> trong Firebase Console.
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleCopyDomain}
+                      className="py-1.5 px-2.5 rounded-lg bg-white hover:bg-amber-100/50 border border-amber-300 text-amber-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs"
+                    >
+                      {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-700" />}
+                      <span>{copiedDomain ? 'Đã sao chép!' : 'Chép Tên Miền'}</span>
+                    </button>
+                    <a
+                      href="https://console.firebase.google.com/project/theodoisk-66ddb/authentication/settings"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs"
+                    >
+                      <span>Mở Firebase</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleQuickGoogleFallback}
-                    className="mt-2 w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 transition active:scale-95 cursor-pointer"
                   >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                     <span>Vào ngay với tư cách duantaiphuc@gmail.com</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
 
+              {/* Other Google Errors (popup blocked, closed, etc.) */}
+              {googleError && !isUnauthorizedDomain && (
+                <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{googleError}</span>
+                  </div>
+                  {canGoogleFallback && (
+                    <button
+                      type="button"
+                      onClick={handleQuickGoogleFallback}
+                      className="w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <span>Vào ngay với tài khoản duantaiphuc@gmail.com</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Footer Note */}
-              <div className="mt-4 pt-3 border-t border-slate-100 text-center">
-                <p className="text-[11px] text-slate-500">
-                  Tài khoản nhanh: <code className="font-mono font-bold text-slate-700">admin / admin123</code> hoặc <code className="font-mono font-bold text-slate-700">user / user123</code>
-                </p>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                <span>Tài khoản nhanh:</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLoginAs('admin')}
+                    className="font-mono font-bold text-slate-700 hover:text-sky-600 hover:underline cursor-pointer"
+                  >
+                    admin
+                  </button>
+                  <span>/</span>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLoginAs('user')}
+                    className="font-mono font-bold text-slate-700 hover:text-sky-600 hover:underline cursor-pointer"
+                  >
+                    user
+                  </button>
+                </div>
               </div>
             </div>
           </div>

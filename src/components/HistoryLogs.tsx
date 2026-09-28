@@ -12,9 +12,12 @@ import {
   Clock, 
   Filter, 
   Sparkles,
-  Database
+  Database,
+  FileText
 } from 'lucide-react';
 import { TelemetryLog } from '../types';
+import { exportHealthReportToPDF } from '../services/pdfExportService';
+import { getCurrentUser } from '../services/authService';
 
 interface HistoryLogsProps {
   history: TelemetryLog[];
@@ -119,6 +122,15 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
     document.body.removeChild(link);
   };
 
+  const handleExportPDF = () => {
+    if (history.length === 0) return;
+    const user = getCurrentUser();
+    exportHealthReportToPDF({
+      currentUser: user,
+      historyLogs: history,
+    });
+  };
+
   const handleConfirmClear = () => {
     if (onClearHistory) {
       onClearHistory();
@@ -203,6 +215,17 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
             <span>Xuất CSV</span>
+          </button>
+
+          {/* Export PDF Report Button */}
+          <button
+            onClick={handleExportPDF}
+            disabled={history.length === 0}
+            title="Xuất dữ liệu lịch sử đo đạc từ Firebase sang tệp báo cáo PDF để in hoặc lưu trữ"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
+          >
+            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Xuất Báo Cáo PDF</span>
           </button>
 
           {/* RESTORED CLEAR HISTORY BUTTON - ALWAYS VISIBLE & CLEAR */}

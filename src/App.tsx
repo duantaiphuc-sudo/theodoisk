@@ -45,6 +45,7 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
 import { HealthChatbot } from './components/HealthChatbot';
+import { AdminDashboard } from './components/AdminDashboard';
 import { 
   Sparkles, 
   AlertTriangle, 
@@ -202,6 +203,8 @@ export default function App() {
   telemetryRef.current = telemetry;
   const thresholdsRef = useRef(thresholds);
   thresholdsRef.current = thresholds;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
 
   // Save thresholds & zone when changed
   useEffect(() => {
@@ -349,6 +352,7 @@ export default function App() {
     const dateFormatted = validPacketDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const dateTimeFormatted = `${dateFormatted} ${timeFormatted}`;
 
+    const activeUser = currentUserRef.current;
     const newEntry: TelemetryLog = {
       id: `rec-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       timestamp: validPacketDate.toISOString(),
@@ -362,6 +366,10 @@ export default function App() {
       trackingActive: data.trackingActive,
       hasAlert,
       alertType,
+      userId: activeUser?.id,
+      userEmail: activeUser?.email,
+      userName: activeUser?.fullName || activeUser?.username,
+      device: firebaseConfig.documentId || 'pi4_node_1'
     };
 
     // Add to local history (deduplicating rapid identical samples within 2 seconds)
@@ -687,6 +695,7 @@ export default function App() {
       return;
     }
 
+    const activeUser = currentUserRef.current;
     const snapEntry: TelemetryLog = {
       id: `snap-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -698,6 +707,10 @@ export default function App() {
       trackingActive: telemetry.trackingActive,
       hasAlert: telemetry.postureStatus === 1 || telemetry.postureStatus === 3 || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax)),
       alertType: telemetry.postureStatus === 1 ? 'Sai tư thế' : undefined,
+      userId: activeUser?.id,
+      userEmail: activeUser?.email,
+      userName: activeUser?.fullName || activeUser?.username,
+      device: firebaseConfig.documentId || 'pi4_node_1'
     };
 
     setHistory(prev => [snapEntry, ...prev.slice(0, 199)]);
@@ -824,6 +837,18 @@ export default function App() {
               </span>
               <button onClick={() => setClearNotice(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2 cursor-pointer">✕</button>
             </div>
+          )}
+
+          {/* TAB 0: ADMIN DASHBOARD (Tổng Quan Nhân Viên & IoT Nodes theo Ảnh 2) */}
+          {mainNavTab === 'admin' && isManager && (
+            <AdminDashboard
+              currentUser={currentUser}
+              onOpenUserManagement={() => setIsUserManagementOpen(true)}
+              onOpenTaskModal={() => setMainNavTab('tasks')}
+              liveTelemetry={telemetry}
+              timeStats={timeStats}
+              historyLogs={history}
+            />
           )}
 
           {/* TAB 1: OVERVIEW (Trang chủ) */}

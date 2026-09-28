@@ -76,48 +76,62 @@ export const PRESET_ACCOUNTS: Array<{
       'Tra cứu lịch sử sức khỏe cá nhân với Trợ Lý AI',
       'Nhận hướng dẫn bài tập công thái học tại bàn làm việc',
     ],
-  },
-  {
-    user: {
-      id: 'usr-phuc-google',
-      username: 'duantaiphuc',
-      email: 'duantaiphuc@gmail.com',
-      fullName: 'Đoàn Tài Phúc (Admin)',
-      role: 'admin',
-      department: 'Phòng Quản Trị & Nghiên Cứu IoT',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      age: 27,
-      gender: 'male',
-      height: 172,
-      weight: 65,
-      maxSittingHours: 6,
-      healthNotes: 'Theo dõi tư thế cổ khi lập trình lâu trước màn hình.',
-      status: 'active',
-    },
-    password: 'phuc123',
-    description: 'Tài khoản Quản Trị Viên Chủ Dự Án (duantaiphuc@gmail.com) - Toàn quyền quản trị hệ thống.',
-    permissions: [
-      'Quản trị viên cấp cao nhất',
-      'Quản lý tất cả tài khoản nhân viên & bệnh án theo dõi',
-      'Toàn quyền xuất, sửa, xóa dữ liệu và kiểm soát thiết bị IoT',
-    ],
   }
 ];
+
+/**
+ * Strict System Admin Check:
+ * ONLY duantaiphuc@gmail.com (và các biến thể duantaiphuc) và admin (admin@theodoisk.com) là Quản trị viên.
+ * Tất cả các tài khoản khác bắt buộc là Nhân viên (employee).
+ */
+export function isSystemAdmin(email?: string, username?: string): boolean {
+  const e = (email || '').toLowerCase().trim();
+  const u = (username || '').toLowerCase().trim();
+  return (
+    e === 'duantaiphuc@gmail.com' ||
+    e.startsWith('duantaiphuc') ||
+    u === 'duantaiphuc' ||
+    u === 'admin' ||
+    e === 'admin@theodoisk.com' ||
+    e === 'admin@gmail.com'
+  );
+}
+
+export function enforceStrictRole(user: AuthUser): AuthUser {
+  const isAdmin = isSystemAdmin(user.email, user.username);
+  return {
+    ...user,
+    role: isAdmin ? 'admin' : 'employee',
+  };
+}
 
 function getLocalUsersCache(): AuthUser[] {
   try {
     const raw = localStorage.getItem(ALL_USERS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const emailMap = new Map<string, AuthUser>();
+        parsed.forEach(u => {
+          const key = (u.email || u.username || u.id).trim().toLowerCase();
+          emailMap.set(key, enforceStrictRole(u));
+        });
+        return Array.from(emailMap.values());
+      }
     }
   } catch {}
-  return PRESET_ACCOUNTS.map(p => p.user);
+  return PRESET_ACCOUNTS.map(p => enforceStrictRole(p.user));
 }
 
 function saveLocalUsersCache(users: AuthUser[]): void {
   try {
-    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(users));
+    const emailMap = new Map<string, AuthUser>();
+    users.forEach(u => {
+      const key = (u.email || u.username || u.id).trim().toLowerCase();
+      emailMap.set(key, enforceStrictRole(u));
+    });
+    const strictUsers = Array.from(emailMap.values());
+    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(strictUsers));
   } catch {}
 }
 
@@ -126,14 +140,13 @@ export function getCurrentUser(): AuthUser | null {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     if (raw) {
       const u: AuthUser = JSON.parse(raw);
-      // Ensure user has admin rights as requested by the user
-      // "đưa tk hiện tại lên làm admin, đồng thời có thể ấn vào để xem thông tin tài khoản, thiết lập các thông tin cơ bản như độ tuổi"
-      if (u.role !== 'admin' && u.role !== 'manager') {
-        u.role = 'admin';
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(u));
-        syncUserProfileToFirestore(u).catch(() => {});
+      // Strictly enforce role: ONLY duantaiphuc@gmail.com and admin are admins
+      const strictlyRoleUser = enforceStrictRole(u);
+      if (strictlyRoleUser.role !== u.role) {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(strictlyRoleUser));
+        syncUserProfileToFirestore(strictlyRoleUser).catch(() => {});
       }
-      return u;
+      return strictlyRoleUser;
     }
   } catch (e) {
     console.error('Failed to parse authenticated user:', e);
@@ -143,12 +156,9 @@ export function getCurrentUser(): AuthUser | null {
 
 export function saveCurrentUser(user: AuthUser): void {
   try {
-    // Elevate user if admin is needed
-    if (user.email === 'duantaiphuc@gmail.com' || user.username === 'admin') {
-      user.role = 'admin';
-    }
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    syncUserProfileToFirestore(user).catch(() => {});
+    const strictlyRoleUser = enforceStrictRole(user);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(strictlyRoleUser));
+    syncUserProfileToFirestore(strictlyRoleUser).catch(() => {});
   } catch (e) {
     console.error('Failed to save authenticated user:', e);
   }
@@ -225,12 +235,15 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
     if (!snap.empty) {
       const firestoreUsers: AuthUser[] = snap.docs.map(d => {
         const data = d.data();
+        const email = data.email || `${d.id}@theodoisk.com`;
+        const username = data.username || (data.email ? data.email.split('@')[0] : d.id);
+        const isAdmin = isSystemAdmin(email, username);
         return {
           id: d.id,
-          username: data.username || (data.email ? data.email.split('@')[0] : d.id),
-          email: data.email || `${d.id}@theodoisk.com`,
+          username,
+          email,
           fullName: data.fullName || 'Người Dùng Hệ Thống',
-          role: (data.role === 'admin' || data.role === 'manager') ? 'admin' : 'employee',
+          role: isAdmin ? 'admin' : 'employee',
           department: data.department || 'Văn Phòng IoT',
           avatar: data.avatar || '',
           phoneNumber: data.phoneNumber || '',
@@ -246,20 +259,35 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
         };
       });
 
-      // Merge firestore with local
+      // Merge firestore with local - strictly deduplicated by email
       const map = new Map<string, AuthUser>();
-      PRESET_ACCOUNTS.forEach(p => map.set(p.user.id, p.user));
-      localList.forEach(u => map.set(u.id, u));
-      firestoreUsers.forEach(u => map.set(u.id, u));
+      const addOrMerge = (user: AuthUser) => {
+        const key = (user.email || user.username || user.id).trim().toLowerCase();
+        if (map.has(key)) {
+          const existing = map.get(key)!;
+          map.set(key, enforceStrictRole({
+            ...existing,
+            ...user,
+            id: existing.id || user.id,
+            role: (existing.role === 'admin' || user.role === 'admin') ? 'admin' : 'employee'
+          }));
+        } else {
+          map.set(key, enforceStrictRole(user));
+        }
+      };
 
-      const merged = Array.from(map.values());
+      PRESET_ACCOUNTS.forEach(p => addOrMerge(p.user));
+      localList.forEach(u => addOrMerge(u));
+      firestoreUsers.forEach(u => addOrMerge(u));
+
+      const merged = Array.from(map.values()).map(enforceStrictRole);
       saveLocalUsersCache(merged);
       return merged;
     }
   } catch (e) {
     console.warn('Không thể tải danh sách users từ Firestore (sử dụng bộ nhớ cục bộ):', e);
   }
-  return localList;
+  return localList.map(enforceStrictRole);
 }
 
 /**
@@ -267,26 +295,27 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
  */
 export async function adminUpdateUser(updatedUser: AuthUser): Promise<boolean> {
   try {
+    const strictlyRoleUser = enforceStrictRole(updatedUser);
     const list = getLocalUsersCache();
-    const idx = list.findIndex(u => u.id === updatedUser.id);
+    const idx = list.findIndex(u => u.id === strictlyRoleUser.id);
     if (idx >= 0) {
-      list[idx] = updatedUser;
+      list[idx] = strictlyRoleUser;
     } else {
-      list.push(updatedUser);
+      list.push(strictlyRoleUser);
     }
     saveLocalUsersCache(list);
 
     // If updating current logged in user, update session as well
     const current = getCurrentUser();
-    if (current && current.id === updatedUser.id) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    if (current && current.id === strictlyRoleUser.id) {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(strictlyRoleUser));
     }
 
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
-    await setDoc(doc(db, 'users', updatedUser.id), {
-      ...updatedUser,
+    await setDoc(doc(db, 'users', strictlyRoleUser.id), {
+      ...strictlyRoleUser,
       updatedAt: new Date().toISOString()
     }, { merge: true });
 
@@ -351,7 +380,20 @@ export async function loginWithFirebaseEmail(
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // Try Firebase Email/Password Auth
+  // 1. Check preset / local accounts first for instant resilience
+  const foundPreset = PRESET_ACCOUNTS.find(
+    acc =>
+      (acc.user.username.toLowerCase() === cleanEmail || acc.user.email.toLowerCase() === cleanEmail) &&
+      acc.password === pass
+  );
+
+  if (foundPreset) {
+    saveCurrentUser(foundPreset.user);
+    syncUserProfileToFirestore(foundPreset.user).catch(() => {});
+    return { success: true, user: foundPreset.user };
+  }
+
+  // 2. Try Firebase Email/Password Auth
   try {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
@@ -360,13 +402,13 @@ export async function loginWithFirebaseEmail(
     const credential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
     const fbUser = credential.user;
 
-    const isManager = cleanEmail.includes('admin') || cleanEmail.includes('quanly');
+    const isManager = cleanEmail.includes('admin') || cleanEmail.includes('quanly') || cleanEmail === 'duantaiphuc@gmail.com';
     const authUser: AuthUser = {
       id: fbUser.uid,
       username: cleanEmail.split('@')[0],
       email: fbUser.email || cleanEmail,
-      fullName: fbUser.displayName || (isManager ? 'Nguyễn Văn Quản Lý (Admin)' : 'Nhân Viên Văn Phòng'),
-      role: isManager ? 'manager' : 'employee',
+      fullName: fbUser.displayName || (isManager ? 'Đoàn Tài Phúc (Admin)' : 'Nhân Viên Văn Phòng'),
+      role: isManager ? 'admin' : 'employee',
       department: isManager ? 'Ban Điều Hành & An Toàn Lao Động' : 'Phòng Làm Việc Văn Phòng',
       avatar: fbUser.photoURL || undefined,
     };
@@ -377,28 +419,17 @@ export async function loginWithFirebaseEmail(
   } catch (firebaseErr: any) {
     console.warn('Firebase Email Auth attempt:', firebaseErr.code, firebaseErr.message);
 
-    // If account not found or invalid credential, check preset accounts (admin/user)
-    const found = PRESET_ACCOUNTS.find(
-      acc =>
-        (acc.user.username.toLowerCase() === cleanEmail || acc.user.email.toLowerCase() === cleanEmail) &&
-        acc.password === pass
-    );
-
-    if (found) {
-      saveCurrentUser(found.user);
-      syncUserProfileToFirestore(found.user).catch(() => {});
-      return { success: true, user: found.user };
-    }
-
     let msg = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
     if (firebaseErr.code === 'auth/user-not-found' || firebaseErr.code === 'auth/invalid-credential') {
       msg = 'Không tìm thấy tài khoản hoặc mật khẩu không đúng. Vui lòng kiểm tra lại hoặc dùng tài khoản admin/user.';
     } else if (firebaseErr.code === 'auth/wrong-password') {
       msg = 'Mật khẩu không chính xác. Vui lòng nhập lại.';
     } else if (firebaseErr.code === 'auth/invalid-email') {
-      msg = 'Định dạng Email không hợp lệ.';
+      msg = 'Định dạng Email không hợp lệ (ví dụ: admin@theodoisk.com hoặc dùng tài khoản nhanh bên dưới).';
+    } else if (firebaseErr.code === 'auth/operation-not-allowed') {
+      msg = 'Dự án Firebase chưa bật phương thức Email/Password. Bạn có thể sử dụng nút Đăng nhập nhanh bên dưới.';
     } else if (firebaseErr.code === 'auth/too-many-requests') {
-      msg = 'Đã thử quá nhiều lần. Vui lòng đợi trong giây lát hoặc đăng nhập với Google.';
+      msg = 'Đã thử quá nhiều lần. Vui lòng đợi trong giây lát hoặc đăng nhập nhanh với tài khoản mẫu.';
     }
 
     return { success: false, error: msg };
@@ -486,7 +517,14 @@ export function loginAsPreset(role: UserRole): AuthUser {
 /**
  * Login with Google via Firebase Authentication
  */
-export async function loginWithGoogle(): Promise<{ success: boolean; user?: AuthUser; error?: string; canQuickFallback?: boolean }> {
+export async function loginWithGoogle(): Promise<{ 
+  success: boolean; 
+  user?: AuthUser; 
+  error?: string; 
+  canQuickFallback?: boolean;
+  isUnauthorizedDomain?: boolean;
+  currentDomain?: string;
+}> {
   try {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
@@ -498,14 +536,16 @@ export async function loginWithGoogle(): Promise<{ success: boolean; user?: Auth
     const firebaseUser = result.user;
 
     const email = firebaseUser.email || '';
-    const isManager = email.toLowerCase().includes('admin') || email.toLowerCase().includes('quanly');
+    const isManager = email.toLowerCase().includes('admin') || 
+                      email.toLowerCase().includes('quanly') || 
+                      email.toLowerCase().includes('duantaiphuc');
 
     const googleUser: AuthUser = {
       id: firebaseUser.uid,
       username: email ? email.split('@')[0] : 'google_user',
       email: email || 'duantaiphuc@gmail.com',
       fullName: firebaseUser.displayName || 'Tài khoản Google (Đoàn Tài Phúc)',
-      role: isManager ? 'manager' : 'employee',
+      role: isManager ? 'admin' : 'employee',
       avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
       department: isManager ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
     };
@@ -517,8 +557,14 @@ export async function loginWithGoogle(): Promise<{ success: boolean; user?: Auth
     console.warn('Lỗi đăng nhập Google Auth:', err);
     let errorMessage = 'Không thể kết nối với Google. Vui lòng thử lại.';
     let canQuickFallback = false;
+    let isUnauthorizedDomain = false;
+    const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
 
-    if (err.code === 'auth/configuration-not-found' || err.message?.includes('configuration-not-found')) {
+    if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
+      errorMessage = `Tên miền hiện tại ("${currentDomain}") chưa được cấp phép trong Firebase Auth (Settings → Authorized domains).`;
+      canQuickFallback = true;
+      isUnauthorizedDomain = true;
+    } else if (err.code === 'auth/configuration-not-found' || err.message?.includes('configuration-not-found')) {
       errorMessage = 'Dự án Firebase chưa bật nhà cung cấp Google trong Firebase Console (Authentication → Sign-in method → Bật Google). Bạn có thể dùng nút Đăng nhập nhanh bên dưới.';
       canQuickFallback = true;
     } else if (err.code === 'auth/popup-blocked') {
@@ -529,14 +575,11 @@ export async function loginWithGoogle(): Promise<{ success: boolean; user?: Auth
       canQuickFallback = true;
     } else if (err.code === 'auth/cancelled-popup-request') {
       errorMessage = 'Yêu cầu đăng nhập Google đã bị hủy.';
-    } else if (err.code === 'auth/unauthorized-domain') {
-      errorMessage = 'Tên miền hiện tại chưa được kích hoạt trong Firebase Auth → Settings → Authorized domains.';
-      canQuickFallback = true;
     } else if (err.message) {
       errorMessage = err.message;
       canQuickFallback = true;
     }
-    return { success: false, error: errorMessage, canQuickFallback };
+    return { success: false, error: errorMessage, canQuickFallback, isUnauthorizedDomain, currentDomain };
   }
 }
 
@@ -545,7 +588,7 @@ export async function loginWithGoogle(): Promise<{ success: boolean; user?: Auth
  */
 export function loginWithGoogleFallback(email = 'duantaiphuc@gmail.com', name = 'Tài khoản Google (Đoàn Tài Phúc)'): AuthUser {
   const googleUser: AuthUser = {
-    id: `goog-${Date.now()}`,
+    id: 'usr-duantaiphuc',
     username: email.split('@')[0],
     email: email,
     fullName: name,

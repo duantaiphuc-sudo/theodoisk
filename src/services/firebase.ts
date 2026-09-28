@@ -13,7 +13,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDatabase, ref, onValue, set, get, remove } from 'firebase/database';
-import { FirebaseConnectionConfig, HealthTelemetry, TelemetryLog, UserTaskNotification, TaskStatus } from '../types';
+import { FirebaseConnectionConfig, HealthTelemetry, TelemetryLog, UserTaskNotification, TaskStatus, AuthUser } from '../types';
 
 export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
   projectId: 'theodoisk-66ddb',
@@ -487,6 +487,10 @@ export function normalizeHistoryLog(docId: string, raw: any): TelemetryLog {
     trackingActive,
     hasAlert,
     alertType,
+    userId: raw.user_id || raw.userId || undefined,
+    userEmail: raw.user_email || raw.userEmail || undefined,
+    userName: raw.user_name || raw.userName || undefined,
+    device: raw.device || undefined,
   };
 }
 
@@ -525,7 +529,10 @@ export async function saveTelemetryHistoryToFirebase(
       has_alert: entry.hasAlert,
       alert_type: entry.alertType || '',
       created_at: now.toISOString(),
-      device: 'Raspberry Pi 4 / Monitor Node'
+      device: entry.device || 'Raspberry Pi 4 / Monitor Node',
+      user_id: entry.userId || '',
+      user_email: entry.userEmail || '',
+      user_name: entry.userName || ''
     };
 
     if (config.useRealtimeDb && config.databaseURL) {
@@ -595,7 +602,10 @@ export async function batchSaveTelemetryHistoryToFirebase(
           has_alert: entry.hasAlert,
           alert_type: entry.alertType || '',
           created_at: now.toISOString(),
-          device: 'Raspberry Pi 4 / Monitor Node'
+          device: entry.device || 'Raspberry Pi 4 / Monitor Node',
+          user_id: entry.userId || '',
+          user_email: entry.userEmail || '',
+          user_name: entry.userName || ''
         };
         await set(ref(rtdb, `${histColName}/${docId}`), payload);
         if (histColName !== 'theodoisk_history') {
@@ -639,7 +649,10 @@ export async function batchSaveTelemetryHistoryToFirebase(
               has_alert: Boolean(entry.hasAlert),
               alert_type: entry.alertType || '',
               created_at: now.toISOString(),
-              device: 'Raspberry Pi 4 / Monitor Node'
+              device: entry.device || 'Raspberry Pi 4 / Monitor Node',
+              user_id: entry.userId || '',
+              user_email: entry.userEmail || '',
+              user_name: entry.userName || ''
             };
 
             const docRef1 = doc(db, histColName, docId);
@@ -1115,4 +1128,86 @@ export async function deleteTaskFromFirebase(
     }
   } catch {}
 }
+
+/**
+ * Real-time listener for Firestore `users` collection.
+ * Any profile changes (e.g. name changed to "Tài Thành") stream immediately to dashboard.
+ */
+export function subscribeToUsers(
+  config: FirebaseConnectionConfig,
+  onUsers: (users: AuthUser[]) => void
+): () => void {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const usersColl = collection(db, 'users');
+    const unsub = onSnapshot(usersColl, (snap) => {
+      if (!snap.empty) {
+        const firestoreUsers: AuthUser[] = snap.docs.map(d => {
+          const data = d.data();
+          const email = data.email || `${d.id}@theodoisk.com`;
+          const username = data.username || (data.email ? data.email.split('@')[0] : d.id);
+          const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
+          return {
+            id: d.id,
+            username,
+            email,
+            fullName: data.fullName || 'Người Dùng Hệ Thống',
+            role: isAdmin ? 'admin' : 'employee',
+            department: data.department || 'Văn Phòng IoT',
+            avatar: data.avatar || '',
+            phoneNumber: data.phoneNumber || '',
+            age: Number(data.age) || 28,
+            gender: data.gender || 'male',
+            height: Number(data.height) || 170,
+            weight: Number(data.weight) || 65,
+            maxSittingHours: Number(data.maxSittingHours) || 6,
+            healthNotes: data.healthNotes || '',
+            status: data.status || 'active',
+            lastLogin: data.lastLogin || data.updatedAt || '',
+            createdAt: data.createdAt || data.updatedAt || '',
+            device: data.device || '',
+            isOnline: Boolean(data.isOnline),
+            lastActive: data.lastActive || '',
+            currentPresence: data.currentPresence || 'Away',
+            currentPosture: data.currentPosture || 'absent',
+            sittingMinutes: Number(data.sittingMinutes || 0),
+            bpm: Number(data.bpm || 0),
+            spo2: Number(data.spo2 || 0)
+          };
+        });
+        onUsers(firestoreUsers);
+      }
+    }, err => {
+      console.warn('Lỗi lắng nghe users từ Firestore:', err);
+    });
+    return unsub;
+  } catch (err) {
+    console.warn('Lỗi kết nối subscribeToUsers:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Update the user's real-time presence, sitting time, and biometrics in Firestore `users/{uid}`.
+ */
+export async function updateUserRealtimePresence(
+  config: FirebaseConnectionConfig,
+  userId: string,
+  presenceData: Partial<AuthUser>
+): Promise<void> {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      ...presenceData,
+      lastActive: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Lỗi cập nhật hiện diện người dùng:', err);
+  }
+}
+
 

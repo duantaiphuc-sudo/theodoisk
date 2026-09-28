@@ -24,9 +24,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
-import { AuthUser } from '../types';
-
-export type MainNavTab = 'overview' | 'zone' | 'logs' | 'tasks';
+import { AuthUser, MainNavTab } from '../types';
 
 interface SidebarProps {
   activeTab: MainNavTab;
@@ -105,6 +103,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       badge: null
     },
+    ...(isManager ? [{
+      id: 'admin' as MainNavTab,
+      label: 'Admin Dashboard',
+      icon: Shield,
+      badge: 'Admin',
+      badgeColor: 'bg-indigo-100 text-indigo-800'
+    }] : []),
     {
       id: 'zone' as MainNavTab,
       label: 'Chỉnh vùng',
