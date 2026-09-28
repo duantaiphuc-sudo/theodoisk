@@ -1319,29 +1319,33 @@ export function subscribeToUsers(
           const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
 
           const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-          // User is online if flagged isOnline and not abandoned for over 3 minutes (180s)
-          const isStale = lastActiveTime > 0 && (now - lastActiveTime) > 180000;
-          const isLiveHeartbeatActive = Boolean(data.isOnline) && !isStale;
+          // An account is actively logged in if flagged isOnline and pinged within the last 60 seconds
+          const isLiveHeartbeatActive = Boolean(data.isOnline) && lastActiveTime > 0 && (now - lastActiveTime) < 60000;
 
-          // Determine presence and posture states cleanly
-          const rawPresence = data.currentPresence || (isLiveHeartbeatActive ? 'Present' : 'Away');
-          const rawPosture = data.currentPosture || (isLiveHeartbeatActive ? 'correct' : 'absent');
-          let postureText = data.currentPostureText;
-          if (!postureText) {
-            if (!isLiveHeartbeatActive) {
-              postureText = '– Chờ kết nối';
-            } else if (rawPosture === 'incorrect') {
+          // Posture data is only present if camera or simulation has pushed active posture
+          const rawPostureText = data.currentPostureText || '';
+          const hasPostureSignal = Boolean(
+            isLiveHeartbeatActive &&
+            rawPostureText &&
+            !rawPostureText.includes('Chờ') &&
+            data.currentPosture !== 'waiting'
+          );
+
+          let postureText = '– Chờ kết nối';
+          let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = 'waiting';
+
+          if (hasPostureSignal) {
+            if (data.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
+              posture = 'incorrect';
               postureText = '⚠ Sai';
-            } else if (rawPosture === 'correct') {
-              postureText = '✓ Đúng';
-            } else if (rawPosture === 'absent' || rawPresence === 'Away') {
+            } else if (data.currentPosture === 'absent' || rawPostureText.includes('Vắng')) {
+              posture = 'absent';
               postureText = '– Vắng';
             } else {
-              postureText = '– Chờ kết nối';
+              posture = 'correct';
+              postureText = '✓ Đúng';
             }
           }
-
-          const isAbsent = !isLiveHeartbeatActive || rawPresence === 'Away' || rawPosture === 'absent' || postureText.includes('Vắng') || postureText.includes('Chờ');
 
           return {
             id: d.id,
@@ -1364,14 +1368,14 @@ export function subscribeToUsers(
             device: data.device || '',
             isOnline: isLiveHeartbeatActive,
             lastActive: data.lastActive || '',
-            currentPresence: isAbsent ? 'Away' : 'Present',
-            currentPosture: isLiveHeartbeatActive ? rawPosture : 'absent',
+            currentPresence: isLiveHeartbeatActive ? 'Present' : 'Away',
+            currentPosture: posture,
             currentPostureText: postureText,
-            hasAlert: isLiveHeartbeatActive && !isAbsent ? Boolean(data.hasAlert) : false,
-            alertReason: isLiveHeartbeatActive && !isAbsent ? (data.alertReason || '') : '',
+            hasAlert: isLiveHeartbeatActive && posture === 'incorrect',
+            alertReason: isLiveHeartbeatActive && posture === 'incorrect' ? (data.alertReason || 'Cột sống đang bị gù hoặc cúi cổ') : '',
             sittingMinutes: isLiveHeartbeatActive ? Number(data.sittingMinutes || 0) : 0,
-            bpm: isAbsent ? 0 : Number(data.bpm || 0),
-            spo2: isAbsent ? 0 : Number(data.spo2 || 0)
+            bpm: hasPostureSignal && posture !== 'absent' ? Number(data.bpm || 0) : 0,
+            spo2: hasPostureSignal && posture !== 'absent' ? Number(data.spo2 || 0) : 0
           };
         });
         onUsers(firestoreUsers);

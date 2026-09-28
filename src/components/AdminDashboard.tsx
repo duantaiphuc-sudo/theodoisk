@@ -125,28 +125,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       // 1. Current active user operating this dashboard session
       if (isCurrent) {
+        // Current user is actively logged into this session -> presence is always 'Present' (Đang hoạt động)
         const hasLiveSignal = Boolean(
           liveTelemetry && (
-            liveTelemetry.postureStatus >= 0 ||
-            liveTelemetry.bpm > 0 ||
-            liveTelemetry.inZone !== false ||
-            liveTelemetry.trackingActive !== false
+            liveTelemetry.postureStatus >= 0 &&
+            (liveTelemetry.bpm > 0 || liveTelemetry.inZone || liveTelemetry.trackingActive)
           )
         );
 
         if (hasLiveSignal && liveTelemetry) {
           const isOutOfZone = liveTelemetry.inZone === false || liveTelemetry.trackingActive === false;
-          const isWaiting = liveTelemetry.postureStatus === -1 && liveTelemetry.bpm === 0 && liveTelemetry.spo2 === 0;
-          const isAbsent = !isWaiting && (liveTelemetry.postureStatus === 2 || isOutOfZone);
-          const isBad = !isWaiting && !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
+          const isAbsent = liveTelemetry.postureStatus === 2 || isOutOfZone;
+          const isBad = !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
           const sittingMins = timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0;
 
           let postureText = '✓ Đúng';
-          let posture: 'correct' | 'incorrect' | 'absent' = 'correct';
-          if (isWaiting) {
-            postureText = '– Chờ kết nối';
-            posture = 'absent';
-          } else if (isAbsent) {
+          let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = 'correct';
+          if (isAbsent) {
             postureText = '– Vắng';
             posture = 'absent';
           } else if (isBad) {
@@ -161,24 +156,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
             department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
             device: deviceId,
-            presence: (isAbsent || isWaiting) ? 'Away' : 'Present',
+            presence: 'Present',
             posture,
             postureText,
             sittingMinutes: sittingMins,
-            bpm: (isAbsent || isWaiting) ? 0 : (liveTelemetry.bpm || 0),
-            spo2: (isAbsent || isWaiting) ? 0 : (liveTelemetry.spo2 || 0),
+            bpm: isAbsent ? 0 : (liveTelemetry.bpm || 0),
+            spo2: isAbsent ? 0 : (liveTelemetry.spo2 || 0),
             isOnline: true,
-            hasAlert: !isAbsent && !isWaiting && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
-            alertReason: !isAbsent && !isWaiting && isBad ? 'Ngồi sai tư thế' : undefined,
+            hasAlert: !isAbsent && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
+            alertReason: !isAbsent && isBad ? 'Ngồi sai tư thế' : undefined,
             role: user.role
           };
         }
 
-        // Current user is online on dashboard, check if they have remote state from another session
-        const isRemoteOnline = Boolean(user.isOnline);
-        const remoteAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng');
-        const remoteBad = !remoteAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
-
+        // Current user is logged in, but no posture/sensor telemetry has arrived yet
         return {
           id: `node-${user.id}`,
           name: user.fullName || user.username,
@@ -186,39 +177,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
           department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
           device: deviceId,
-          presence: (remoteAbsent || !isRemoteOnline) ? 'Away' : 'Present',
-          posture: isRemoteOnline ? (remoteAbsent ? 'absent' : (remoteBad ? 'incorrect' : 'correct')) : 'absent',
-          postureText: isRemoteOnline ? (user.currentPostureText || (remoteAbsent ? '– Vắng' : (remoteBad ? '⚠ Sai' : '✓ Đúng'))) : '– Chờ kết nối',
-          sittingMinutes: timeStats ? Math.floor(timeStats.sittingSeconds / 60) : (user.sittingMinutes || 0),
-          bpm: (remoteAbsent || !isRemoteOnline) ? 0 : (user.bpm || 0),
-          spo2: (remoteAbsent || !isRemoteOnline) ? 0 : (user.spo2 || 0),
+          presence: 'Present',
+          posture: 'waiting',
+          postureText: '– Chờ kết nối',
+          sittingMinutes: timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0,
+          bpm: 0,
+          spo2: 0,
           isOnline: true,
-          hasAlert: Boolean(isRemoteOnline && !remoteAbsent && remoteBad),
-          alertReason: isRemoteOnline && !remoteAbsent && remoteBad ? 'Ngồi sai tư thế' : undefined,
+          hasAlert: false,
+          alertReason: undefined,
           role: user.role
         };
       }
 
-      // 2. Remote users - require fresh heartbeat or online flag
+      // 2. Remote users - check if actively logged in (heartbeat within 60 seconds)
       const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
-      const isOnline = Boolean(user.isOnline) && (lastActiveMs === 0 || (Date.now() - lastActiveMs) < 180000);
+      const isRemoteActive = Boolean(user.isOnline) && lastActiveMs > 0 && (Date.now() - lastActiveMs) < 60000;
 
-      if (isOnline) {
-        const isWaiting = user.currentPostureText?.includes('Chờ') || (user.bpm === 0 && user.currentPosture === 'absent' && user.currentPresence !== 'Away');
-        const isAbsent = !isWaiting && (user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng'));
-        const isBad = !isWaiting && !isAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
+      if (isRemoteActive) {
+        // Remote user is logged in! Presence is 'Present' (Đang hoạt động)
+        const rawPostureText = user.currentPostureText || '';
+        const hasRemoteTelemetry = Boolean(
+          rawPostureText &&
+          !rawPostureText.includes('Chờ') &&
+          user.currentPosture !== 'waiting'
+        );
 
-        let postureText = '✓ Đúng';
-        let posture: 'correct' | 'incorrect' | 'absent' = 'correct';
-        if (isWaiting) {
-          postureText = '– Chờ kết nối';
-          posture = 'absent';
-        } else if (isAbsent) {
-          postureText = '– Vắng';
-          posture = 'absent';
-        } else if (isBad) {
-          postureText = '⚠ Sai';
-          posture = 'incorrect';
+        let postureText = '– Chờ kết nối';
+        let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = 'waiting';
+
+        if (hasRemoteTelemetry) {
+          if (user.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
+            posture = 'incorrect';
+            postureText = '⚠ Sai';
+          } else if (user.currentPosture === 'absent' || rawPostureText.includes('Vắng')) {
+            posture = 'absent';
+            postureText = '– Vắng';
+          } else {
+            posture = 'correct';
+            postureText = '✓ Đúng';
+          }
         }
 
         return {
@@ -228,20 +226,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
           department: user.department || 'Nhân Viên Văn Phòng IoT',
           device: user.device || deviceId,
-          presence: (isAbsent || isWaiting) ? 'Away' : 'Present',
+          presence: 'Present',
           posture,
           postureText,
-          sittingMinutes: isAbsent ? 0 : (user.sittingMinutes || 0),
-          bpm: (isAbsent || isWaiting) ? 0 : (user.bpm || 0),
-          spo2: (isAbsent || isWaiting) ? 0 : (user.spo2 || 0),
+          sittingMinutes: hasRemoteTelemetry && posture !== 'absent' ? (user.sittingMinutes || 0) : 0,
+          bpm: hasRemoteTelemetry && posture !== 'absent' ? (user.bpm || 0) : 0,
+          spo2: hasRemoteTelemetry && posture !== 'absent' ? (user.spo2 || 0) : 0,
           isOnline: true,
-          hasAlert: Boolean(!isAbsent && !isWaiting && (user.hasAlert || isBad)),
-          alertReason: !isAbsent && !isWaiting ? (user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined)) : undefined,
+          hasAlert: Boolean(hasRemoteTelemetry && posture === 'incorrect'),
+          alertReason: hasRemoteTelemetry && posture === 'incorrect' ? (user.alertReason || 'Ngồi sai tư thế') : undefined,
           role: user.role
         };
       }
 
-      // 3. User is offline / waiting for connection (do NOT pull old historical records into real-time live fields)
+      // 3. User is offline / not logged in
       return {
         id: `node-${user.id}`,
         name: user.fullName || user.username,
@@ -250,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         department: user.department || 'Nhân Viên Văn Phòng IoT',
         device: deviceId,
         presence: 'Away',
-        posture: 'absent',
+        posture: 'waiting',
         postureText: '– Chờ kết nối',
         sittingMinutes: 0,
         bpm: 0,
@@ -622,12 +620,12 @@ ${nodes.map(n => {
                         {node.presence === 'Present' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span>Present (Tại bàn)</span>
+                            <span>Đang hoạt động</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
                             <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                            <span>Away (Vắng)</span>
+                            <span>Ngoại tuyến</span>
                           </span>
                         )}
                       </td>
@@ -647,8 +645,13 @@ ${nodes.map(n => {
                           </span>
                         )}
                         {node.posture === 'absent' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                             <span>– Vắng</span>
+                          </span>
+                        )}
+                        {node.posture === 'waiting' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                            <span>– Chờ kết nối</span>
                           </span>
                         )}
                       </td>

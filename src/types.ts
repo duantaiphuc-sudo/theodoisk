@@ -29,8 +29,8 @@ export interface EmployeeNodeStatus {
   department?: string;
   device: string; // e.g. 'pi4_node_1'
   presence: 'Present' | 'Away';
-  posture: 'correct' | 'incorrect' | 'absent';
-  postureText: '✓ Đúng' | '⚠ Sai' | '– Vắng';
+  posture: 'correct' | 'incorrect' | 'absent' | 'waiting';
+  postureText: string;
   sittingMinutes: number;
   bpm: number;
   spo2: number;
@@ -62,7 +62,7 @@ export interface AuthUser {
   isOnline?: boolean;
   lastActive?: string;
   currentPresence?: 'Present' | 'Away';
-  currentPosture?: 'correct' | 'incorrect' | 'absent';
+  currentPosture?: 'correct' | 'incorrect' | 'absent' | 'waiting';
   currentPostureText?: string;
   hasAlert?: boolean;
   alertReason?: string;

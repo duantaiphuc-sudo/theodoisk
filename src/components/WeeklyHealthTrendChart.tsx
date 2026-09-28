@@ -330,13 +330,11 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
                   </div>
 
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                    node.isOnline
+                    node.presence === 'Present' || node.isOnline
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      : isWorking
-                      ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                      : 'bg-slate-200 text-slate-600'
+                      : 'bg-slate-100 text-slate-500 border border-slate-200'
                   }`}>
-                    {node.isOnline ? 'Online' : isWorking ? 'Có tín hiệu' : 'Chờ kết nối'}
+                    {node.presence === 'Present' || node.isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}
                   </span>
                 </div>
 
@@ -370,7 +368,9 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       : node.posture === 'incorrect'
                       ? 'bg-rose-100 text-rose-800 border border-rose-200 animate-pulse'
-                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      : node.posture === 'absent'
+                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      : 'bg-slate-100 text-slate-500 border border-slate-200'
                   }`}>
                     {node.postureText}
                   </span>

@@ -459,11 +459,11 @@ export default function App() {
     // Realtime broadcast to Firestore directly on every telemetry update (Fast-path, eliminates latency)
     const isCameraUntracked = isOutOfZone || data.trackingActive === false;
     const isWaiting = data.postureStatus === -1 && data.bpm === 0 && data.spo2 === 0;
-    const isAbsent = data.postureStatus === 2 || isCameraUntracked || isWaiting;
-    const isBad = !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
+    const isAbsent = !isWaiting && (data.postureStatus === 2 || isCameraUntracked);
+    const isBad = !isWaiting && !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
 
-    const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
-    const posture: 'correct' | 'incorrect' | 'absent' = isWaiting ? 'absent' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+    const presence: 'Present' | 'Away' = 'Present'; // Active logged-in session is always Present (Đang hoạt động)
+    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = isWaiting ? 'waiting' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
     const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
     if (activeUser && firebaseConfig.autoConnect) {
@@ -474,10 +474,10 @@ export default function App() {
         currentPosture: posture,
         currentPostureText: postureText,
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: isAbsent ? 0 : data.bpm,
-        spo2: isAbsent ? 0 : data.spo2,
-        hasAlert: !isAbsent && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
-        alertReason: !isAbsent && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        bpm: (isAbsent || isWaiting) ? 0 : data.bpm,
+        spo2: (isAbsent || isWaiting) ? 0 : data.spo2,
+        hasAlert: !isAbsent && !isWaiting && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
+        alertReason: !isAbsent && !isWaiting && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
         device: firebaseConfig.documentId || (activeUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
       }).catch(() => {});
     }
@@ -747,11 +747,11 @@ export default function App() {
       const isOutOfZone = telemetry.inZone === false || telemetry.trackingActive === false;
       const isWaiting = telemetry.postureStatus === -1 && telemetry.bpm === 0 && telemetry.spo2 === 0;
       // Trạng thái Vắng mặt: khi ngồi ngoài vùng camera, camera không bắt được người (trackingActive=false) hoặc trạng thái mã 2
-      const isAbsent = telemetry.postureStatus === 2 || isOutOfZone || isWaiting;
-      const isBad = !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
+      const isAbsent = !isWaiting && (telemetry.postureStatus === 2 || isOutOfZone);
+      const isBad = !isWaiting && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
-      const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
-      const posture: 'correct' | 'incorrect' | 'absent' = isWaiting ? 'absent' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+      const presence: 'Present' | 'Away' = 'Present'; // Active logged-in user is Present (Đang hoạt động)
+      const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = isWaiting ? 'waiting' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
       const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
       updateUserRealtimePresence(firebaseConfig, currentUser.id, {
@@ -761,10 +761,10 @@ export default function App() {
         currentPosture: posture,
         currentPostureText: postureText,
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: isAbsent ? 0 : telemetry.bpm,
-        spo2: isAbsent ? 0 : telemetry.spo2,
-        hasAlert: !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
-        alertReason: !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        bpm: (isAbsent || isWaiting) ? 0 : telemetry.bpm,
+        spo2: (isAbsent || isWaiting) ? 0 : telemetry.spo2,
+        hasAlert: !isAbsent && !isWaiting && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
+        alertReason: !isAbsent && !isWaiting && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
         device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
       }).catch(() => {});
     };
