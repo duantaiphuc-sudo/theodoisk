@@ -89,29 +89,26 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
     });
   }, [activeNodes, selectedEmployee]);
 
-  // Calculate live aggregate stats
-  const activeWorkingNodes = displayNodes.filter(n => n.presence === 'Present' || n.bpm > 0);
+  // Calculate live aggregate stats - strictly for nodes that are currently online and present/transmitting
+  const activeWorkingNodes = displayNodes.filter(n => n.isOnline && (n.presence === 'Present' || n.bpm > 0));
   const liveCount = activeWorkingNodes.length;
 
   const validBpmNodes = activeWorkingNodes.filter(n => n.bpm > 0);
   const currentAvgBpm = validBpmNodes.length > 0
     ? Math.round(validBpmNodes.reduce((acc, cur) => acc + cur.bpm, 0) / validBpmNodes.length)
-    : (liveTelemetry && liveTelemetry.bpm > 0 ? liveTelemetry.bpm : (filteredLogs.find(l => l.bpm > 0)?.bpm || 0));
+    : (liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.bpm > 0 ? liveTelemetry.bpm : 0);
 
   const validSpo2Nodes = activeWorkingNodes.filter(n => n.spo2 > 0);
   const currentAvgSpo2 = validSpo2Nodes.length > 0
     ? Number((validSpo2Nodes.reduce((acc, cur) => acc + cur.spo2, 0) / validSpo2Nodes.length).toFixed(1))
-    : (liveTelemetry && liveTelemetry.spo2 > 0 ? liveTelemetry.spo2 : (filteredLogs.find(l => l.spo2 > 0)?.spo2 || 0));
+    : (liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.spo2 > 0 ? liveTelemetry.spo2 : 0);
 
   const correctPostureNodes = activeWorkingNodes.filter(n => n.posture === 'correct').length;
   const livePostureRate = activeWorkingNodes.length > 0
     ? Math.round((correctPostureNodes / activeWorkingNodes.length) * 100)
-    : (liveTelemetry && liveTelemetry.trackingActive ? (liveTelemetry.postureStatus === 0 ? 100 : 0) : 0);
-
-  // Recent 10 telemetry streams for real-time wave
-  const recentStreams = useMemo(() => {
-    return filteredLogs.slice(0, 12);
-  }, [filteredLogs]);
+    : (liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.postureStatus >= 0 
+        ? (liveTelemetry.postureStatus === 0 ? 100 : 0) 
+        : 0);
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-6 shadow-xs space-y-5 animate-fadeIn">
@@ -194,7 +191,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">Nhịp Tim Realtime</span>
             <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-              <Heart className="w-3.5 h-3.5 animate-pulse" />
+              <Heart className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
             </div>
           </div>
           <div className="mt-2">
@@ -289,7 +286,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         </div>
       </div>
 
-      {/* 3. Live Nodes Status Strip & Realtime Stream (Thay thế hoàn toàn 4 khoảng đo đạc cũ) */}
+      {/* 3. Live Nodes Status Strip & Realtime Stream */}
       <div className="space-y-3 pt-1">
         <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
           <span className="flex items-center gap-1.5">
@@ -310,11 +307,11 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
             return (
               <div 
                 key={node.id}
-                className={`p-3.5 rounded-xl border transition flex flex-col justify-between space-y-3 ${
+                className={`p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between space-y-3 ${
                   isWorking
                     ? isBad
-                      ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-500/10'
-                      : 'bg-emerald-50/40 border-emerald-300 ring-2 ring-emerald-500/10'
+                      ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-500/10 shadow-xs'
+                      : 'bg-emerald-50/40 border-emerald-300 ring-2 ring-emerald-500/10 shadow-xs'
                     : 'bg-slate-50/70 border-slate-200 opacity-80'
                 }`}
               >
@@ -344,17 +341,23 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
                 </div>
 
                 {/* Metrics */}
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-xs">
                   <div>
                     <span className="text-[10px] text-slate-500 block">Nhịp tim</span>
-                    <span className="font-extrabold font-mono text-slate-900">
+                    <span className="font-extrabold font-mono text-slate-900 text-xs sm:text-sm">
                       {node.bpm > 0 ? `${node.bpm} bpm` : '--'}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">SpO₂</span>
-                    <span className="font-extrabold font-mono text-sky-700">
+                    <span className="font-extrabold font-mono text-sky-700 text-xs sm:text-sm">
                       {node.spo2 > 0 ? `${node.spo2}%` : '--'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Ngồi</span>
+                    <span className="font-extrabold font-mono text-slate-800 text-xs sm:text-sm">
+                      {node.sittingMinutes} ph
                     </span>
                   </div>
                 </div>
@@ -362,70 +365,28 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
                 {/* Posture Badge */}
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-[10px] text-slate-500">Tư thế:</span>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap ${
                     node.posture === 'correct'
-                      ? 'bg-emerald-100 text-emerald-800'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       : node.posture === 'incorrect'
-                      ? 'bg-rose-100 text-rose-800 animate-pulse'
-                      : 'bg-slate-200 text-slate-600'
+                      ? 'bg-rose-100 text-rose-800 border border-rose-200 animate-pulse'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
                   }`}>
                     {node.postureText}
                   </span>
                 </div>
+
+                {/* Alert Warning if any */}
+                {node.hasAlert && (
+                  <div className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                    <span className="truncate">{node.alertReason || 'Cần điều chỉnh tư thế'}</span>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-
-        {/* 4. Real-time Telemetry Stream History */}
-        {recentStreams.length > 0 && (
-          <div className="pt-3 border-t border-slate-100 space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-              <span className="flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-sky-600" />
-                <span>Các Bản Ghi Đo Đạc Vừa Ghi Nhận (Recent Telemetry Stream):</span>
-              </span>
-              <span className="text-[11px] font-normal text-slate-500">
-                12 gói tin mới nhất
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {recentStreams.map((log) => {
-                const isBad = log.postureStatus === 1 || log.postureStatus === 3;
-                return (
-                  <div 
-                    key={log.id}
-                    className={`p-2.5 rounded-lg border text-xs flex flex-col justify-between ${
-                      isBad ? 'bg-rose-50/40 border-rose-200' : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                      <span>{log.timeFormatted || '--:--'}</span>
-                      <span className={`font-bold ${isBad ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {isBad ? 'Sai' : 'Đúng'}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-baseline justify-between">
-                      <span className="font-extrabold font-mono text-slate-900 text-sm">
-                        {log.bpm > 0 ? `${log.bpm}` : '--'}
-                        <span className="text-[10px] font-normal text-slate-500 ml-0.5">bpm</span>
-                      </span>
-                      <span className="font-extrabold font-mono text-sky-700 text-xs">
-                        {log.spo2 > 0 ? `${log.spo2}%` : '--'}
-                      </span>
-                    </div>
-                    {log.userName && (
-                      <span className="text-[10px] text-slate-500 truncate block mt-0.5 font-medium">
-                        {log.userName}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

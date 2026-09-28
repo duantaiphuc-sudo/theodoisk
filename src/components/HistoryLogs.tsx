@@ -13,14 +13,16 @@ import {
   Filter, 
   Sparkles,
   Database,
-  FileText
+  FileText,
+  UserCheck
 } from 'lucide-react';
-import { TelemetryLog } from '../types';
+import { TelemetryLog, AuthUser } from '../types';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
 import { getCurrentUser } from '../services/authService';
 
 interface HistoryLogsProps {
   history: TelemetryLog[];
+  currentUser?: AuthUser | null;
   onClearHistory?: () => void;
   onDeleteSingleLog?: (id: string) => void;
   onRefreshHistory?: () => void;
@@ -32,6 +34,7 @@ interface HistoryLogsProps {
 
 export const HistoryLogs: React.FC<HistoryLogsProps> = ({ 
   history, 
+  currentUser,
   onClearHistory, 
   onDeleteSingleLog,
   onRefreshHistory,
@@ -46,10 +49,71 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Extract unique available dates from logs
+  // Distinct accounts found in history
+  const distinctAccounts = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email: string; count: number }>();
+    
+    if (currentUser) {
+      map.set(currentUser.id, {
+        id: currentUser.id,
+        name: currentUser.fullName || currentUser.username,
+        email: currentUser.email,
+        count: 0
+      });
+    }
+
+    history.forEach(item => {
+      const accId = item.userId || item.userEmail || 'unknown';
+      let accName = item.userName || item.userEmail || 'Người dùng';
+      if (currentUser && (accId === currentUser.id || item.userEmail?.toLowerCase() === currentUser.email?.toLowerCase())) {
+        accName = currentUser.fullName || currentUser.username;
+      }
+      const accEmail = item.userEmail || '';
+
+      if (!map.has(accId)) {
+        map.set(accId, { id: accId, name: accName, email: accEmail, count: 0 });
+      }
+      map.get(accId)!.count++;
+    });
+
+    return Array.from(map.values());
+  }, [history, currentUser]);
+
+  // Account filter:
+  // For employees: strictly locked to their own account records!
+  // For admin/manager: defaults to their own account, can switch between employees or view all
+  const [selectedAccountFilter, setSelectedAccountFilter] = useState<string>(() => {
+    return currentUser ? currentUser.id : 'all';
+  });
+
+  // Base history filtered by user account isolation
+  const userFilteredHistory = useMemo(() => {
+    // If not a manager, STRICTLY only allow currentUser's records
+    if (!isManager && currentUser) {
+      return history.filter(item => 
+        !item.userId || item.userId === currentUser.id || 
+        (item.userEmail && currentUser.email && item.userEmail.toLowerCase() === currentUser.email.toLowerCase())
+      );
+    }
+
+    // If manager, check selectedAccountFilter
+    if (selectedAccountFilter === 'all') {
+      return history;
+    }
+
+    return history.filter(item => {
+      const matchId = item.userId === selectedAccountFilter;
+      const matchEmail = item.userEmail && item.userEmail.toLowerCase() === selectedAccountFilter.toLowerCase();
+      const matchCurrent = currentUser && selectedAccountFilter === currentUser.id && 
+        (item.userId === currentUser.id || (item.userEmail && item.userEmail.toLowerCase() === currentUser.email.toLowerCase()));
+      return matchId || matchEmail || matchCurrent;
+    });
+  }, [history, selectedAccountFilter, isManager, currentUser]);
+
+  // Extract unique available dates from user-filtered logs
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
-    history.forEach(item => {
+    userFilteredHistory.forEach(item => {
       if (item.dateFormatted) {
         dates.add(item.dateFormatted);
       } else if (item.timestamp) {
@@ -60,11 +124,11 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
       }
     });
     return Array.from(dates);
-  }, [history]);
+  }, [userFilteredHistory]);
 
   const filteredLogs = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return history.filter(item => {
+    return userFilteredHistory.filter(item => {
       const dateStr = item.dateFormatted || '';
       const timeStr = item.timeFormatted || '';
       const dateTimeStr = item.dateTimeFormatted || `${dateStr} ${timeStr}`;
@@ -75,6 +139,8 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         timeStr.toLowerCase().includes(term) ||
         dateTimeStr.toLowerCase().includes(term) ||
         item.postureLabel.toLowerCase().includes(term) ||
+        (item.userName && item.userName.toLowerCase().includes(term)) ||
+        (item.userEmail && item.userEmail.toLowerCase().includes(term)) ||
         String(item.bpm).includes(term) ||
         String(item.spo2).includes(term);
 
@@ -90,14 +156,15 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
       if (filterPosture === 'absent') return item.postureStatus === 2;
       return true;
     });
-  }, [history, searchTerm, filterPosture, filterDate]);
+  }, [userFilteredHistory, searchTerm, filterPosture, filterDate]);
 
   const handleExportCSV = () => {
-    if (history.length === 0) return;
+    if (userFilteredHistory.length === 0) return;
 
-    const headers = ['Mã bản ghi', 'Ngày ghi', 'Giờ ghi', 'Thời gian chuẩn (ISO)', 'Nhịp tim (BPM)', 'Nồng độ oxy (SpO2 %)', 'Mã tư thế', 'Tên tư thế', 'Trong vùng quan sát', 'Có cảnh báo', 'Loại cảnh báo'];
-    const rows = history.map(item => [
+    const headers = ['Mã bản ghi', 'Tài khoản', 'Ngày ghi', 'Giờ ghi', 'Thời gian chuẩn (ISO)', 'Nhịp tim (BPM)', 'Nồng độ oxy (SpO2 %)', 'Mã tư thế', 'Tên tư thế', 'Trong vùng quan sát', 'Có cảnh báo', 'Loại cảnh báo'];
+    const rows = userFilteredHistory.map(item => [
       `"${item.id}"`,
+      `"${item.userName || item.userEmail || ''}"`,
       `"${item.dateFormatted || ''}"`,
       `"${item.timeFormatted}"`,
       `"${item.timestamp}"`,
@@ -116,18 +183,19 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
     const link = document.createElement('a');
     link.setAttribute('href', url);
     const todayStr = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `nhat_ky_suc_khoe_tu_the_${todayStr}.csv`);
+    const accSlug = selectedAccountFilter !== 'all' ? `_${selectedAccountFilter}` : '';
+    link.setAttribute('download', `nhat_ky_suc_khoe_tu_the${accSlug}_${todayStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const handleExportPDF = () => {
-    if (history.length === 0) return;
+    if (userFilteredHistory.length === 0) return;
     const user = getCurrentUser();
     exportHealthReportToPDF({
       currentUser: user,
-      historyLogs: history,
+      historyLogs: userFilteredHistory,
     });
   };
 
@@ -154,16 +222,26 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <span>Nhật Ký Dữ Liệu Sức Khỏe & Tư Thế</span>
               <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                {filteredLogs.length}/{history.length} bản ghi
+                {filteredLogs.length}/{userFilteredHistory.length} bản ghi
               </span>
             </h2>
+            {/* Account scope badge */}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-mono font-medium whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+              <span>
+                {selectedAccountFilter === 'all' 
+                  ? 'Tất cả tài khoản' 
+                  : (selectedAccountFilter === currentUser?.id ? `Dữ liệu riêng: ${currentUser?.fullName || currentUser?.username}` : `Dữ liệu: ${distinctAccounts.find(a => a.id === selectedAccountFilter)?.name || selectedAccountFilter}`)}
+              </span>
+            </span>
+
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-mono font-medium whitespace-nowrap">
               <Cloud className="w-3 h-3 text-sky-600 shrink-0" />
-              <span>Firestore: {firebaseHistoryCollection}</span>
+              <span>Firestore: {selectedAccountFilter !== 'all' ? `/users/${selectedAccountFilter}/history` : firebaseHistoryCollection}</span>
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Hệ thống tự động lưu dữ liệu thời gian thực lên Firebase Cloud & bộ nhớ thiết bị. Không cần ấn lưu thủ công.
+            Hệ thống tự động lưu dữ liệu thời gian thực theo phân vùng tài khoản độc lập trên Firebase Cloud & bộ nhớ thiết bị.
           </p>
         </div>
 
@@ -263,6 +341,55 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         </div>
       </div>
 
+      {/* Account Selector Bar (Separates data clearly per account) */}
+      {isManager && distinctAccounts.length > 1 && (
+        <div className="mb-3 p-2 sm:p-2.5 bg-slate-50/90 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 whitespace-nowrap">
+            <UserCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>Xem lịch sử theo tài khoản:</span>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {distinctAccounts.map(acc => {
+              const isSelected = selectedAccountFilter === acc.id;
+              const isMe = acc.id === currentUser?.id;
+              return (
+                <button
+                  key={acc.id}
+                  onClick={() => setSelectedAccountFilter(acc.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    isSelected 
+                      ? 'bg-indigo-600 text-white shadow-2xs' 
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  <span>{isMe ? `Tôi (${acc.name})` : acc.name}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {acc.count}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setSelectedAccountFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                selectedAccountFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              }`}
+            >
+              <span>Tất cả tài khoản</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                selectedAccountFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {history.length}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 mb-3">
         {/* Search Input */}
@@ -307,7 +434,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Tất cả ({history.length})
+            Tất cả ({userFilteredHistory.length})
           </button>
           <button
             onClick={() => setFilterPosture('good')}

@@ -67,7 +67,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (currentUser) {
         const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
         const existing = map.get(curKey);
-        map.set(curKey, { ...(existing || {}), ...currentUser });
+        map.set(curKey, { 
+          ...currentUser, 
+          ...(existing || {}) 
+        });
       }
       setRegisteredUsers(Array.from(map.values()));
     } catch (e) {
@@ -91,7 +94,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (currentUser) {
         const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
         const existing = map.get(curKey);
-        map.set(curKey, { ...(existing || {}), ...currentUser });
+        map.set(curKey, { 
+          ...currentUser, 
+          ...(existing || {}) 
+        });
       }
       setRegisteredUsers(Array.from(map.values()));
     });
@@ -103,46 +109,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Dynamically compute nodes from real registered users and real telemetry logs
   const nodes = React.useMemo<EmployeeNodeStatus[]>(() => {
-    const list = registeredUsers.length > 0 ? registeredUsers : (currentUser ? [currentUser] : []);
+    const rawList = registeredUsers.length > 0 ? registeredUsers : (currentUser ? [currentUser] : []);
+    // Ensure current active user is always ordered at the top (index 0)
+    const list = [...rawList].sort((a, b) => {
+      const aIsCur = a.id === currentUser?.id || (a.email && a.email.toLowerCase() === currentUser?.email?.toLowerCase());
+      const bIsCur = b.id === currentUser?.id || (b.email && b.email.toLowerCase() === currentUser?.email?.toLowerCase());
+      if (aIsCur && !bIsCur) return -1;
+      if (!aIsCur && bIsCur) return 1;
+      return 0;
+    });
 
     return list.map((user, idx) => {
       const isCurrent = user.id === currentUser?.id || (user.email && user.email.toLowerCase() === currentUser?.email?.toLowerCase());
       const deviceId = `pi4_node_${idx + 1}`;
 
-      // Check if user has active real-time telemetry broadcast in Firestore (e.g. from mobile phone or other device)
-      const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
-      const isRecentlyActive = (Date.now() - lastActiveMs) < 60000; // active within 60s
-      const hasBroadcastTelemetry = isRecentlyActive && (Boolean(user.isOnline) || user.currentPresence !== undefined || (user.bpm !== undefined && user.bpm > 0));
+      // 1. Current active user operating this dashboard session
+      if (isCurrent) {
+        const hasLiveSignal = liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.postureStatus >= 0 && (liveTelemetry.bpm > 0 || liveTelemetry.inZone);
 
-      // Search real history logs matching this user
-      const userLogs = (historyLogs || []).filter(l => 
-        (l.userId && l.userId === user.id) ||
-        (l.userEmail && l.userEmail.toLowerCase() === user.email.toLowerCase()) ||
-        (l.userName && l.userName.toLowerCase() === user.fullName.toLowerCase())
-      );
-      const latestLog = userLogs.length > 0 ? userLogs[0] : null;
+        if (hasLiveSignal) {
+          const isOutOfZone = liveTelemetry.inZone === false || liveTelemetry.trackingActive === false;
+          const isWaiting = liveTelemetry.postureStatus === -1 && liveTelemetry.bpm === 0 && liveTelemetry.spo2 === 0;
+          const isAbsent = liveTelemetry.postureStatus === 2 || isOutOfZone || isWaiting;
+          const isBad = !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
+          const sittingMins = timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0;
 
-      // Active user in this session with live telemetry
-      if (isCurrent && liveTelemetry) {
-        const isOutOfZone = liveTelemetry.inZone === false || liveTelemetry.trackingActive === false;
-        const isWaiting = liveTelemetry.postureStatus === -1 && liveTelemetry.bpm === 0 && liveTelemetry.spo2 === 0;
-        const isAbsent = liveTelemetry.postureStatus === 2 || isOutOfZone || isWaiting;
-        const isBad = !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
-        const sittingMins = timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0;
+          let postureText = '✓ Đúng';
+          let posture: 'correct' | 'incorrect' | 'absent' = 'correct';
+          if (isWaiting) {
+            postureText = '– Chờ kết nối';
+            posture = 'absent';
+          } else if (isAbsent) {
+            postureText = '– Vắng';
+            posture = 'absent';
+          } else if (isBad) {
+            postureText = '⚠ Sai';
+            posture = 'incorrect';
+          }
 
-        let postureText = '✓ Đúng';
-        let posture: 'correct' | 'incorrect' | 'absent' = 'correct';
-        if (isWaiting) {
-          postureText = '– Chờ kết nối';
-          posture = 'absent';
-        } else if (isAbsent) {
-          postureText = '– Vắng';
-          posture = 'absent';
-        } else if (isBad) {
-          postureText = '⚠ Sai';
-          posture = 'incorrect';
+          return {
+            id: `node-${user.id}`,
+            name: user.fullName || user.username,
+            email: user.email,
+            avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
+            department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
+            device: deviceId,
+            presence: isAbsent ? 'Away' : 'Present',
+            posture,
+            postureText,
+            sittingMinutes: sittingMins,
+            bpm: isAbsent ? 0 : (liveTelemetry.bpm || 0),
+            spo2: isAbsent ? 0 : (liveTelemetry.spo2 || 0),
+            isOnline: true,
+            hasAlert: !isAbsent && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
+            alertReason: !isAbsent && isBad ? 'Ngồi sai tư thế' : undefined,
+            role: user.role
+          };
         }
 
+        // Current user is online on dashboard, but waiting for camera/sensor telemetry
         return {
           id: `node-${user.id}`,
           name: user.fullName || user.username,
@@ -150,23 +175,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
           department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
           device: deviceId,
-          presence: isAbsent ? 'Away' : 'Present',
-          posture,
-          postureText,
-          sittingMinutes: sittingMins,
-          bpm: liveTelemetry.bpm || 0,
-          spo2: liveTelemetry.spo2 || 0,
-          isOnline: !isWaiting,
-          hasAlert: !isAbsent && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
-          alertReason: !isAbsent && isBad ? 'Ngồi sai tư thế' : undefined,
+          presence: 'Away',
+          posture: 'absent',
+          postureText: '– Chờ kết nối',
+          sittingMinutes: timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0,
+          bpm: 0,
+          spo2: 0,
+          isOnline: true,
+          hasAlert: false,
+          alertReason: undefined,
           role: user.role
         };
       }
 
-      // Remote user broadcasting live telemetry from another device (e.g. mobile phone simulation or another Pi node)
+      // 2. Remote users - strictly require fresh heartbeat within 15 seconds to be considered active
+      const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
+      const isRecentlyActive = Boolean(user.isOnline) && lastActiveMs > 0 && (Date.now() - lastActiveMs) < 15000;
+      const hasBroadcastTelemetry = isRecentlyActive && (user.currentPresence === 'Present' || (user.bpm !== undefined && user.bpm > 0));
+
       if (hasBroadcastTelemetry) {
-        const isAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent';
-        const isBad = !isAbsent && user.currentPosture === 'incorrect';
+        const isAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng');
+        const isBad = !isAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
         const postureText = isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : (user.currentPostureText || '✓ Đúng'));
 
         return {
@@ -180,40 +209,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           posture: isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'),
           postureText,
           sittingMinutes: user.sittingMinutes || 0,
-          bpm: user.bpm || 0,
-          spo2: user.spo2 || 0,
-          isOnline: Boolean(user.isOnline),
+          bpm: isAbsent ? 0 : (user.bpm || 0),
+          spo2: isAbsent ? 0 : (user.spo2 || 0),
+          isOnline: true,
           hasAlert: Boolean(!isAbsent && (user.hasAlert || isBad)),
           alertReason: !isAbsent ? (user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined)) : undefined,
           role: user.role
         };
       }
 
-      // If user has previous historical telemetry logs in Firestore
-      if (latestLog) {
-        const isAbsent = latestLog.postureStatus === 2 || latestLog.trackingActive === false;
-        const isBad = !isAbsent && (latestLog.postureStatus === 1 || latestLog.postureStatus === 3);
-        return {
-          id: `node-${user.id}`,
-          name: user.fullName || user.username,
-          email: user.email,
-          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
-          department: user.department || 'Nhân Viên Văn Phòng IoT',
-          device: latestLog.device || deviceId,
-          presence: isAbsent ? 'Away' : 'Present',
-          posture: isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'),
-          postureText: isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'),
-          sittingMinutes: 0,
-          bpm: latestLog.bpm || 0,
-          spo2: latestLog.spo2 || 0,
-          isOnline: false,
-          hasAlert: Boolean(!isAbsent && latestLog.hasAlert),
-          alertReason: !isAbsent ? latestLog.alertType : undefined,
-          role: user.role
-        };
-      }
-
-      // User registered in Firestore but has not generated any telemetry yet
+      // 3. User is offline / waiting for connection (do NOT pull old historical records into real-time live fields)
       return {
         id: `node-${user.id}`,
         name: user.fullName || user.username,
@@ -229,10 +234,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         spo2: 0,
         isOnline: false,
         hasAlert: false,
+        alertReason: undefined,
         role: user.role
       };
     });
-  }, [registeredUsers, currentUser, liveTelemetry, timeStats, historyLogs]);
+  }, [registeredUsers, currentUser, liveTelemetry, timeStats]);
 
   const handleExportPDF = () => {
     try {

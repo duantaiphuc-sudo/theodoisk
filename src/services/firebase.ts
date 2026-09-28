@@ -1239,11 +1239,30 @@ export function subscribeToUsers(
     const usersColl = collection(db, 'users');
     const unsub = onSnapshot(usersColl, (snap) => {
       if (!snap.empty) {
+        const now = Date.now();
         const firestoreUsers: AuthUser[] = snap.docs.map(d => {
           const data = d.data();
           const email = data.email || `${d.id}@theodoisk.com`;
           const username = data.username || (data.email ? data.email.split('@')[0] : d.id);
           const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
+
+          const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
+          // Live telemetry heartbeat strictly expires after 15 seconds without fresh ping
+          const isLiveHeartbeatActive = Boolean(data.isOnline) && lastActiveTime > 0 && (now - lastActiveTime) < 15000;
+
+          // Asynchronously clear stale isOnline flag in Firestore if abandoned (> 15s)
+          if (data.isOnline && (!lastActiveTime || (now - lastActiveTime) > 15000)) {
+            const userDocRef = doc(db, 'users', d.id);
+            setDoc(userDocRef, { 
+              isOnline: false, 
+              currentPresence: 'Away', 
+              currentPosture: 'absent',
+              currentPostureText: '– Chờ kết nối',
+              bpm: 0,
+              spo2: 0
+            }, { merge: true }).catch(() => {});
+          }
+
           return {
             id: d.id,
             username,
@@ -1263,16 +1282,18 @@ export function subscribeToUsers(
             lastLogin: data.lastLogin || data.updatedAt || '',
             createdAt: data.createdAt || data.updatedAt || '',
             device: data.device || '',
-            isOnline: Boolean(data.isOnline),
+            isOnline: isLiveHeartbeatActive,
             lastActive: data.lastActive || '',
-            currentPresence: data.currentPresence || 'Away',
-            currentPosture: data.currentPosture || 'absent',
-            currentPostureText: data.currentPostureText || (data.currentPosture === 'incorrect' ? '⚠ Sai' : (data.currentPosture === 'correct' ? '✓ Đúng' : '– Vắng')),
-            hasAlert: Boolean(data.hasAlert),
-            alertReason: data.alertReason || '',
-            sittingMinutes: Number(data.sittingMinutes || 0),
-            bpm: Number(data.bpm || 0),
-            spo2: Number(data.spo2 || 0)
+            currentPresence: isLiveHeartbeatActive ? (data.currentPresence || 'Away') : 'Away',
+            currentPosture: isLiveHeartbeatActive ? (data.currentPosture || 'absent') : 'absent',
+            currentPostureText: isLiveHeartbeatActive 
+              ? (data.currentPostureText || (data.currentPosture === 'incorrect' ? '⚠ Sai' : (data.currentPosture === 'correct' ? '✓ Đúng' : '– Vắng')))
+              : '– Chờ kết nối',
+            hasAlert: isLiveHeartbeatActive ? Boolean(data.hasAlert) : false,
+            alertReason: isLiveHeartbeatActive ? (data.alertReason || '') : '',
+            sittingMinutes: isLiveHeartbeatActive ? Number(data.sittingMinutes || 0) : 0,
+            bpm: isLiveHeartbeatActive ? Number(data.bpm || 0) : 0,
+            spo2: isLiveHeartbeatActive ? Number(data.spo2 || 0) : 0
           };
         });
         onUsers(firestoreUsers);

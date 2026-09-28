@@ -60,3 +60,17 @@ This project follows the **UI/UX Pro Max** design intelligence system, adapted f
 3. **No Nested Card Clutter**: Flatten depth using crisp 1px borders, subtle dividers, and proportional padding instead of card-inside-card syndrome.
 4. **No Horizontal Viewport Overflow**: Ensure zero horizontal scroll on mobile devices (`320px` to `428px` phone widths).
 5. **Legibility & WCAG AA**: All text against light surfaces must meet $\ge 4.5:1$ contrast ratio. Never place faint light-gray text on white backgrounds.
+
+---
+
+## Agent skills
+
+### Issue tracker
+Local markdown issues tracked in `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+Canonical 5-role triage labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+Single-context layout (`CONTEXT.md` + `docs/adr/`). See `docs/agents/domain.md`.
+

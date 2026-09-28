@@ -70,21 +70,50 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
 
+  // 1. Firebase Configuration State
+  const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConnectionConfig>(getSavedFirebaseConfig());
+  const [isConnected, setIsConnected] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     saveCurrentUser(user);
   };
 
   const handleLogout = () => {
+    if (currentUser) {
+      updateUserRealtimePresence(firebaseConfig, currentUser.id, {
+        isOnline: false,
+        currentPresence: 'Away',
+        currentPosture: 'absent',
+        currentPostureText: '– Chờ kết nối',
+        bpm: 0,
+        spo2: 0,
+        sittingMinutes: 0
+      }).catch(() => {});
+    }
     logout();
     setCurrentUser(null);
   };
 
-  // 1. Firebase Configuration State
-  const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConnectionConfig>(getSavedFirebaseConfig());
-  const [isConnected, setIsConnected] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  // Mark user offline on browser tab close or reload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentUser) {
+        updateUserRealtimePresence(firebaseConfig, currentUser.id, {
+          isOnline: false,
+          currentPresence: 'Away',
+          currentPosture: 'absent',
+          currentPostureText: '– Chờ kết nối',
+          bpm: 0,
+          spo2: 0
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentUser, firebaseConfig]);
 
   // Data reception state - When false, display empty indicators across UI
   const [hasReceivedData, setHasReceivedData] = useState<boolean>(false);
@@ -163,14 +192,20 @@ export default function App() {
   // Mobile quick view filter tab inside overview
   const [mobileActiveTab, setMobileActiveTab] = useState<'all' | 'biometrics' | 'posture' | 'timers'>('all');
 
-  // 8. History Log Records with local persistence fallback
+  // 8. History Log Records with local persistence scoped per user account
   const [history, setHistory] = useState<TelemetryLog[]>(() => {
     try {
-      const saved = localStorage.getItem('theodoisk_telemetry_history_v2');
+      const user = getCurrentUser();
+      const storageKey = user ? `theodoisk_history_${user.id}` : 'theodoisk_history_guest';
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          // Strictly ensure only records belonging to this user are kept
+          return parsed.filter(l => 
+            !user || !l.userId || l.userId === user.id || 
+            (l.userEmail && user.email && l.userEmail.toLowerCase() === user.email.toLowerCase())
+          );
         }
       }
     } catch (e) {
@@ -179,6 +214,30 @@ export default function App() {
     return [];
   });
   const [isSyncingHistory, setIsSyncingHistory] = useState(false);
+
+  // When user switches or logs in/out, load THAT user's private history
+  useEffect(() => {
+    if (!currentUser) {
+      setHistory([]);
+      return;
+    }
+    try {
+      const storageKey = `theodoisk_history_${currentUser.id}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const userOnly = parsed.filter(l => 
+            !l.userId || l.userId === currentUser.id || 
+            (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase())
+          );
+          setHistory(userOnly);
+          return;
+        }
+      }
+    } catch (e) {}
+    setHistory([]);
+  }, [currentUser?.id]);
 
   // 9. Task & Broadcast Notifications State
   const [taskNotifications, setTaskNotifications] = useState<UserTaskNotification[]>([]);
@@ -216,14 +275,20 @@ export default function App() {
     localStorage.setItem('theodoisk_zone', JSON.stringify(zone));
   }, [zone]);
 
-  // Persist history records to localStorage on every state change
+  // Persist history records to localStorage on every state change (strictly scoped per user)
   useEffect(() => {
+    if (!currentUser) return;
     try {
-      localStorage.setItem('theodoisk_telemetry_history_v2', JSON.stringify(history.slice(0, 200)));
+      const storageKey = `theodoisk_history_${currentUser.id}`;
+      const userOnly = history.filter(l => 
+        !l.userId || l.userId === currentUser.id || 
+        (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase())
+      );
+      localStorage.setItem(storageKey, JSON.stringify(userOnly.slice(0, 200)));
     } catch (e) {
       console.error('Error saving history to localStorage:', e);
     }
-  }, [history]);
+  }, [history, currentUser?.id]);
 
   // Handle new incoming telemetry packet
   const handleIncomingTelemetry = useCallback((data: HealthTelemetry) => {
@@ -375,15 +440,20 @@ export default function App() {
 
     // Add to local history (deduplicating rapid identical samples within 2 seconds)
     setHistory(prev => {
-      if (prev.length > 0) {
-        const first = prev[0];
+      const active = currentUserRef.current;
+      const userOnlyPrev = active 
+        ? prev.filter(l => !l.userId || l.userId === active.id || (l.userEmail && l.userEmail.toLowerCase() === active.email.toLowerCase()))
+        : prev;
+
+      if (userOnlyPrev.length > 0) {
+        const first = userOnlyPrev[0];
         const sameMetrics = first.bpm === newEntry.bpm && first.spo2 === newEntry.spo2 && first.postureStatus === newEntry.postureStatus;
         const timeDiff = Math.abs(new Date(newEntry.timestamp).getTime() - new Date(first.timestamp).getTime());
         if (sameMetrics && timeDiff < 2000) {
-          return prev;
+          return userOnlyPrev;
         }
       }
-      return [newEntry, ...prev.slice(0, 299)];
+      return [newEntry, ...userOnlyPrev.slice(0, 299)];
     });
 
     // Save to Firebase Firestore / RTDB history collection:
@@ -431,24 +501,31 @@ export default function App() {
     };
   }, [firebaseConfig, isSimulating, handleIncomingTelemetry]);
 
-  // Fetch & Subscribe to Firebase History Collection (Per-account for employees, global for admin)
+  // Fetch & Subscribe to Firebase History Collection (Per-account for every user)
   useEffect(() => {
     let unsubHistory: (() => void) | null = null;
 
-    if (firebaseConfig.autoConnect && !isSimulating) {
+    if (firebaseConfig.autoConnect && !isSimulating && currentUser) {
       setIsSyncingHistory(true);
-      // For employee accounts, query and listen to their own subcollection users/{userId}/history!
-      const activeUserId = (currentUser && currentUser.role !== 'admin') ? currentUser.id : undefined;
+      // Always load the current account's private subcollection users/{userId}/history
+      const activeUserId = currentUser.id;
 
       fetchFirebaseHistory(firebaseConfig, 100, activeUserId)
         .then(remoteLogs => {
           if (remoteLogs && remoteLogs.length > 0) {
             setHistory(prev => {
               const map = new Map<string, TelemetryLog>();
-              remoteLogs.forEach(l => map.set(l.timestamp, l));
-              prev.forEach(l => {
-                if (!map.has(l.timestamp)) map.set(l.timestamp, l);
-              });
+              // Strictly isolate only logs belonging to currentUser
+              remoteLogs
+                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .forEach(l => map.set(l.timestamp, l));
+
+              prev
+                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .forEach(l => {
+                  if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+                });
+
               const merged = Array.from(map.values())
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                 .slice(0, 200);
@@ -467,10 +544,16 @@ export default function App() {
           if (remoteLogs && remoteLogs.length > 0) {
             setHistory(prev => {
               const map = new Map<string, TelemetryLog>();
-              remoteLogs.forEach(l => map.set(l.timestamp, l));
-              prev.forEach(l => {
-                if (!map.has(l.timestamp)) map.set(l.timestamp, l);
-              });
+              remoteLogs
+                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .forEach(l => map.set(l.timestamp, l));
+
+              prev
+                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .forEach(l => {
+                  if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+                });
+
               const merged = Array.from(map.values())
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                 .slice(0, 200);
@@ -489,7 +572,7 @@ export default function App() {
     return () => {
       if (unsubHistory) unsubHistory();
     };
-  }, [firebaseConfig, isSimulating, currentUser]);
+  }, [firebaseConfig, isSimulating, currentUser?.id]);
 
   // Second timer loop for web-calculated activity times
   useEffect(() => {
@@ -609,8 +692,8 @@ export default function App() {
         currentPosture: posture,
         currentPostureText: postureText,
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: telemetry.bpm,
-        spo2: telemetry.spo2,
+        bpm: isAbsent ? 0 : telemetry.bpm,
+        spo2: isAbsent ? 0 : telemetry.spo2,
         hasAlert: !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
         alertReason: !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
         device: firebaseConfig.documentId || (currentUser.role === 'admin' ? 'pi4_node_3' : 'pi4_node_4')
@@ -1132,6 +1215,7 @@ export default function App() {
               {/* Full Width History Audit Logs */}
               <HistoryLogs
                 history={history}
+                currentUser={currentUser}
                 onClearHistory={handleClearHistory}
                 onDeleteSingleLog={handleDeleteSingleLog}
                 onRefreshHistory={handleRefreshHistory}
