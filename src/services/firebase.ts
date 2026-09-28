@@ -507,7 +507,9 @@ export async function saveTelemetryHistoryToFirebase(
     const histColName = getHistoryCollectionName(config);
     const now = new Date();
     const timestampMs = Date.now();
-    const docId = `rec_${timestampMs}_${Math.random().toString(36).substr(2, 5)}`;
+    const docId = entry.id && entry.id.length > 5 
+      ? entry.id 
+      : `rec_${timestampMs}_${Math.random().toString(36).substr(2, 5)}`;
 
     const parsedD = entry.timestamp ? new Date(entry.timestamp) : now;
     const validD = isNaN(parsedD.getTime()) ? now : parsedD;

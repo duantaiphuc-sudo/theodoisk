@@ -191,12 +191,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // 2. Remote users - strictly require fresh heartbeat within 15 seconds to be considered active
       const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
       const isRecentlyActive = Boolean(user.isOnline) && lastActiveMs > 0 && (Date.now() - lastActiveMs) < 15000;
-      const hasBroadcastTelemetry = isRecentlyActive && (user.currentPresence === 'Present' || (user.bpm !== undefined && user.bpm > 0));
 
-      if (hasBroadcastTelemetry) {
+      if (isRecentlyActive) {
         const isAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng');
         const isBad = !isAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
-        const postureText = isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : (user.currentPostureText || '✓ Đúng'));
+        const postureText = isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng');
 
         return {
           id: `node-${user.id}`,
@@ -208,7 +207,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           presence: isAbsent ? 'Away' : 'Present',
           posture: isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'),
           postureText,
-          sittingMinutes: user.sittingMinutes || 0,
+          sittingMinutes: isAbsent ? 0 : (user.sittingMinutes || 0),
           bpm: isAbsent ? 0 : (user.bpm || 0),
           spo2: isAbsent ? 0 : (user.spo2 || 0),
           isOnline: true,

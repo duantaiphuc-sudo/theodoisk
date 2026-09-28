@@ -456,11 +456,34 @@ export default function App() {
       return [newEntry, ...userOnlyPrev.slice(0, 299)];
     });
 
+    // Realtime broadcast to Firestore directly on every telemetry update (Fast-path, eliminates latency)
+    const isCameraUntracked = isOutOfZone || data.trackingActive === false;
+    const isWaiting = data.postureStatus === -1 && data.bpm === 0 && data.spo2 === 0;
+    const isAbsent = data.postureStatus === 2 || isCameraUntracked || isWaiting;
+    const isBad = !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
+
+    const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
+    const posture: 'correct' | 'incorrect' | 'absent' = isWaiting ? 'absent' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+    const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+
+    if (activeUser && firebaseConfig.autoConnect) {
+      updateUserRealtimePresence(firebaseConfig, activeUser.id, {
+        isOnline: !isWaiting,
+        lastActive: new Date().toISOString(),
+        currentPresence: presence,
+        currentPosture: posture,
+        currentPostureText: postureText,
+        sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
+        bpm: isAbsent ? 0 : data.bpm,
+        spo2: isAbsent ? 0 : data.spo2,
+        hasAlert: !isAbsent && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
+        alertReason: !isAbsent && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        device: firebaseConfig.documentId || (activeUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
+      }).catch(() => {});
+    }
+
     // Save to Firebase Firestore / RTDB history collection:
-    // We write to Firebase if:
-    // 1. There is an active alert (abnormal posture or vital sign)
-    // 2. Posture status changed (e.g. from Good to Bad)
-    // 3. Or at least 8 seconds elapsed since last Firebase history write (frequent recording so telemetry is saved continuously)
+    // Frequent recording so all devices (PC, Mobile, Admin) share identical history logs
     const nowTime = Date.now();
     const timeSinceLastRemote = nowTime - lastFirebaseHistorySaveRef.current;
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
@@ -469,15 +492,15 @@ export default function App() {
     // Valid metrics include posture state transitions (even absent/away status 2) or live vitals
     const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus !== undefined && data.postureStatus >= 0);
     const shouldSaveRemote = hasValidMetrics &&
-      (hasAlert || postureChanged || timeSinceLastRemote > 6000);
+      (hasAlert || postureChanged || timeSinceLastRemote > 3000);
 
-    if (shouldSaveRemote && firebaseConfig.autoConnect) {
+    if (shouldSaveRemote && firebaseConfig.autoConnect && activeUser) {
       lastFirebaseHistorySaveRef.current = nowTime;
       saveTelemetryHistoryToFirebase(firebaseConfig, newEntry).catch(err => {
         console.warn('Ghi log lịch sử Firebase thất bại:', err);
       });
     }
-  }, [firebaseConfig]);
+  }, [firebaseConfig, timeStats.sittingSeconds]);
 
   // Subscribe to Firebase Live Telemetry
   useEffect(() => {
@@ -501,11 +524,11 @@ export default function App() {
     };
   }, [firebaseConfig, isSimulating, handleIncomingTelemetry]);
 
-  // Fetch & Subscribe to Firebase History Collection (Per-account for every user)
+  // Fetch & Subscribe to Firebase History Collection (Per-account for every user, always synced across PC & Mobile)
   useEffect(() => {
     let unsubHistory: (() => void) | null = null;
 
-    if (firebaseConfig.autoConnect && !isSimulating && currentUser) {
+    if (firebaseConfig.autoConnect && currentUser) {
       setIsSyncingHistory(true);
       // Always load the current account's private subcollection users/{userId}/history
       const activeUserId = currentUser.id;
@@ -518,17 +541,21 @@ export default function App() {
               // Strictly isolate only logs belonging to currentUser
               remoteLogs
                 .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
-                .forEach(l => map.set(l.timestamp, l));
+                .forEach(l => {
+                  const key = l.id || l.timestamp;
+                  map.set(key, l);
+                });
 
               prev
                 .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
                 .forEach(l => {
-                  if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+                  const key = l.id || l.timestamp;
+                  if (!map.has(key)) map.set(key, l);
                 });
 
               const merged = Array.from(map.values())
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .slice(0, 200);
+                .slice(0, 300);
               syncHistoricalLogs(merged);
               return merged;
             });
@@ -546,17 +573,21 @@ export default function App() {
               const map = new Map<string, TelemetryLog>();
               remoteLogs
                 .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
-                .forEach(l => map.set(l.timestamp, l));
+                .forEach(l => {
+                  const key = l.id || l.timestamp;
+                  map.set(key, l);
+                });
 
               prev
                 .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
                 .forEach(l => {
-                  if (!map.has(l.timestamp)) map.set(l.timestamp, l);
+                  const key = l.id || l.timestamp;
+                  if (!map.has(key)) map.set(key, l);
                 });
 
               const merged = Array.from(map.values())
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .slice(0, 200);
+                .slice(0, 300);
               syncHistoricalLogs(merged);
               return merged;
             });
@@ -572,7 +603,7 @@ export default function App() {
     return () => {
       if (unsubHistory) unsubHistory();
     };
-  }, [firebaseConfig, isSimulating, currentUser?.id]);
+  }, [firebaseConfig, currentUser?.id]);
 
   // Second timer loop for web-calculated activity times
   useEffect(() => {
@@ -696,13 +727,13 @@ export default function App() {
         spo2: isAbsent ? 0 : telemetry.spo2,
         hasAlert: !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
         alertReason: !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
-        device: firebaseConfig.documentId || (currentUser.role === 'admin' ? 'pi4_node_3' : 'pi4_node_4')
+        device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
       }).catch(() => {});
     };
 
     // Immediate sync on metric update or simulation toggle
     syncPresence();
-    const interval = setInterval(syncPresence, 2500);
+    const interval = setInterval(syncPresence, 1200);
 
     return () => {
       clearInterval(interval);
@@ -760,18 +791,26 @@ export default function App() {
         }
       }
 
-      // 2. Fetch all latest records from Firebase Firestore
-      const remoteLogs = await fetchFirebaseHistory(firebaseConfig, 100);
+      // 2. Fetch all latest records from Firebase Firestore (scoped to currentUser)
+      const remoteLogs = await fetchFirebaseHistory(firebaseConfig, 100, currentUser?.id);
       if (remoteLogs && remoteLogs.length > 0) {
         setHistory(prev => {
           const map = new Map<string, TelemetryLog>();
-          remoteLogs.forEach(l => map.set(l.timestamp, l));
-          prev.forEach(l => {
-            if (!map.has(l.timestamp)) map.set(l.timestamp, l);
-          });
+          remoteLogs
+            .filter(l => !currentUser || !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+            .forEach(l => {
+              const key = l.id || l.timestamp;
+              map.set(key, l);
+            });
+          prev
+            .filter(l => !currentUser || !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+            .forEach(l => {
+              const key = l.id || l.timestamp;
+              if (!map.has(key)) map.set(key, l);
+            });
           const merged = Array.from(map.values())
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, 200);
+            .slice(0, 300);
           syncHistoricalLogs(merged);
           return merged;
         });
