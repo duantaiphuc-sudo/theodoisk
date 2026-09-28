@@ -534,8 +534,11 @@ export async function saveTelemetryHistoryToFirebase(
       created_at: now.toISOString(),
       device: entry.device || 'Raspberry Pi 4 / Monitor Node',
       user_id: entry.userId || '',
-      user_email: entry.userEmail || '',
-      user_name: entry.userName || ''
+      user_email: (entry.userEmail || '').toLowerCase().trim(),
+      user_name: entry.userName || '',
+      userId: entry.userId || '',
+      userEmail: (entry.userEmail || '').toLowerCase().trim(),
+      userName: entry.userName || ''
     };
 
     const targetUserId = entry.userId || payload.user_id || 'user-default';
@@ -749,11 +752,14 @@ export async function batchSaveTelemetryHistoryToFirebase(
 export async function fetchFirebaseHistory(
   config: FirebaseConnectionConfig,
   maxRecords = 100,
-  userId?: string
+  userId?: string,
+  userEmail?: string
 ): Promise<TelemetryLog[]> {
   try {
     const app = initializeFirebaseApp(config);
     const histColName = getHistoryCollectionName(config);
+    const lowerEmail = (userEmail || '').trim().toLowerCase();
+    const lowerUid = (userId || '').trim().toLowerCase();
 
     if (config.useRealtimeDb && config.databaseURL) {
       const rtdb = getDatabase(app);
@@ -768,7 +774,7 @@ export async function fetchFirebaseHistory(
       return [];
     } else {
       const db = getFirestore(app);
-      let logs: TelemetryLog[] = [];
+      const map = new Map<string, TelemetryLog>();
 
       // 1. If user ID is given, read from their personal account history: users/{userId}/history
       if (userId) {
@@ -777,62 +783,84 @@ export async function fetchFirebaseHistory(
           const q = query(userCollRef, orderBy('timestamp', 'desc'), limit(maxRecords));
           const userSnap = await getDocs(q);
           if (!userSnap.empty) {
-            logs = userSnap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+            userSnap.docs.forEach(d => {
+              const item = normalizeHistoryLog(d.id, d.data());
+              map.set(item.id, item);
+            });
           } else {
             const fallbackSnap = await getDocs(userCollRef);
-            if (!fallbackSnap.empty) {
-              logs = fallbackSnap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-            }
+            fallbackSnap.docs.forEach(d => {
+              const item = normalizeHistoryLog(d.id, d.data());
+              map.set(item.id, item);
+            });
           }
         } catch (uErr) {
           console.warn('Lỗi đọc users/{userId}/history:', uErr);
         }
-
-        // If user already has logs in their personal collection, return them
-        if (logs.length > 0) {
-          return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, maxRecords);
-        }
       }
 
-      // 2. Fallback / Global query (for Admin or legacy logs in theodoisk_history)
-      const collRef = collection(db, histColName);
+      // 2. Also check the centralized theodoisk_history collection to sync logs recorded by PC / RPi / Mobile
       try {
-        const q = query(collRef, orderBy('timestamp', 'desc'), limit(maxRecords));
+        const collRef = collection(db, histColName);
+        const q = query(collRef, orderBy('timestamp', 'desc'), limit(maxRecords * 2));
         const snap = await getDocs(q);
         if (!snap.empty) {
-          logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
+          snap.docs.forEach(d => {
+            const item = normalizeHistoryLog(d.id, d.data());
+            const matchesUser = 
+              (!lowerUid && !lowerEmail) ||
+              (lowerUid && item.userId && item.userId.toLowerCase() === lowerUid) ||
+              (lowerEmail && item.userEmail && item.userEmail.toLowerCase() === lowerEmail) ||
+              (lowerEmail && item.userId && item.userId.toLowerCase() === lowerEmail);
+            
+            if (matchesUser) {
+              map.set(item.id, item);
+            }
+          });
         }
       } catch (orderErr) {
-        const snap = await getDocs(collRef);
-        if (!snap.empty) {
-          logs = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-        }
+        try {
+          const collRef = collection(db, histColName);
+          const snap = await getDocs(collRef);
+          snap.docs.forEach(d => {
+            const item = normalizeHistoryLog(d.id, d.data());
+            const matchesUser = 
+              (!lowerUid && !lowerEmail) ||
+              (lowerUid && item.userId && item.userId.toLowerCase() === lowerUid) ||
+              (lowerEmail && item.userEmail && item.userEmail.toLowerCase() === lowerEmail) ||
+              (lowerEmail && item.userId && item.userId.toLowerCase() === lowerEmail);
+            
+            if (matchesUser) {
+              map.set(item.id, item);
+            }
+          });
+        } catch {}
       }
 
       if (histColName !== 'theodoisk_history') {
         try {
           const primaryRef = collection(db, 'theodoisk_history');
-          const primarySnap = await getDocs(query(primaryRef, limit(maxRecords)));
-          if (!primarySnap.empty) {
-            const primaryLogs = primarySnap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-            const map = new Map<string, TelemetryLog>();
-            logs.forEach(l => map.set(l.id, l));
-            primaryLogs.forEach(l => map.set(l.id, l));
-            logs = Array.from(map.values());
-          }
+          const primarySnap = await getDocs(query(primaryRef, limit(maxRecords * 2)));
+          primarySnap.docs.forEach(d => {
+            const item = normalizeHistoryLog(d.id, d.data());
+            const matchesUser = 
+              (!lowerUid && !lowerEmail) ||
+              (lowerUid && item.userId && item.userId.toLowerCase() === lowerUid) ||
+              (lowerEmail && item.userEmail && item.userEmail.toLowerCase() === lowerEmail) ||
+              (lowerEmail && item.userId && item.userId.toLowerCase() === lowerEmail);
+            
+            if (matchesUser) {
+              map.set(item.id, item);
+            }
+          });
         } catch {}
       }
 
-      // Filter by userId if requested and legacy logs were retrieved from global collection
-      if (userId) {
-        const lowerUid = userId.toLowerCase();
-        logs = logs.filter(l => 
-          (l.userId && l.userId.toLowerCase() === lowerUid) ||
-          (l.userEmail && l.userEmail.toLowerCase() === lowerUid)
-        );
-      }
+      const merged = Array.from(map.values())
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, maxRecords);
 
-      return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, maxRecords);
+      return merged;
     }
   } catch (err) {
     console.warn('Không thể tải lịch sử từ Firebase:', err);
@@ -842,17 +870,20 @@ export async function fetchFirebaseHistory(
 
 /**
  * Real-time listener for the history collection.
- * If `userId` is provided, listens specifically to `users/{userId}/history`.
+ * If `userId` or `userEmail` is provided, listens to both personal and centralized history.
  */
 export function subscribeToFirebaseHistory(
   config: FirebaseConnectionConfig,
   onHistory: (logs: TelemetryLog[]) => void,
   onError?: (err: Error) => void,
-  userId?: string
+  userId?: string,
+  userEmail?: string
 ): () => void {
   try {
     const app = initializeFirebaseApp(config);
     const histColName = getHistoryCollectionName(config);
+    const lowerEmail = (userEmail || '').trim().toLowerCase();
+    const lowerUid = (userId || '').trim().toLowerCase();
 
     if (config.useRealtimeDb && config.databaseURL) {
       const rtdb = getDatabase(app);
@@ -875,8 +906,17 @@ export function subscribeToFirebaseHistory(
       return () => unsub();
     } else {
       const db = getFirestore(app);
+      const unsubs: (() => void)[] = [];
+      const cacheMap = new Map<string, TelemetryLog>();
 
-      // If specific userId is given, listen to users/{userId}/history
+      const broadcastMerged = () => {
+        const sorted = Array.from(cacheMap.values())
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 150);
+        onHistory(sorted);
+      };
+
+      // 1. Personal partition subcollection: users/{userId}/history
       if (userId) {
         const userCollRef = collection(db, 'users', userId, 'history');
         const qUser = query(userCollRef, orderBy('timestamp', 'desc'), limit(100));
@@ -884,56 +924,86 @@ export function subscribeToFirebaseHistory(
         const unsubUser = onSnapshot(
           qUser,
           snap => {
-            const logs: TelemetryLog[] = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-            onHistory(logs);
+            snap.docs.forEach(d => {
+              const item = normalizeHistoryLog(d.id, d.data());
+              cacheMap.set(item.id, item);
+            });
+            broadcastMerged();
           },
           () => {
-            // Fallback without orderBy
             try {
-              return onSnapshot(userCollRef, snapFallback => {
-                const logs: TelemetryLog[] = snapFallback.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-                const sorted = logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 100);
-                onHistory(sorted);
+              const fallbackUnsub = onSnapshot(userCollRef, snapFallback => {
+                snapFallback.docs.forEach(d => {
+                  const item = normalizeHistoryLog(d.id, d.data());
+                  cacheMap.set(item.id, item);
+                });
+                broadcastMerged();
               }, err2 => onError?.(err2));
+              unsubs.push(fallbackUnsub);
             } catch (e) {
               onError?.(e as Error);
             }
           }
         );
-        return unsubUser;
+        unsubs.push(unsubUser);
       }
 
-      // Otherwise listen to global history collection
+      // 2. Centralized collection: theodoisk_history (guarantees cross-device sync between PC & phone)
       const collRef = collection(db, histColName);
-      const q = query(collRef, orderBy('timestamp', 'desc'), limit(100));
+      const qCentral = query(collRef, orderBy('timestamp', 'desc'), limit(100));
 
-      const unsub = onSnapshot(
-        q,
+      const unsubCentral = onSnapshot(
+        qCentral,
         snap => {
-          const logs: TelemetryLog[] = snap.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-          onHistory(logs);
+          snap.docs.forEach(d => {
+            const item = normalizeHistoryLog(d.id, d.data());
+            const matches = 
+              (!lowerUid && !lowerEmail) ||
+              (lowerUid && item.userId && item.userId.toLowerCase() === lowerUid) ||
+              (lowerEmail && item.userEmail && item.userEmail.toLowerCase() === lowerEmail) ||
+              (lowerEmail && item.userId && item.userId.toLowerCase() === lowerEmail);
+
+            if (matches) {
+              cacheMap.set(item.id, item);
+            }
+          });
+          broadcastMerged();
         },
-        err => {
+        () => {
           try {
             const fallbackUnsub = onSnapshot(
               collRef,
               snapFallback => {
-                const logs: TelemetryLog[] = snapFallback.docs.map(d => normalizeHistoryLog(d.id, d.data()));
-                const sorted = logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 100);
-                onHistory(sorted);
+                snapFallback.docs.forEach(d => {
+                  const item = normalizeHistoryLog(d.id, d.data());
+                  const matches = 
+                    (!lowerUid && !lowerEmail) ||
+                    (lowerUid && item.userId && item.userId.toLowerCase() === lowerUid) ||
+                    (lowerEmail && item.userEmail && item.userEmail.toLowerCase() === lowerEmail) ||
+                    (lowerEmail && item.userId && item.userId.toLowerCase() === lowerEmail);
+
+                  if (matches) {
+                    cacheMap.set(item.id, item);
+                  }
+                });
+                broadcastMerged();
               },
               fallbackErr => onError?.(fallbackErr)
             );
-            return fallbackUnsub;
+            unsubs.push(fallbackUnsub);
           } catch (e) {
-            onError?.(err);
+            onError?.(e as Error);
           }
         }
       );
-      return unsub;
+      unsubs.push(unsubCentral);
+
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
-  } catch (err) {
-    onError?.(err as Error);
+  } catch (error) {
+    onError?.(error as Error);
     return () => {};
   }
 }
@@ -1249,21 +1319,29 @@ export function subscribeToUsers(
           const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
 
           const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-          // Live telemetry heartbeat strictly expires after 15 seconds without fresh ping
-          const isLiveHeartbeatActive = Boolean(data.isOnline) && lastActiveTime > 0 && (now - lastActiveTime) < 15000;
+          // User is online if flagged isOnline and not abandoned for over 3 minutes (180s)
+          const isStale = lastActiveTime > 0 && (now - lastActiveTime) > 180000;
+          const isLiveHeartbeatActive = Boolean(data.isOnline) && !isStale;
 
-          // Asynchronously clear stale isOnline flag in Firestore if abandoned (> 15s)
-          if (data.isOnline && (!lastActiveTime || (now - lastActiveTime) > 15000)) {
-            const userDocRef = doc(db, 'users', d.id);
-            setDoc(userDocRef, { 
-              isOnline: false, 
-              currentPresence: 'Away', 
-              currentPosture: 'absent',
-              currentPostureText: '– Chờ kết nối',
-              bpm: 0,
-              spo2: 0
-            }, { merge: true }).catch(() => {});
+          // Determine presence and posture states cleanly
+          const rawPresence = data.currentPresence || (isLiveHeartbeatActive ? 'Present' : 'Away');
+          const rawPosture = data.currentPosture || (isLiveHeartbeatActive ? 'correct' : 'absent');
+          let postureText = data.currentPostureText;
+          if (!postureText) {
+            if (!isLiveHeartbeatActive) {
+              postureText = '– Chờ kết nối';
+            } else if (rawPosture === 'incorrect') {
+              postureText = '⚠ Sai';
+            } else if (rawPosture === 'correct') {
+              postureText = '✓ Đúng';
+            } else if (rawPosture === 'absent' || rawPresence === 'Away') {
+              postureText = '– Vắng';
+            } else {
+              postureText = '– Chờ kết nối';
+            }
           }
+
+          const isAbsent = !isLiveHeartbeatActive || rawPresence === 'Away' || rawPosture === 'absent' || postureText.includes('Vắng') || postureText.includes('Chờ');
 
           return {
             id: d.id,
@@ -1286,16 +1364,14 @@ export function subscribeToUsers(
             device: data.device || '',
             isOnline: isLiveHeartbeatActive,
             lastActive: data.lastActive || '',
-            currentPresence: isLiveHeartbeatActive ? (data.currentPresence || 'Away') : 'Away',
-            currentPosture: isLiveHeartbeatActive ? (data.currentPosture || 'absent') : 'absent',
-            currentPostureText: isLiveHeartbeatActive 
-              ? (data.currentPostureText || (data.currentPosture === 'incorrect' ? '⚠ Sai' : (data.currentPosture === 'correct' ? '✓ Đúng' : '– Vắng')))
-              : '– Chờ kết nối',
-            hasAlert: isLiveHeartbeatActive ? Boolean(data.hasAlert) : false,
-            alertReason: isLiveHeartbeatActive ? (data.alertReason || '') : '',
+            currentPresence: isAbsent ? 'Away' : 'Present',
+            currentPosture: isLiveHeartbeatActive ? rawPosture : 'absent',
+            currentPostureText: postureText,
+            hasAlert: isLiveHeartbeatActive && !isAbsent ? Boolean(data.hasAlert) : false,
+            alertReason: isLiveHeartbeatActive && !isAbsent ? (data.alertReason || '') : '',
             sittingMinutes: isLiveHeartbeatActive ? Number(data.sittingMinutes || 0) : 0,
-            bpm: isLiveHeartbeatActive ? Number(data.bpm || 0) : 0,
-            spo2: isLiveHeartbeatActive ? Number(data.spo2 || 0) : 0
+            bpm: isAbsent ? 0 : Number(data.bpm || 0),
+            spo2: isAbsent ? 0 : Number(data.spo2 || 0)
           };
         });
         onUsers(firestoreUsers);

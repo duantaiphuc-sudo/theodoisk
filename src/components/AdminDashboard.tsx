@@ -125,13 +125,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       // 1. Current active user operating this dashboard session
       if (isCurrent) {
-        const hasLiveSignal = liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.postureStatus >= 0 && (liveTelemetry.bpm > 0 || liveTelemetry.inZone);
+        const hasLiveSignal = Boolean(
+          liveTelemetry && (
+            liveTelemetry.postureStatus >= 0 ||
+            liveTelemetry.bpm > 0 ||
+            liveTelemetry.inZone !== false ||
+            liveTelemetry.trackingActive !== false
+          )
+        );
 
-        if (hasLiveSignal) {
+        if (hasLiveSignal && liveTelemetry) {
           const isOutOfZone = liveTelemetry.inZone === false || liveTelemetry.trackingActive === false;
           const isWaiting = liveTelemetry.postureStatus === -1 && liveTelemetry.bpm === 0 && liveTelemetry.spo2 === 0;
-          const isAbsent = liveTelemetry.postureStatus === 2 || isOutOfZone || isWaiting;
-          const isBad = !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
+          const isAbsent = !isWaiting && (liveTelemetry.postureStatus === 2 || isOutOfZone);
+          const isBad = !isWaiting && !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
           const sittingMins = timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0;
 
           let postureText = '✓ Đúng';
@@ -154,20 +161,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
             department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
             device: deviceId,
-            presence: isAbsent ? 'Away' : 'Present',
+            presence: (isAbsent || isWaiting) ? 'Away' : 'Present',
             posture,
             postureText,
             sittingMinutes: sittingMins,
-            bpm: isAbsent ? 0 : (liveTelemetry.bpm || 0),
-            spo2: isAbsent ? 0 : (liveTelemetry.spo2 || 0),
+            bpm: (isAbsent || isWaiting) ? 0 : (liveTelemetry.bpm || 0),
+            spo2: (isAbsent || isWaiting) ? 0 : (liveTelemetry.spo2 || 0),
             isOnline: true,
-            hasAlert: !isAbsent && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
-            alertReason: !isAbsent && isBad ? 'Ngồi sai tư thế' : undefined,
+            hasAlert: !isAbsent && !isWaiting && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
+            alertReason: !isAbsent && !isWaiting && isBad ? 'Ngồi sai tư thế' : undefined,
             role: user.role
           };
         }
 
-        // Current user is online on dashboard, but waiting for camera/sensor telemetry
+        // Current user is online on dashboard, check if they have remote state from another session
+        const isRemoteOnline = Boolean(user.isOnline);
+        const remoteAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng');
+        const remoteBad = !remoteAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
+
         return {
           id: `node-${user.id}`,
           name: user.fullName || user.username,
@@ -175,27 +186,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
           department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
           device: deviceId,
-          presence: 'Away',
-          posture: 'absent',
-          postureText: '– Chờ kết nối',
-          sittingMinutes: timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0,
-          bpm: 0,
-          spo2: 0,
+          presence: (remoteAbsent || !isRemoteOnline) ? 'Away' : 'Present',
+          posture: isRemoteOnline ? (remoteAbsent ? 'absent' : (remoteBad ? 'incorrect' : 'correct')) : 'absent',
+          postureText: isRemoteOnline ? (user.currentPostureText || (remoteAbsent ? '– Vắng' : (remoteBad ? '⚠ Sai' : '✓ Đúng'))) : '– Chờ kết nối',
+          sittingMinutes: timeStats ? Math.floor(timeStats.sittingSeconds / 60) : (user.sittingMinutes || 0),
+          bpm: (remoteAbsent || !isRemoteOnline) ? 0 : (user.bpm || 0),
+          spo2: (remoteAbsent || !isRemoteOnline) ? 0 : (user.spo2 || 0),
           isOnline: true,
-          hasAlert: false,
-          alertReason: undefined,
+          hasAlert: Boolean(isRemoteOnline && !remoteAbsent && remoteBad),
+          alertReason: isRemoteOnline && !remoteAbsent && remoteBad ? 'Ngồi sai tư thế' : undefined,
           role: user.role
         };
       }
 
-      // 2. Remote users - strictly require fresh heartbeat within 15 seconds to be considered active
+      // 2. Remote users - require fresh heartbeat or online flag
       const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
-      const isRecentlyActive = Boolean(user.isOnline) && lastActiveMs > 0 && (Date.now() - lastActiveMs) < 15000;
+      const isOnline = Boolean(user.isOnline) && (lastActiveMs === 0 || (Date.now() - lastActiveMs) < 180000);
 
-      if (isRecentlyActive) {
-        const isAbsent = user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng');
-        const isBad = !isAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
-        const postureText = isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng');
+      if (isOnline) {
+        const isWaiting = user.currentPostureText?.includes('Chờ') || (user.bpm === 0 && user.currentPosture === 'absent' && user.currentPresence !== 'Away');
+        const isAbsent = !isWaiting && (user.currentPresence === 'Away' || user.currentPosture === 'absent' || user.currentPostureText?.includes('Vắng'));
+        const isBad = !isWaiting && !isAbsent && (user.currentPosture === 'incorrect' || user.currentPostureText?.includes('Sai'));
+
+        let postureText = '✓ Đúng';
+        let posture: 'correct' | 'incorrect' | 'absent' = 'correct';
+        if (isWaiting) {
+          postureText = '– Chờ kết nối';
+          posture = 'absent';
+        } else if (isAbsent) {
+          postureText = '– Vắng';
+          posture = 'absent';
+        } else if (isBad) {
+          postureText = '⚠ Sai';
+          posture = 'incorrect';
+        }
 
         return {
           id: `node-${user.id}`,
@@ -204,15 +228,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
           department: user.department || 'Nhân Viên Văn Phòng IoT',
           device: user.device || deviceId,
-          presence: isAbsent ? 'Away' : 'Present',
-          posture: isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'),
+          presence: (isAbsent || isWaiting) ? 'Away' : 'Present',
+          posture,
           postureText,
           sittingMinutes: isAbsent ? 0 : (user.sittingMinutes || 0),
-          bpm: isAbsent ? 0 : (user.bpm || 0),
-          spo2: isAbsent ? 0 : (user.spo2 || 0),
+          bpm: (isAbsent || isWaiting) ? 0 : (user.bpm || 0),
+          spo2: (isAbsent || isWaiting) ? 0 : (user.spo2 || 0),
           isOnline: true,
-          hasAlert: Boolean(!isAbsent && (user.hasAlert || isBad)),
-          alertReason: !isAbsent ? (user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined)) : undefined,
+          hasAlert: Boolean(!isAbsent && !isWaiting && (user.hasAlert || isBad)),
+          alertReason: !isAbsent && !isWaiting ? (user.alertReason || (isBad ? 'Ngồi sai tư thế' : undefined)) : undefined,
           role: user.role
         };
       }

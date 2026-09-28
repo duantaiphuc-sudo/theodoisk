@@ -468,7 +468,7 @@ export default function App() {
 
     if (activeUser && firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
-        isOnline: !isWaiting,
+        isOnline: true,
         lastActive: new Date().toISOString(),
         currentPresence: presence,
         currentPosture: posture,
@@ -533,21 +533,34 @@ export default function App() {
       // Always load the current account's private subcollection users/{userId}/history
       const activeUserId = currentUser.id;
 
-      fetchFirebaseHistory(firebaseConfig, 100, activeUserId)
+      fetchFirebaseHistory(firebaseConfig, 100, activeUserId, currentUser.email)
         .then(remoteLogs => {
           if (remoteLogs && remoteLogs.length > 0) {
             setHistory(prev => {
               const map = new Map<string, TelemetryLog>();
+              const curEmail = (currentUser.email || '').toLowerCase().trim();
+              const curId = currentUser.id;
+
               // Strictly isolate only logs belonging to currentUser
               remoteLogs
-                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .filter(l => 
+                  !l.userId || 
+                  l.userId === curId || 
+                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
+                  (l.userId && l.userId.toLowerCase() === curEmail)
+                )
                 .forEach(l => {
                   const key = l.id || l.timestamp;
                   map.set(key, l);
                 });
 
               prev
-                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .filter(l => 
+                  !l.userId || 
+                  l.userId === curId || 
+                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
+                  (l.userId && l.userId.toLowerCase() === curEmail)
+                )
                 .forEach(l => {
                   const key = l.id || l.timestamp;
                   if (!map.has(key)) map.set(key, l);
@@ -557,6 +570,12 @@ export default function App() {
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                 .slice(0, 300);
               syncHistoricalLogs(merged);
+
+              // Cache to local storage scoped to user
+              try {
+                localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(merged));
+              } catch {}
+
               return merged;
             });
           }
@@ -571,15 +590,28 @@ export default function App() {
           if (remoteLogs && remoteLogs.length > 0) {
             setHistory(prev => {
               const map = new Map<string, TelemetryLog>();
+              const curEmail = (currentUser.email || '').toLowerCase().trim();
+              const curId = currentUser.id;
+
               remoteLogs
-                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .filter(l => 
+                  !l.userId || 
+                  l.userId === curId || 
+                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
+                  (l.userId && l.userId.toLowerCase() === curEmail)
+                )
                 .forEach(l => {
                   const key = l.id || l.timestamp;
                   map.set(key, l);
                 });
 
               prev
-                .filter(l => !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                .filter(l => 
+                  !l.userId || 
+                  l.userId === curId || 
+                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
+                  (l.userId && l.userId.toLowerCase() === curEmail)
+                )
                 .forEach(l => {
                   const key = l.id || l.timestamp;
                   if (!map.has(key)) map.set(key, l);
@@ -589,6 +621,11 @@ export default function App() {
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                 .slice(0, 300);
               syncHistoricalLogs(merged);
+
+              try {
+                localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(merged));
+              } catch {}
+
               return merged;
             });
           }
@@ -596,7 +633,8 @@ export default function App() {
         err => {
           console.warn('Thông báo lắng nghe lịch sử Firebase:', err);
         },
-        activeUserId
+        activeUserId,
+        currentUser.email
       );
     }
 
@@ -717,7 +755,7 @@ export default function App() {
       const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
       updateUserRealtimePresence(firebaseConfig, currentUser.id, {
-        isOnline: !isWaiting,
+        isOnline: true,
         lastActive: new Date().toISOString(),
         currentPresence: presence,
         currentPosture: posture,
