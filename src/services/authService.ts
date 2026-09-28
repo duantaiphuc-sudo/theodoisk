@@ -52,6 +52,33 @@ export const PRESET_ACCOUNTS: Array<{
   },
   {
     user: {
+      id: '6BpcDl3EJZd1fg6aOtl0ji9Ezst1',
+      username: 'tai',
+      email: 'thanhtaihtc@gmail.com',
+      fullName: 'Tài Thành',
+      role: 'employee',
+      department: 'Phòng Phát Triển & Vận Hành IoT',
+      avatar: 'https://lh3.googleusercontent.com/a/ACg8ocK2eIksljJ-UFB6rDik7bTbHxYOLiToCehxNxXzYbaoS1XC2R3r=s96-c',
+      age: 28,
+      gender: 'male',
+      height: 170,
+      weight: 65,
+      maxSittingHours: 6,
+      healthNotes: 'Cần duy trì tư thế ngồi thẳng và giải lao đều đặn.',
+      status: 'active',
+      device: 'pi4_node_2'
+    },
+    password: 'user123',
+    description: 'Quyền Nhân Viên (Tài Thành): Theo dõi sức khỏe, nhịp tim và tư thế công thái học qua IoT.',
+    permissions: [
+      'Theo dõi trực tiếp nhịp tim, SpO₂ và tư thế cá nhân',
+      'Nhận cảnh báo âm thanh khi ngồi sai tư thế hoặc làm việc quá lâu',
+      'Cập nhật thông tin sức khỏe cá nhân (tuổi, chiều cao, cân nặng, BMI)',
+      'Nhận hướng dẫn bài tập công thái học tại bàn làm việc',
+    ],
+  },
+  {
+    user: {
       id: 'usr-employee-01',
       username: 'user',
       email: 'user@theodoisk.com',
@@ -211,6 +238,11 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
       maxSittingHours: Number(user.maxSittingHours) || 6,
       healthNotes: user.healthNotes || '',
       status: user.status || 'active',
+      isOnline: true,
+      currentPresence: 'Present',
+      currentPosture: user.currentPosture || 'waiting',
+      currentPostureText: user.currentPostureText || '– Chờ kết nối',
+      lastActive: new Date().toISOString(),
       lastLogin: user.lastLogin || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }, { merge: true });
@@ -233,11 +265,14 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
     const snap = await getDocs(usersColl);
 
     if (!snap.empty) {
+      const now = Date.now();
       const firestoreUsers: AuthUser[] = snap.docs.map(d => {
         const data = d.data();
         const email = data.email || `${d.id}@theodoisk.com`;
         const username = data.username || (data.email ? data.email.split('@')[0] : d.id);
         const isAdmin = isSystemAdmin(email, username);
+        const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
+        const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? Math.abs(now - lastActiveTime) < 15 * 60 * 1000 : true);
         return {
           id: d.id,
           username,
@@ -256,6 +291,17 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
           status: data.status || 'active',
           lastLogin: data.lastLogin || data.updatedAt || '',
           createdAt: data.createdAt || data.updatedAt || '',
+          isOnline,
+          currentPresence: isOnline ? 'Present' : 'Away',
+          currentPosture: data.currentPosture || 'waiting',
+          currentPostureText: data.currentPostureText || '– Chờ kết nối',
+          device: data.device || '',
+          sittingMinutes: Number(data.sittingMinutes) || 0,
+          bpm: Number(data.bpm) || 0,
+          spo2: Number(data.spo2) || 0,
+          hasAlert: Boolean(data.hasAlert),
+          alertReason: data.alertReason || '',
+          lastActive: data.lastActive || ''
         };
       });
 
@@ -269,6 +315,10 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
             ...existing,
             ...user,
             id: existing.id || user.id,
+            isOnline: Boolean(existing.isOnline || user.isOnline),
+            currentPresence: (existing.currentPresence === 'Present' || user.currentPresence === 'Present') ? 'Present' : 'Away',
+            currentPosture: user.currentPosture || existing.currentPosture || 'waiting',
+            currentPostureText: user.currentPostureText || existing.currentPostureText || '– Chờ kết nối',
             role: (existing.role === 'admin' || user.role === 'admin') ? 'admin' : 'employee'
           }));
         } else {

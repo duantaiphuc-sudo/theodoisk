@@ -218,12 +218,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleQuickLoginAs = (type: 'duantaiphuc' | 'admin' | 'user') => {
+  const handleQuickLoginAs = (type: 'duantaiphuc' | 'admin' | 'tai' | 'user') => {
     if (type === 'duantaiphuc') {
       const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Admin)');
       onLoginSuccess(user);
     } else if (type === 'admin') {
       const res = loginWithCredentials('admin', 'admin123');
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      }
+    } else if (type === 'tai') {
+      const res = loginWithCredentials('tai', 'user123');
       if (res.success && res.user) {
         onLoginSuccess(res.user);
       }
@@ -626,16 +631,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <span>Đăng nhập nhanh 1-chạm (Bỏ qua lỗi tên miền):</span>
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLoginAs('duantaiphuc')}
-                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-sky-50 border border-sky-300 text-sky-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
-                    title="Vào ngay với tài khoản Chủ Dự Án (Toàn quyền Admin)"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-                    <span className="truncate">Chủ Dự Án (Phúc)</span>
-                  </button>
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleQuickLoginAs('admin')}
@@ -643,7 +639,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     title="Vào ngay với tài khoản Quản Trị Viên (admin / admin123)"
                   >
                     <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <span className="truncate">Admin (admin123)</span>
+                    <span className="truncate">Admin</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLoginAs('tai')}
+                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
+                    title="Vào ngay với tài khoản Nhân viên Tài (tai / user123)"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="truncate">Tài (Nhân viên)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLoginAs('duantaiphuc')}
+                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-sky-50 border border-sky-300 text-sky-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
+                    title="Vào ngay với tài khoản Chủ Dự Án (duantaiphuc@gmail.com)"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-sky-500" />
+                    <span className="truncate">Phúc (Admin)</span>
                   </button>
                 </div>
               </div>

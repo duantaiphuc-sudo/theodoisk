@@ -1319,8 +1319,9 @@ export function subscribeToUsers(
           const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
 
           const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-          // An account is actively logged in if flagged isOnline and pinged within the last 60 seconds
-          const isLiveHeartbeatActive = Boolean(data.isOnline) && lastActiveTime > 0 && (now - lastActiveTime) < 60000;
+          // An account is actively logged in if flagged isOnline, with a 15-minute window for mobile tabs & network latency
+          const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < 15 * 60 * 1000) : true;
+          const isLiveHeartbeatActive = Boolean(data.isOnline) && isRecentPing;
 
           // Posture data is only present if camera or simulation has pushed active posture
           const rawPostureText = data.currentPostureText || '';
@@ -1328,6 +1329,8 @@ export function subscribeToUsers(
             isLiveHeartbeatActive &&
             rawPostureText &&
             !rawPostureText.includes('Chờ') &&
+            !rawPostureText.includes('chưa') &&
+            data.currentPosture &&
             data.currentPosture !== 'waiting'
           );
 

@@ -103,12 +103,13 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
     ? Number((validSpo2Nodes.reduce((acc, cur) => acc + cur.spo2, 0) / validSpo2Nodes.length).toFixed(1))
     : (liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.spo2 > 0 ? liveTelemetry.spo2 : 0);
 
-  const correctPostureNodes = activeWorkingNodes.filter(n => n.posture === 'correct').length;
-  const livePostureRate = activeWorkingNodes.length > 0
-    ? Math.round((correctPostureNodes / activeWorkingNodes.length) * 100)
+  const nodesWithPosture = activeWorkingNodes.filter(n => n.posture !== 'waiting');
+  const correctPostureNodes = nodesWithPosture.filter(n => n.posture === 'correct').length;
+  const livePostureRate = nodesWithPosture.length > 0
+    ? Math.round((correctPostureNodes / nodesWithPosture.length) * 100)
     : (liveTelemetry && liveTelemetry.trackingActive && liveTelemetry.postureStatus >= 0 
         ? (liveTelemetry.postureStatus === 0 ? 100 : 0) 
-        : 0);
+        : null);
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-6 shadow-xs space-y-5 animate-fadeIn">
@@ -253,13 +254,13 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
           <div className="mt-2">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl sm:text-2xl font-extrabold font-mono text-emerald-700">
-                {activeWorkingNodes.length > 0 ? `${livePostureRate}%` : '--'}
+                {livePostureRate !== null ? `${livePostureRate}%` : '--'}
               </span>
             </div>
             <span className="text-[11px] text-slate-500 block mt-1">
-              {activeWorkingNodes.length > 0 
-                ? `${correctPostureNodes}/${activeWorkingNodes.length} nhân sự ngồi đúng`
-                : 'Chờ Camera AI phân tích'}
+              {nodesWithPosture.length > 0 
+                ? `${correctPostureNodes}/${nodesWithPosture.length} nhân sự ngồi đúng`
+                : 'Chờ dữ liệu tư thế'}
             </span>
           </div>
         </div>
@@ -301,17 +302,21 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         {/* Live Active Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {displayNodes.map((node) => {
-            const isWorking = node.presence === 'Present' || (node.bpm > 0);
-            const isBad = node.posture === 'incorrect';
+            const isOnline = node.presence === 'Present' || node.isOnline;
+            const hasPostureData = node.posture !== 'waiting';
+            const isBad = hasPostureData && node.posture === 'incorrect';
+            const isGood = hasPostureData && node.posture === 'correct';
 
             return (
               <div 
                 key={node.id}
                 className={`p-3.5 rounded-xl border transition-all duration-300 flex flex-col justify-between space-y-3 ${
-                  isWorking
+                  isOnline
                     ? isBad
                       ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-500/10 shadow-xs'
-                      : 'bg-emerald-50/40 border-emerald-300 ring-2 ring-emerald-500/10 shadow-xs'
+                      : isGood
+                      ? 'bg-emerald-50/40 border-emerald-300 ring-2 ring-emerald-500/10 shadow-xs'
+                      : 'bg-white border-slate-200/90 shadow-xs'
                     : 'bg-slate-50/70 border-slate-200 opacity-80'
                 }`}
               >

@@ -95,8 +95,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
         const existing = map.get(curKey);
         map.set(curKey, { 
+          ...(existing || {}),
           ...currentUser, 
-          ...(existing || {}) 
+          isOnline: true,
+          currentPresence: 'Present'
         });
       }
       setRegisteredUsers(Array.from(map.values()));
@@ -190,9 +192,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         };
       }
 
-      // 2. Remote users - check if actively logged in (heartbeat within 60 seconds)
+      // 2. Remote users - check if actively logged in (heartbeat within 15 minutes)
       const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
-      const isRemoteActive = Boolean(user.isOnline) && lastActiveMs > 0 && (Date.now() - lastActiveMs) < 60000;
+      const isRecentActive = lastActiveMs > 0 ? (Math.abs(Date.now() - lastActiveMs) < 15 * 60 * 1000) : true;
+      const isRemoteActive = Boolean(user.isOnline) && isRecentActive;
 
       if (isRemoteActive) {
         // Remote user is logged in! Presence is 'Present' (Đang hoạt động)
@@ -200,6 +203,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const hasRemoteTelemetry = Boolean(
           rawPostureText &&
           !rawPostureText.includes('Chờ') &&
+          !rawPostureText.includes('chưa') &&
+          user.currentPosture &&
           user.currentPosture !== 'waiting'
         );
 

@@ -79,6 +79,20 @@ export default function App() {
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     saveCurrentUser(user);
+    if (firebaseConfig.autoConnect) {
+      updateUserRealtimePresence(firebaseConfig, user.id, {
+        isOnline: true,
+        lastActive: new Date().toISOString(),
+        currentPresence: 'Present',
+        currentPosture: 'waiting',
+        currentPostureText: '– Chờ kết nối',
+        sittingMinutes: 0,
+        bpm: 0,
+        spo2: 0,
+        hasAlert: false,
+        device: user.device || (user.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
+      }).catch(() => {});
+    }
   };
 
   const handleLogout = () => {
@@ -86,7 +100,7 @@ export default function App() {
       updateUserRealtimePresence(firebaseConfig, currentUser.id, {
         isOnline: false,
         currentPresence: 'Away',
-        currentPosture: 'absent',
+        currentPosture: 'waiting',
         currentPostureText: '– Chờ kết nối',
         bpm: 0,
         spo2: 0,
@@ -96,24 +110,6 @@ export default function App() {
     logout();
     setCurrentUser(null);
   };
-
-  // Mark user offline on browser tab close or reload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (currentUser) {
-        updateUserRealtimePresence(firebaseConfig, currentUser.id, {
-          isOnline: false,
-          currentPresence: 'Away',
-          currentPosture: 'absent',
-          currentPostureText: '– Chờ kết nối',
-          bpm: 0,
-          spo2: 0
-        }).catch(() => {});
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [currentUser, firebaseConfig]);
 
   // Data reception state - When false, display empty indicators across UI
   const [hasReceivedData, setHasReceivedData] = useState<boolean>(false);
@@ -457,14 +453,25 @@ export default function App() {
     });
 
     // Realtime broadcast to Firestore directly on every telemetry update (Fast-path, eliminates latency)
+    const hasLiveSignal = Boolean(
+      data && (
+        data.postureStatus >= 0 ||
+        data.bpm > 0 ||
+        data.spo2 > 0 ||
+        (data.inZone && data.trackingActive)
+      )
+    );
     const isCameraUntracked = isOutOfZone || data.trackingActive === false;
-    const isWaiting = data.postureStatus === -1 && data.bpm === 0 && data.spo2 === 0;
-    const isAbsent = !isWaiting && (data.postureStatus === 2 || isCameraUntracked);
-    const isBad = !isWaiting && !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
+    const isAbsent = hasLiveSignal && (data.postureStatus === 2 || isCameraUntracked);
+    const isBad = hasLiveSignal && !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
 
     const presence: 'Present' | 'Away' = 'Present'; // Active logged-in session is always Present (Đang hoạt động)
-    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = isWaiting ? 'waiting' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
-    const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
+      ? 'waiting'
+      : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+    const postureText = !hasLiveSignal
+      ? '– Chờ kết nối'
+      : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
     if (activeUser && firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
@@ -474,10 +481,10 @@ export default function App() {
         currentPosture: posture,
         currentPostureText: postureText,
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: (isAbsent || isWaiting) ? 0 : data.bpm,
-        spo2: (isAbsent || isWaiting) ? 0 : data.spo2,
-        hasAlert: !isAbsent && !isWaiting && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
-        alertReason: !isAbsent && !isWaiting && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        bpm: (isAbsent || !hasLiveSignal) ? 0 : data.bpm,
+        spo2: (isAbsent || !hasLiveSignal) ? 0 : data.spo2,
+        hasAlert: hasLiveSignal && !isAbsent && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
+        alertReason: hasLiveSignal && !isAbsent && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
         device: firebaseConfig.documentId || (activeUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
       }).catch(() => {});
     }
@@ -744,15 +751,27 @@ export default function App() {
     if (!currentUser || !firebaseConfig.autoConnect) return;
 
     const syncPresence = () => {
+      // Determine if real telemetry is present
+      const hasLiveSignal = Boolean(
+        telemetry && (
+          telemetry.postureStatus >= 0 ||
+          telemetry.bpm > 0 ||
+          telemetry.spo2 > 0 ||
+          (telemetry.inZone && telemetry.trackingActive)
+        )
+      );
+
       const isOutOfZone = telemetry.inZone === false || telemetry.trackingActive === false;
-      const isWaiting = telemetry.postureStatus === -1 && telemetry.bpm === 0 && telemetry.spo2 === 0;
-      // Trạng thái Vắng mặt: khi ngồi ngoài vùng camera, camera không bắt được người (trackingActive=false) hoặc trạng thái mã 2
-      const isAbsent = !isWaiting && (telemetry.postureStatus === 2 || isOutOfZone);
-      const isBad = !isWaiting && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
+      const isAbsent = hasLiveSignal && (telemetry.postureStatus === 2 || isOutOfZone);
+      const isBad = hasLiveSignal && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
       const presence: 'Present' | 'Away' = 'Present'; // Active logged-in user is Present (Đang hoạt động)
-      const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = isWaiting ? 'waiting' : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
-      const postureText = isWaiting ? '– Chờ kết nối' : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+      const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
+        ? 'waiting'
+        : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+      const postureText = !hasLiveSignal
+        ? '– Chờ kết nối'
+        : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
       updateUserRealtimePresence(firebaseConfig, currentUser.id, {
         isOnline: true,
@@ -761,10 +780,10 @@ export default function App() {
         currentPosture: posture,
         currentPostureText: postureText,
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: (isAbsent || isWaiting) ? 0 : telemetry.bpm,
-        spo2: (isAbsent || isWaiting) ? 0 : telemetry.spo2,
-        hasAlert: !isAbsent && !isWaiting && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
-        alertReason: !isAbsent && !isWaiting && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
+        spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
+        hasAlert: hasLiveSignal && !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
+        alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
         device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
       }).catch(() => {});
     };
