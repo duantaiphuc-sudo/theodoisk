@@ -124,6 +124,15 @@ export function isSystemAdmin(email?: string, username?: string): boolean {
   );
 }
 
+/**
+ * Check if a given user object has admin role or system admin credentials.
+ */
+export function isUserAdmin(user?: Partial<AuthUser> | null): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return isSystemAdmin(user.email, user.username);
+}
+
 export function enforceStrictRole(user: AuthUser): AuthUser {
   const isAdmin = isSystemAdmin(user.email, user.username);
   return {

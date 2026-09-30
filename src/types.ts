@@ -37,6 +37,35 @@ export interface AuthUser {
   status?: 'active' | 'suspended';
   lastLogin?: string;
   createdAt?: string;
+  updatedAt?: string;
+  lastActive?: string;
+  device?: string;
+  isOnline?: boolean;
+  currentPresence?: 'Present' | 'Away' | 'in_zone' | 'out_of_zone' | 'unknown' | string;
+  currentPosture?: number | string;
+  currentPostureText?: string;
+  sittingMinutes?: number;
+  bpm?: number;
+  spo2?: number;
+  hasAlert?: boolean;
+  alertReason?: string;
+}
+
+export interface EmployeeNodeStatus {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
+  device: string;
+  presence?: string;
+  isOnline?: boolean;
+  bpm: number;
+  spo2: number;
+  sittingMinutes: number;
+  posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | string;
+  postureText: string;
+  hasAlert: boolean;
+  alertReason?: string;
 }
 
 export interface HistoricalRecord {
@@ -94,6 +123,10 @@ export interface TelemetryLog {
   trackingActive: boolean;
   hasAlert: boolean;
   alertType?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  device?: string;
 }
 
 export interface FirebaseConnectionConfig {
