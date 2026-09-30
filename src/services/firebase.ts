@@ -15,7 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDatabase, ref, onValue, set, get, remove } from 'firebase/database';
-import { FirebaseConnectionConfig, HealthTelemetry, TelemetryLog, UserTaskNotification, TaskStatus, AuthUser, UserTelemetryLive } from '../types';
+import { FirebaseConnectionConfig, HealthTelemetry, TelemetryLog, UserTaskNotification, TaskStatus, AuthUser } from '../types';
 
 export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
   projectId: 'theodoisk-66ddb',
@@ -359,127 +359,6 @@ export async function clearFirebaseTelemetry(config: FirebaseConnectionConfig): 
   })();
 
   await Promise.race([clearOperation, timeoutPromise]);
-}
-
-/**
- * Wipe all telemetry data across all collections, users, and reset live node to idle.
- */
-export async function clearAllTelemetryDataFromFirebase(config: FirebaseConnectionConfig): Promise<void> {
-  await clearFirebaseTelemetry(config);
-  await clearFirebaseHistory(config, undefined, true);
-  try {
-    const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
-    const userTelSnap = await getDocs(collection(db, 'user_telemetry'));
-    if (!userTelSnap.empty) {
-      const batch = writeBatch(db);
-      userTelSnap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-    }
-  } catch (e) {
-    console.warn('Lỗi dọn dẹp user_telemetry:', e);
-  }
-}
-
-/**
- * Clear a specific user's telemetry document and history.
- */
-export async function clearUserTelemetryFromFirebase(config: FirebaseConnectionConfig, userId: string): Promise<void> {
-  try {
-    const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
-    await deleteDoc(doc(db, 'user_telemetry', userId)).catch(() => {});
-    await clearFirebaseHistory(config, userId, false);
-  } catch (e) {
-    console.warn('Lỗi dọn dẹp telemetry của người dùng:', e);
-  }
-}
-
-/**
- * Subscribe to all users' real-time telemetry from Firestore collection `user_telemetry`
- */
-export function subscribeToAllUsersTelemetry(
-  config: FirebaseConnectionConfig,
-  onData: (map: Record<string, UserTelemetryLive>) => void
-): () => void {
-  try {
-    const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
-    const collRef = collection(db, 'user_telemetry');
-
-    const unsub = onSnapshot(collRef, snap => {
-      const map: Record<string, UserTelemetryLive> = {};
-      snap.docs.forEach(docSnap => {
-        const raw = docSnap.data();
-        const userId = docSnap.id || raw.userId || raw.user_id;
-        if (userId) {
-          map[userId] = {
-            userId,
-            userEmail: raw.userEmail || raw.user_email || raw.email || '',
-            userName: raw.userName || raw.user_name || raw.name || raw.fullName || 'Người dùng',
-            department: raw.department || '',
-            avatar: raw.avatar || '',
-            bpm: Number(raw.bpm || raw.heart_rate || 0),
-            spo2: Number(raw.spo2 || 0),
-            postureStatus: Number(raw.postureStatus ?? raw.posture_status ?? -1),
-            postureLabel: raw.postureLabel || raw.posture_label || 'Đang theo dõi',
-            trackingActive: Boolean(raw.trackingActive ?? raw.tracking_active),
-            inZone: Boolean(raw.inZone ?? raw.is_in_zone ?? true),
-            timestamp: raw.timestamp || raw.updatedAt || new Date().toISOString(),
-            isSimulating: Boolean(raw.isSimulating),
-            source: raw.source || 'Cảm biến IoT',
-            hasAlert: Boolean(raw.hasAlert ?? raw.has_alert),
-            alertType: raw.alertType || raw.alert_type || '',
-            angleNeck: raw.angleNeck ?? raw.angle_neck,
-            postureWarning: raw.postureWarning || raw.posture_warning,
-            image: raw.image,
-            sittingSeconds: raw.sittingSeconds,
-            badPostureSeconds: raw.badPostureSeconds,
-            updatedAt: raw.updatedAt || raw.timestamp
-          };
-        }
-      });
-      onData(map);
-    }, err => {
-      console.warn('Lỗi lắng nghe user_telemetry:', err);
-    });
-
-    return () => unsub();
-  } catch (err) {
-    console.warn('Không thể khởi tạo subscribeToAllUsersTelemetry:', err);
-    return () => {};
-  }
-}
-
-/**
- * Subscribe to a specific user's live telemetry
- */
-export function subscribeToUserTelemetry(
-  config: FirebaseConnectionConfig,
-  userId: string,
-  onData: (data: HealthTelemetry | null) => void
-): () => void {
-  try {
-    const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
-    const docRef = doc(db, 'user_telemetry', userId);
-
-    const unsub = onSnapshot(docRef, docSnap => {
-      if (docSnap.exists()) {
-        const raw = docSnap.data();
-        onData(normalizeTelemetry(raw, 'user_telemetry'));
-      } else {
-        onData(null);
-      }
-    }, err => {
-      console.warn(`Lỗi lắng nghe user_telemetry/${userId}:`, err);
-    });
-
-    return () => unsub();
-  } catch (err) {
-    console.warn('Không thể khởi tạo subscribeToUserTelemetry:', err);
-    return () => {};
-  }
 }
 
 // Push test telemetry to Firebase (can be used for testing from UI)
@@ -1645,6 +1524,102 @@ export async function updateUserRealtimePresence(
   } catch (err) {
     console.warn('Lỗi cập nhật hiện diện người dùng:', err);
   }
+}
+
+/**
+ * Subscribe to all users' real-time telemetry from Firestore
+ */
+export function subscribeToAllUsersTelemetry(
+  config: FirebaseConnectionConfig,
+  callback: (map: Record<string, HealthTelemetry>) => void
+): () => void {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const usersCol = collection(db, 'users');
+    const unsub = onSnapshot(usersCol, (snap) => {
+      const map: Record<string, HealthTelemetry> = {};
+      snap.forEach((d) => {
+        const data = d.data();
+        map[d.id] = normalizeTelemetry(data, data.device || `Tài khoản ${d.id}`);
+      });
+      callback(map);
+    }, (err) => {
+      console.warn('Lỗi subscribeToAllUsersTelemetry:', err);
+    });
+    return unsub;
+  } catch (err) {
+    console.warn('Lỗi khởi tạo subscribeToAllUsersTelemetry:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Subscribe to single user telemetry from Firestore
+ */
+export function subscribeToUserTelemetry(
+  config: FirebaseConnectionConfig,
+  userId: string,
+  callback: (telemetry: HealthTelemetry | null) => void
+): () => void {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const userRef = doc(db, 'users', userId);
+    const unsub = onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        callback(normalizeTelemetry(data, data.device || `Tài khoản ${userId}`));
+      } else {
+        callback(null);
+      }
+    }, (err) => {
+      console.warn('Lỗi subscribeToUserTelemetry:', err);
+    });
+    return unsub;
+  } catch (err) {
+    console.warn('Lỗi khởi tạo subscribeToUserTelemetry:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Clear a specific user's telemetry in Firestore
+ */
+export async function clearUserTelemetryFromFirebase(
+  config: FirebaseConnectionConfig,
+  userId: string
+): Promise<void> {
+  try {
+    const app = initializeFirebaseApp(config);
+    const db = getFirestore(app);
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      bpm: 0,
+      spo2: 0,
+      posture_status: -1,
+      postureStatus: -1,
+      posture_label: 'Chưa có dữ liệu',
+      postureLabel: 'Chưa có dữ liệu',
+      tracking_active: false,
+      trackingActive: false,
+      inZone: false,
+      hasAlert: false,
+      cleared_at: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Lỗi clearUserTelemetryFromFirebase:', err);
+  }
+}
+
+/**
+ * Clear all telemetry data and history from Firebase
+ */
+export async function clearAllTelemetryDataFromFirebase(
+  config: FirebaseConnectionConfig
+): Promise<void> {
+  await clearFirebaseTelemetry(config);
+  await clearFirebaseHistory(config);
 }
 
 

@@ -65,12 +65,33 @@ This project follows the **UI/UX Pro Max** design intelligence system, adapted f
 
 ## Agent skills
 
+Configured using [mattpocock/skills](https://github.com/mattpocock/skills). Agent skills live in `.agents/skills/` and `.claude/skills/`.
+
 ### Issue tracker
 Local markdown issues tracked in `.scratch/`. See `docs/agents/issue-tracker.md`.
+- Specs: `.scratch/<feature-slug>/spec.md`
+- Tickets: `.scratch/<feature-slug>/issues/<NN>-<slug>.md`
 
 ### Triage labels
 Canonical 5-role triage labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 Single-context layout (`CONTEXT.md` + `docs/adr/`). See `docs/agents/domain.md`.
+Always use the domain terms defined in `CONTEXT.md` and respect ADRs before planning or writing code.
+
+### Core Engineering Workflows (Matt Pocock Spec-Driven System)
+1. **The Main Flow**:
+   - `/grill-with-docs`: Refine requirements, build the domain model, stress-test edge cases, and update `CONTEXT.md` + ADRs.
+   - `/to-spec`: Synthesize context into a specification in `.scratch/<feature>/spec.md` without conversational noise.
+   - `/to-tickets`: Decompose spec into numbered, single-responsibility tickets (`.scratch/<feature>/issues/<NN>-<slug>.md`) with explicit seams and blocking dependencies.
+   - `/implement`: Execute tickets using `/tdd` (red-green-refactor loop) at pre-agreed seams.
+   - `/code-review`: Review changes against specs, run type checks (`npm run typecheck`) and tests (`npm run test`).
+2. **Upkeep & Diagnostics**:
+   - `/improve-codebase-architecture`: Analyze modular depth, interface leverage, and boundary rules.
+   - `/diagnosing-bugs`: Systematic hypothesis-driven diagnostic loop for subtle bugs and regressions.
+   - `/triage`: Issue triage state machine (`needs-triage` -> `ready-for-agent` / `ready-for-human` / `needs-info` / `wontfix`).
+3. **Verification Commands**:
+   - Typecheck: `npm run typecheck` (`tsc --noEmit`)
+   - Test: `npm run test` (`vitest run`)
+   - Lint: `npm run lint`
 

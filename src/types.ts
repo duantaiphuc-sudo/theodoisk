@@ -37,12 +37,11 @@ export interface AuthUser {
   status?: 'active' | 'suspended';
   lastLogin?: string;
   createdAt?: string;
-  updatedAt?: string;
-  lastActive?: string;
   device?: string;
   isOnline?: boolean;
-  currentPresence?: 'Present' | 'Away' | 'in_zone' | 'out_of_zone' | 'unknown' | string;
-  currentPosture?: number | string;
+  lastActive?: string;
+  currentPresence?: 'Present' | 'Away' | string;
+  currentPosture?: string;
   currentPostureText?: string;
   sittingMinutes?: number;
   bpm?: number;
@@ -55,17 +54,19 @@ export interface EmployeeNodeStatus {
   id: string;
   name: string;
   email?: string;
-  avatar?: string;
-  device: string;
-  presence?: string;
+  device?: string;
+  bpm?: number;
+  spo2?: number;
+  postureStatus?: number;
+  postureLabel?: string;
+  postureText?: string;
   isOnline?: boolean;
-  bpm: number;
-  spo2: number;
-  sittingMinutes: number;
-  posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | string;
-  postureText: string;
-  hasAlert: boolean;
-  alertReason?: string;
+  hasAlert?: boolean;
+  alertType?: string;
+  lastActive?: string;
+  currentPresence?: string;
+  presence?: string;
+  sittingMinutes?: number;
 }
 
 export interface HistoricalRecord {
