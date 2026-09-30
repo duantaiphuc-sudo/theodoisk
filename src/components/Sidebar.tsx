@@ -103,13 +103,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       badge: null
     },
-    ...(isManager ? [{
-      id: 'admin' as MainNavTab,
-      label: 'Admin Dashboard',
-      icon: Shield,
-      badge: 'Admin',
-      badgeColor: 'bg-indigo-100 text-indigo-800'
-    }] : []),
+    ...(isManager ? [
+      {
+        id: 'admin_overview' as MainNavTab,
+        label: 'Danh mục quản trị',
+        icon: Shield,
+        badge: 'Admin',
+        badgeColor: 'bg-indigo-100 text-indigo-700 font-bold'
+      }
+    ] : []),
     {
       id: 'zone' as MainNavTab,
       label: 'Chỉnh vùng',

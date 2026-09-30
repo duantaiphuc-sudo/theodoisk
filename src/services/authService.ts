@@ -364,8 +364,12 @@ export async function adminUpdateUser(updatedUser: AuthUser): Promise<boolean> {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
+    const sanitizedUser: Record<string, any> = {};
+    for (const [k, v] of Object.entries(strictlyRoleUser)) {
+      if (v !== undefined) sanitizedUser[k] = v;
+    }
     await setDoc(doc(db, 'users', strictlyRoleUser.id), {
-      ...strictlyRoleUser,
+      ...sanitizedUser,
       updatedAt: new Date().toISOString()
     }, { merge: true });
 
@@ -407,8 +411,12 @@ export async function adminCreateUser(newUser: AuthUser): Promise<boolean> {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
+    const sanitizedNewUser: Record<string, any> = {};
+    for (const [k, v] of Object.entries(newUser)) {
+      if (v !== undefined) sanitizedNewUser[k] = v;
+    }
     await setDoc(doc(db, 'users', newUser.id), {
-      ...newUser,
+      ...sanitizedNewUser,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }, { merge: true });

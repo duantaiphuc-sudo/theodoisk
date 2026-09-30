@@ -19,27 +19,6 @@ export interface HealthTelemetry {
 
 export type UserRole = 'admin' | 'manager' | 'employee';
 
-export type MainNavTab = 'overview' | 'admin' | 'zone' | 'logs' | 'tasks';
-
-export interface EmployeeNodeStatus {
-  id: string;
-  name: string;
-  avatar?: string;
-  email: string;
-  department?: string;
-  device: string; // e.g. 'pi4_node_1'
-  presence: 'Present' | 'Away';
-  posture: 'correct' | 'incorrect' | 'absent' | 'waiting';
-  postureText: string;
-  sittingMinutes: number;
-  bpm: number;
-  spo2: number;
-  isOnline: boolean;
-  hasAlert: boolean;
-  alertReason?: string;
-  role: UserRole;
-}
-
 export interface AuthUser {
   id: string;
   username: string;
@@ -58,17 +37,6 @@ export interface AuthUser {
   status?: 'active' | 'suspended';
   lastLogin?: string;
   createdAt?: string;
-  device?: string;
-  isOnline?: boolean;
-  lastActive?: string;
-  currentPresence?: 'Present' | 'Away';
-  currentPosture?: 'correct' | 'incorrect' | 'absent' | 'waiting';
-  currentPostureText?: string;
-  hasAlert?: boolean;
-  alertReason?: string;
-  sittingMinutes?: number;
-  bpm?: number;
-  spo2?: number;
 }
 
 export interface HistoricalRecord {
@@ -126,10 +94,6 @@ export interface TelemetryLog {
   trackingActive: boolean;
   hasAlert: boolean;
   alertType?: string;
-  userId?: string;
-  userEmail?: string;
-  userName?: string;
-  device?: string;
 }
 
 export interface FirebaseConnectionConfig {
@@ -152,6 +116,32 @@ export interface ChatMessage {
 export type NotificationType = 'task' | 'health_alert' | 'general';
 export type NotificationPriority = 'normal' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'acknowledged' | 'completed';
+export type MainNavTab = 'overview' | 'zone' | 'logs' | 'tasks' | 'admin_overview';
+
+export interface UserTelemetryLive {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  department?: string;
+  avatar?: string;
+  bpm: number;
+  spo2: number;
+  postureStatus: number;
+  postureLabel: string;
+  trackingActive: boolean;
+  inZone: boolean;
+  timestamp: string;
+  isSimulating: boolean;
+  source: string;
+  hasAlert: boolean;
+  alertType?: string;
+  angleNeck?: number;
+  postureWarning?: string;
+  image?: string;
+  sittingSeconds?: number;
+  badPostureSeconds?: number;
+  updatedAt?: string;
+}
 
 export interface UserTaskNotification {
   id: string;

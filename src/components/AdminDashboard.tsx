@@ -1,736 +1,748 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
+  AuthUser, 
+  FirebaseConnectionConfig, 
+  UserTelemetryLive,
+  HealthTelemetry,
+  TelemetryLog 
+} from '../types';
+import { 
+  Shield, 
   Users, 
-  Cpu, 
-  Wifi, 
   Activity, 
+  Heart, 
+  Wind, 
+  Sparkles, 
   AlertTriangle, 
   CheckCircle2, 
-  Clock, 
-  Send, 
+  Search, 
   RefreshCw, 
-  Shield, 
-  Copy, 
-  Check, 
-  Sparkles,
+  Eye, 
+  Send, 
+  Clock, 
+  Wifi, 
+  WifiOff, 
+  Radio, 
+  UserCheck, 
+  UserX, 
+  User, 
+  Sliders, 
+  Compass, 
+  ChevronRight, 
+  X,
   ExternalLink,
-  Volume2,
-  Terminal,
-  Layers,
-  ArrowRight,
-  Filter,
-  UserCheck,
-  UserX,
+  Flame,
   FileText,
-  Download,
-  TrendingUp
+  Trash2
 } from 'lucide-react';
-import { AuthUser, EmployeeNodeStatus, HealthTelemetry, TimeCalculations, TelemetryLog } from '../types';
-import { WeeklyHealthTrendChart } from './WeeklyHealthTrendChart';
-import { exportHealthReportToPDF } from '../services/pdfExportService';
-import { fetchAllUsers } from '../services/authService';
-import { subscribeToUsers, getSavedFirebaseConfig } from '../services/firebase';
+import { fetchAllUsers, isUserAdmin, saveCurrentUser } from '../services/authService';
+import { 
+  subscribeToAllUsersTelemetry, 
+  subscribeToUserTelemetry,
+  clearUserTelemetryFromFirebase,
+  clearAllTelemetryDataFromFirebase 
+} from '../services/firebase';
 
 interface AdminDashboardProps {
   currentUser: AuthUser;
-  onOpenUserManagement?: () => void;
-  onOpenTaskModal?: (targetEmail?: string) => void;
-  liveTelemetry?: HealthTelemetry;
-  timeStats?: TimeCalculations;
-  historyLogs?: TelemetryLog[];
+  firebaseConfig: FirebaseConnectionConfig;
+  onOpenUserManagementModal: () => void;
+  onOpenTaskModalWithUser?: (user: AuthUser) => void;
+  onSwitchUser?: (user: AuthUser) => void;
+  onWipeAllData?: () => Promise<void>;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
-  onOpenUserManagement,
-  onOpenTaskModal,
-  liveTelemetry,
-  timeStats,
-  historyLogs = []
+  firebaseConfig,
+  onOpenUserManagementModal,
+  onOpenTaskModalWithUser,
+  onSwitchUser,
+  onWipeAllData
 }) => {
-  const [registeredUsers, setRegisteredUsers] = useState<AuthUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [viewMode, setViewMode] = useState<'visual' | 'plaintext'>('visual');
-  const [copiedText, setCopiedText] = useState(false);
-  const [alertNotice, setAlertNotice] = useState<string | null>(null);
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [telemetryMap, setTelemetryMap] = useState<Record<string, UserTelemetryLive>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
+  const [wipeNotice, setWipeNotice] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'alerts' | 'bad_posture' | 'absent'>('all');
+  const [selectedUserForDetail, setSelectedUserForDetail] = useState<AuthUser | null>(null);
+  const [detailTelemetry, setDetailTelemetry] = useState<HealthTelemetry | null>(null);
 
-  // Load real registered accounts from Firestore
-  const loadUsers = React.useCallback(async () => {
-    setIsLoadingUsers(true);
+  // Load registered users from Firestore
+  const loadUsersData = async () => {
+    setIsLoading(true);
     try {
-      const list = await fetchAllUsers();
-      const map = new Map<string, AuthUser>();
-      list.forEach(u => {
-        const key = (u.email || u.username || u.id).trim().toLowerCase();
-        map.set(key, u);
-      });
-      if (currentUser) {
-        const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
-        const existing = map.get(curKey);
-        map.set(curKey, { 
-          ...currentUser, 
-          ...(existing || {}) 
-        });
-      }
-      setRegisteredUsers(Array.from(map.values()));
+      const data = await fetchAllUsers();
+      setUsers(data);
     } catch (e) {
-      console.warn('Lỗi khi tải danh sách người dùng:', e);
-      if (currentUser) setRegisteredUsers([currentUser]);
+      console.warn('Lỗi tải danh sách người dùng:', e);
     } finally {
-      setIsLoadingUsers(false);
+      setIsLoading(false);
     }
-  }, [currentUser]);
+  };
 
-  // Real-time listener for users collection in Firestore (detects mobile & remote device logins/simulations immediately)
-  React.useEffect(() => {
-    loadUsers();
-    const config = getSavedFirebaseConfig();
-    const unsub = subscribeToUsers(config, (users) => {
-      const map = new Map<string, AuthUser>();
-      users.forEach(u => {
-        const key = (u.email || u.username || u.id).trim().toLowerCase();
-        map.set(key, u);
-      });
-      if (currentUser) {
-        const curKey = (currentUser.email || currentUser.username || currentUser.id).trim().toLowerCase();
-        const existing = map.get(curKey);
-        map.set(curKey, { 
-          ...(existing || {}),
-          ...currentUser, 
-          isOnline: true,
-          currentPresence: 'Present'
-        });
-      }
-      setRegisteredUsers(Array.from(map.values()));
-    });
-
-    return () => {
-      unsub();
-    };
-  }, [loadUsers, currentUser]);
-
-  // Dynamically compute nodes from real registered users and real telemetry logs
-  const nodes = React.useMemo<EmployeeNodeStatus[]>(() => {
-    const rawList = registeredUsers.length > 0 ? registeredUsers : (currentUser ? [currentUser] : []);
-    // Ensure current active user is always ordered at the top (index 0)
-    const list = [...rawList].sort((a, b) => {
-      const aIsCur = a.id === currentUser?.id || (a.email && a.email.toLowerCase() === currentUser?.email?.toLowerCase());
-      const bIsCur = b.id === currentUser?.id || (b.email && b.email.toLowerCase() === currentUser?.email?.toLowerCase());
-      if (aIsCur && !bIsCur) return -1;
-      if (!aIsCur && bIsCur) return 1;
-      return 0;
-    });
-
-    return list.map((user, idx) => {
-      const isCurrent = user.id === currentUser?.id || (user.email && user.email.toLowerCase() === currentUser?.email?.toLowerCase());
-      const deviceId = `pi4_node_${idx + 1}`;
-
-      // 1. Current active user operating this dashboard session
-      if (isCurrent) {
-        // Current user is actively logged into this session -> presence is always 'Present' (Đang hoạt động)
-        const hasLiveSignal = Boolean(
-          liveTelemetry && (
-            liveTelemetry.postureStatus >= 0 &&
-            (liveTelemetry.bpm > 0 || liveTelemetry.inZone || liveTelemetry.trackingActive)
-          )
-        );
-
-        if (hasLiveSignal && liveTelemetry) {
-          const isOutOfZone = liveTelemetry.inZone === false || liveTelemetry.trackingActive === false;
-          const isAbsent = liveTelemetry.postureStatus === 2 || isOutOfZone;
-          const isBad = !isAbsent && (liveTelemetry.postureStatus === 1 || liveTelemetry.postureStatus === 3);
-          const sittingMins = timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0;
-
-          let postureText = '✓ Đúng';
-          let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = 'correct';
-          if (isAbsent) {
-            postureText = '– Vắng';
-            posture = 'absent';
-          } else if (isBad) {
-            postureText = '⚠ Sai';
-            posture = 'incorrect';
-          }
-
-          return {
-            id: `node-${user.id}`,
-            name: user.fullName || user.username,
-            email: user.email,
-            avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
-            department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
-            device: deviceId,
-            presence: 'Present',
-            posture,
-            postureText,
-            sittingMinutes: sittingMins,
-            bpm: isAbsent ? 0 : (liveTelemetry.bpm || 0),
-            spo2: isAbsent ? 0 : (liveTelemetry.spo2 || 0),
-            isOnline: true,
-            hasAlert: !isAbsent && (isBad || (liveTelemetry.bpm > 0 && (liveTelemetry.bpm < 50 || liveTelemetry.bpm > 110))),
-            alertReason: !isAbsent && isBad ? 'Ngồi sai tư thế' : undefined,
-            role: user.role
-          };
-        }
-
-        // Current user is logged in, but no posture/sensor telemetry has arrived yet
-        return {
-          id: `node-${user.id}`,
-          name: user.fullName || user.username,
-          email: user.email,
-          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
-          department: user.department || 'Phòng Quản Trị & Nghiên Cứu IoT',
-          device: deviceId,
-          presence: 'Present',
-          posture: 'waiting',
-          postureText: '– Chờ kết nối',
-          sittingMinutes: timeStats ? Math.floor(timeStats.sittingSeconds / 60) : 0,
-          bpm: 0,
-          spo2: 0,
-          isOnline: true,
-          hasAlert: false,
-          alertReason: undefined,
-          role: user.role
-        };
-      }
-
-      // 2. Remote users - check if actively logged in (heartbeat within 15 minutes)
-      const lastActiveMs = user.lastActive ? new Date(user.lastActive).getTime() : 0;
-      const isRecentActive = lastActiveMs > 0 ? (Math.abs(Date.now() - lastActiveMs) < 15 * 60 * 1000) : true;
-      const isRemoteActive = Boolean(user.isOnline) && isRecentActive;
-
-      if (isRemoteActive) {
-        // Remote user is logged in! Presence is 'Present' (Đang hoạt động)
-        const rawPostureText = user.currentPostureText || '';
-        const hasRemoteTelemetry = Boolean(
-          rawPostureText &&
-          !rawPostureText.includes('Chờ') &&
-          !rawPostureText.includes('chưa') &&
-          user.currentPosture &&
-          user.currentPosture !== 'waiting'
-        );
-
-        let postureText = '– Chờ kết nối';
-        let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = 'waiting';
-
-        if (hasRemoteTelemetry) {
-          if (user.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
-            posture = 'incorrect';
-            postureText = '⚠ Sai';
-          } else if (user.currentPosture === 'absent' || rawPostureText.includes('Vắng')) {
-            posture = 'absent';
-            postureText = '– Vắng';
-          } else {
-            posture = 'correct';
-            postureText = '✓ Đúng';
-          }
-        }
-
-        return {
-          id: `node-${user.id}`,
-          name: user.fullName || user.username,
-          email: user.email,
-          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
-          department: user.department || 'Nhân Viên Văn Phòng IoT',
-          device: user.device || deviceId,
-          presence: 'Present',
-          posture,
-          postureText,
-          sittingMinutes: hasRemoteTelemetry && posture !== 'absent' ? (user.sittingMinutes || 0) : 0,
-          bpm: hasRemoteTelemetry && posture !== 'absent' ? (user.bpm || 0) : 0,
-          spo2: hasRemoteTelemetry && posture !== 'absent' ? (user.spo2 || 0) : 0,
-          isOnline: true,
-          hasAlert: Boolean(hasRemoteTelemetry && posture === 'incorrect'),
-          alertReason: hasRemoteTelemetry && posture === 'incorrect' ? (user.alertReason || 'Ngồi sai tư thế') : undefined,
-          role: user.role
-        };
-      }
-
-      // 3. User is offline / not logged in
-      return {
-        id: `node-${user.id}`,
-        name: user.fullName || user.username,
-        email: user.email,
-        avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email || user.username)}`,
-        department: user.department || 'Nhân Viên Văn Phòng IoT',
-        device: deviceId,
-        presence: 'Away',
-        posture: 'waiting',
-        postureText: '– Chờ kết nối',
-        sittingMinutes: 0,
-        bpm: 0,
-        spo2: 0,
-        isOnline: false,
-        hasAlert: false,
-        alertReason: undefined,
-        role: user.role
-      };
-    });
-  }, [registeredUsers, currentUser, liveTelemetry, timeStats]);
-
-  const handleExportPDF = () => {
+  const handleWipeAllTelemetryData = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa toàn bộ dữ liệu mẫu/mô phỏng trên Firebase và đưa hệ thống về trạng thái chờ sạch sẽ?')) {
+      return;
+    }
+    setIsWiping(true);
     try {
-      exportHealthReportToPDF({
-        currentUser,
-        historyLogs: historyLogs || [],
-        nodes,
-        summary: {
-          totalLogs: (historyLogs || []).length,
-          avgBpm: nodes.find(n => n.bpm > 0)?.bpm || 74,
-          avgSpo2: nodes.find(n => n.spo2 > 0)?.spo2 || 98,
-          correctPosturePercent: nodes.length > 0 ? Math.round((nodes.filter(n => n.posture === 'correct').length / nodes.length) * 100) : 0,
-          totalAlerts: alertCount
-        }
-      });
-      setAlertNotice('Đã xuất thành công tệp Báo Cáo Sức Khỏe PDF từ Firebase Cloud!');
-      setTimeout(() => setAlertNotice(null), 4000);
+      if (onWipeAllData) {
+        await onWipeAllData();
+      } else {
+        await clearAllTelemetryDataFromFirebase(firebaseConfig);
+        try {
+          localStorage.removeItem('theodoisk_telemetry_history_v2');
+          localStorage.removeItem('theodoisk_historical_records_v1');
+        } catch {}
+      }
+      setTelemetryMap({});
+      setWipeNotice('Đã xóa sạch toàn bộ dữ liệu mô phỏng. Hệ thống đang ở trạng thái chờ sẵn sàng!');
+      setTimeout(() => setWipeNotice(null), 4500);
+      loadUsersData();
     } catch (err) {
-      console.error('Lỗi khi xuất PDF:', err);
-      setAlertNotice('Có lỗi khi tạo tệp PDF báo cáo.');
-      setTimeout(() => setAlertNotice(null), 3000);
+      console.error('Lỗi khi xóa dữ liệu:', err);
+      setWipeNotice('Có lỗi khi xóa dữ liệu.');
+      setTimeout(() => setWipeNotice(null), 3000);
+    } finally {
+      setIsWiping(false);
     }
   };
 
-  // Dynamic summary calculations
-  const totalEmployees = nodes.length;
-  const totalDevices = nodes.length;
-  const onlineCount = nodes.filter(n => n.isOnline).length;
-  const workingCount = nodes.filter(n => n.presence === 'Present').length;
-  const alertCount = nodes.filter(n => n.hasAlert || n.posture === 'incorrect' || n.sittingMinutes > 60).length;
+  useEffect(() => {
+    loadUsersData();
+  }, []);
 
-  // Plain text generator matching Image 2
-  const plainTextContent = `ADMIN DASHBOARD
-────────────────────────────────────────
-TỔNG QUAN
-
-Nhân viên     ${totalEmployees}
-Thiết bị      ${totalDevices}
-Đang online   ${onlineCount}
-Đang làm việc ${workingCount}
-Cảnh báo      ${alertCount}
-
-NHÂN VIÊN
-────────────────────────────────────────
-Tên       Device        Presence    Posture     Sitting
-${nodes.map(n => {
-  const namePad = n.name.padEnd(10, ' ');
-  const devPad = n.device.padEnd(14, ' ');
-  const presPad = n.presence.padEnd(12, ' ');
-  const postPad = n.postureText.padEnd(12, ' ');
-  return `${namePad}${devPad}${presPad}${postPad}${n.sittingMinutes} phút`;
-}).join('\n')}`;
-
-  const handleCopyPlainText = () => {
-    navigator.clipboard.writeText(plainTextContent).then(() => {
-      setCopiedText(true);
-      setTimeout(() => setCopiedText(false), 2500);
+  // Subscribe to all users' real-time telemetry from Firestore collection `user_telemetry`
+  useEffect(() => {
+    const unsub = subscribeToAllUsersTelemetry(firebaseConfig, (map) => {
+      setTelemetryMap(map);
     });
-  };
+    return () => unsub();
+  }, [firebaseConfig]);
 
-  const handleTriggerAlert = (node: EmployeeNodeStatus) => {
-    setAlertNotice(`Đã gửi cảnh báo rung & âm thanh công thái học tới ${node.device} (${node.name})!`);
-    setTimeout(() => setAlertNotice(null), 4000);
-  };
+  // Subscribe to detailed view of selected user
+  useEffect(() => {
+    if (!selectedUserForDetail) {
+      setDetailTelemetry(null);
+      return;
+    }
+    const unsub = subscribeToUserTelemetry(firebaseConfig, selectedUserForDetail.id, (data) => {
+      setDetailTelemetry(data);
+    });
+    return () => unsub();
+  }, [selectedUserForDetail, firebaseConfig]);
+
+  // Compute live overview metrics
+  const now = Date.now();
+  const totalUsersCount = users.length;
+
+  const usersWithTelemetry = users.map(u => {
+    const live = telemetryMap[u.id];
+    let isOnline = false;
+    let isRecent = false;
+    if (live && live.timestamp) {
+      const packetAge = Math.floor((now - new Date(live.timestamp).getTime()) / 1000);
+      isRecent = !isNaN(packetAge) && packetAge < 60;
+      isOnline = isRecent && (Boolean(live.isSimulating) || (Boolean(live.trackingActive) && Number(live.bpm) > 0));
+    }
+
+    const hasAlert = isOnline && Boolean(live?.hasAlert || (live && (live.postureStatus === 1 || live.postureStatus === 3)));
+    const isBadPosture = isOnline && (live?.postureStatus === 1 || live?.postureStatus === 3);
+    const isAbsent = isOnline && (live?.postureStatus === 2 || live?.inZone === false);
+
+    return {
+      user: u,
+      live,
+      isOnline,
+      isRecent,
+      hasAlert,
+      isBadPosture,
+      isAbsent
+    };
+  });
+
+  const onlineCount = usersWithTelemetry.filter(item => item.isOnline).length;
+  const alertCount = usersWithTelemetry.filter(item => item.hasAlert).length;
+  const goodPostureCount = usersWithTelemetry.filter(item => item.isOnline && !item.isBadPosture && !item.isAbsent).length;
+  const goodPostureRatio = onlineCount > 0 ? Math.round((goodPostureCount / onlineCount) * 100) : 100;
+
+  // Filter users based on search and status
+  const filteredItems = usersWithTelemetry.filter(item => {
+    const q = search.toLowerCase();
+    const matchQuery = 
+      (item.user.fullName || '').toLowerCase().includes(q) ||
+      (item.user.email || '').toLowerCase().includes(q) ||
+      (item.user.department || '').toLowerCase().includes(q);
+
+    if (!matchQuery) return false;
+
+    if (statusFilter === 'online') return item.isOnline;
+    if (statusFilter === 'alerts') return item.hasAlert;
+    if (statusFilter === 'bad_posture') return item.isBadPosture;
+    if (statusFilter === 'absent') return item.isAbsent;
+    return true;
+  });
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn text-slate-900 pb-12">
-      {/* 1. Header Banner */}
-      <div className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 shrink-0">
-            <Shield className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">
-                Admin Dashboard
-              </h1>
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wide">
-                Đa Thiết Bị IoT Pi 4
-              </span>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Trực tuyến
-              </span>
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 shadow-xs">
+              <Shield className="w-6 h-6 text-indigo-600" />
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Giám sát tổng quan nhân viên văn phòng, trạng thái hiện diện và tư thế công thái học
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                  Danh Mục Quản Trị Hệ Thống
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                  Dành riêng cho Quản trị viên
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                Giám sát tập trung toàn bộ tài khoản người dùng, chỉ số sinh trắc học thời gian thực và phân quyền Firestore.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0 flex-wrap">
+            <button
+              onClick={handleWipeAllTelemetryData}
+              disabled={isWiping}
+              title="Xóa toàn bộ dữ liệu mẫu / mô phỏng trên Firebase Firestore và đưa về trạng thái chờ sạch sẽ"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Trash2 className={`w-3.5 h-3.5 text-rose-600 ${isWiping ? 'animate-spin' : ''}`} />
+              <span>{isWiping ? 'Đang xóa...' : 'Xóa Dữ Liệu Mẫu'}</span>
+            </button>
+
+            <button
+              onClick={loadUsersData}
+              disabled={isLoading}
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
+            </button>
+
+            <button
+              onClick={onOpenUserManagementModal}
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer active:scale-95"
+            >
+              <Users className="w-4 h-4" />
+              <span>Phân Quyền & Quản Lý User</span>
+            </button>
           </div>
         </div>
 
-        {/* View Switcher & Action Controls */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold">
-            <button
-              onClick={() => setViewMode('visual')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'visual'
-                  ? 'bg-white text-slate-900 font-bold shadow-2xs border border-slate-200/60'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-sky-600" />
-              <span>Giao Diện Trực Quan</span>
-            </button>
-            <button
-              onClick={() => setViewMode('plaintext')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'plaintext'
-                  ? 'bg-white text-slate-900 font-bold shadow-2xs border border-slate-200/60'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Terminal className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Dạng Plain Text</span>
-            </button>
+        {wipeNotice && (
+          <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{wipeNotice}</span>
           </div>
+        )}
 
-          {/* PDF Export Button */}
-          <button
-            onClick={handleExportPDF}
-            title="Xuất dữ liệu lịch sử đo đạc từ Firebase sang tệp báo cáo PDF để in hoặc lưu trữ"
-            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Xuất Báo Cáo PDF</span>
-          </button>
-
-          {onOpenUserManagement && (
-            <button
-              onClick={onOpenUserManagement}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Quản Lý Tài Khoản</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Alert toast notification */}
-      {alertNotice && (
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs shadow-xs animate-fadeIn">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-            <span className="font-semibold">{alertNotice}</span>
-          </div>
-          <button onClick={() => setAlertNotice(null)} className="text-indigo-700 hover:text-indigo-900 font-bold ml-2 cursor-pointer">
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* 2. SECTION: TỔNG QUAN (Summary KPI Cards) */}
-      <div>
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-            TỔNG QUAN
-          </h2>
-          <span className="text-[11px] text-slate-400 font-mono">Realtime Telemetry Multi-Node</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          {/* 1. Nhân viên */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between hover:border-slate-300 transition group">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-600">Nhân viên</span>
-              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-slate-200 transition">
+        {/* 4 Executive KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+          {/* Card 1: Total accounts */}
+          <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Tổng Tài Khoản
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
                 <Users className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
-                {totalEmployees}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">Tổng số nhân sự</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
+                {totalUsersCount}
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500">thành viên</span>
             </div>
+            <p className="text-[11px] text-slate-500 mt-1 font-medium truncate">
+              1 Admin duy nhất • {Math.max(0, totalUsersCount - 1)} Nhân viên
+            </p>
           </div>
 
-          {/* 2. Thiết bị */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between hover:border-slate-300 transition group">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-600">Thiết bị</span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-100 transition">
-                <Cpu className="w-4 h-4" />
+          {/* Card 2: Online / active accounts */}
+          <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Đang Đo / Trực Tuyến
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Radio className="w-4 h-4 animate-pulse" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-indigo-950">
-                {totalDevices}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">Node Raspberry Pi 4</p>
-            </div>
-          </div>
-
-          {/* 3. Đang online */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between hover:border-slate-300 transition group">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-600">Đang online</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-100 transition">
-                <Wifi className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700">
                 {onlineCount}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">Kết nối mạng ổn định</p>
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500">/{totalUsersCount} trực tuyến</span>
             </div>
+            <p className="text-[11px] text-emerald-700 mt-1 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-ping"></span>
+              Đang nhận dữ liệu từ cảm biến / mô phỏng
+            </p>
           </div>
 
-          {/* 4. Đang làm việc */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between hover:border-slate-300 transition group">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-600">Đang làm việc</span>
-              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-100 transition">
-                <Activity className="w-4 h-4" />
+          {/* Card 3: Posture Quality */}
+          <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Tư Thế Ngồi Chuẩn
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-sky-700">
-                {workingCount}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">Hiện diện tại bàn (Present)</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold font-mono text-sky-700">
+                {onlineCount > 0 ? `${goodPostureRatio}%` : '100%'}
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500">tỷ lệ đạt</span>
             </div>
+            <p className="text-[11px] text-slate-500 mt-1 font-medium truncate">
+              {goodPostureCount} nhân viên ngồi thẳng chuẩn cột sống
+            </p>
           </div>
 
-          {/* 5. Cảnh báo */}
-          <div className={`p-4 rounded-2xl bg-white border shadow-xs flex flex-col justify-between transition group col-span-2 sm:col-span-1 ${
-            alertCount > 0 ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200/90'
-          }`}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-700">Cảnh báo</span>
-              <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center group-hover:bg-rose-200 transition">
-                <AlertTriangle className="w-4 h-4" />
+          {/* Card 4: Health Alerts */}
+          <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Cảnh Báo Phát Hiện
+              </span>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${alertCount > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>
+                <AlertTriangle className={`w-4 h-4 ${alertCount > 0 ? 'animate-bounce' : ''}`} />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-700">
+            <div className="flex items-baseline gap-2">
+              <span className={`text-2xl sm:text-3xl font-extrabold font-mono ${alertCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
                 {alertCount}
-              </div>
-              <p className="text-[11px] text-rose-600 mt-0.5">Tư thế sai / Ngồi quá lâu</p>
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500">người cần nhắc</span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2.5 SECTION: TỔNG QUAN DỮ LIỆU ĐO ĐẠC THỜI GIAN THỰC */}
-      <WeeklyHealthTrendChart 
-        historyLogs={historyLogs} 
-        liveTelemetry={liveTelemetry} 
-        activeNodes={nodes} 
-      />
-
-      {/* 3. SECTION: NHÂN VIÊN (Table or Plain Text View) */}
-      {viewMode === 'visual' ? (
-        <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70">
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>NHÂN VIÊN</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
-                  {nodes.length} Nodes
-                </span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Chi tiết thiết bị Raspberry Pi, hiện diện, tư thế và thời gian ngồi liên tục (5 thông số tiêu chuẩn)
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExportPDF}
-                className="py-1.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>In / Xuất PDF</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  loadUsers();
-                  setAlertNotice('Đã làm mới dữ liệu từ tất cả các Node và tài khoản Firestore!');
-                  setTimeout(() => setAlertNotice(null), 3000);
-                }}
-                disabled={isLoadingUsers}
-                className="py-1.5 px-3 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingUsers ? 'animate-spin' : ''}`} />
-                <span>{isLoadingUsers ? 'Đang tải...' : 'Làm mới'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Desktop Table View - Exactly 5 Columns matching Image 2 */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="bg-slate-100/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4 sm:px-5">Tên Nhân Viên</th>
-                  <th className="py-3 px-4">Thiết Bị (Device)</th>
-                  <th className="py-3 px-4">Hiện Diện (Presence)</th>
-                  <th className="py-3 px-4">Tư Thế (Posture)</th>
-                  <th className="py-3 px-4">Thời Gian Ngồi (Sitting)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {nodes.map(node => {
-                  const isBad = node.posture === 'incorrect';
-                  const isAbsent = node.presence === 'Away';
-                  const isLongSitting = node.sittingMinutes >= 60;
-
-                  return (
-                    <tr 
-                      key={node.id} 
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        isBad ? 'bg-rose-50/20' : ''
-                      }`}
-                    >
-                      {/* 1. Tên */}
-                      <td className="py-3.5 px-4 sm:px-5">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={node.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120'}
-                            alt={node.name}
-                            className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900 text-sm">{node.name}</span>
-                              {node.role === 'admin' ? (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                  Admin
-                                </span>
-                              ) : (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                  Nhân viên
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-slate-500 block truncate">{node.email}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 2. Device */}
-                      <td className="py-3.5 px-4">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-mono text-xs font-bold border border-slate-200">
-                          <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>{node.device}</span>
-                        </div>
-                      </td>
-
-                      {/* 3. Presence */}
-                      <td className="py-3.5 px-4">
-                        {node.presence === 'Present' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span>Đang hoạt động</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                            <span>Ngoại tuyến</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* 4. Posture */}
-                      <td className="py-3.5 px-4">
-                        {node.posture === 'correct' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>✓ Đúng</span>
-                          </span>
-                        )}
-                        {node.posture === 'incorrect' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                            <span>⚠ Sai</span>
-                          </span>
-                        )}
-                        {node.posture === 'absent' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                            <span>– Vắng</span>
-                          </span>
-                        )}
-                        {node.posture === 'waiting' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
-                            <span>– Chờ kết nối</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* 5. Sitting */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-mono text-sm font-bold ${
-                            isLongSitting ? 'text-amber-700' : 'text-slate-800'
-                          }`}>
-                            {node.sittingMinutes} phút
-                          </span>
-                          {isLongSitting && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                              Ngồi lâu!
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        /* Plain Text Format exactly matching Image 2 */
-        <div className="rounded-2xl bg-slate-950 text-slate-100 border border-slate-800 shadow-xl overflow-hidden font-mono text-xs sm:text-sm">
-          {/* Plain Text Header Bar */}
-          <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-xs font-bold">&lt;/&gt; Plain text</span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-300 text-xs">ADMIN DASHBOARD VIEW</span>
-            </div>
-            <button
-              onClick={handleCopyPlainText}
-              className="py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95"
-            >
-              {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-              <span>{copiedText ? 'Đã sao chép!' : 'Copy'}</span>
-            </button>
-          </div>
-
-          {/* Plain Text Body */}
-          <div className="p-5 sm:p-6 overflow-x-auto whitespace-pre leading-relaxed select-text font-mono text-slate-200">
-            {plainTextContent}
-          </div>
-        </div>
-      )}
-
-      {/* 4. Tips & Help Banner */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50/80 via-white to-indigo-50/80 border border-sky-200/80 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-        <div className="flex items-start gap-2.5">
-          <Sparkles className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold text-slate-900">Tính năng Quản Trị Hệ Thống:</span>
-            <p className="text-slate-600 mt-0.5">
-              Chỉ duy nhất <b>duantaiphuc@gmail.com</b> và <b>admin</b> có quyền truy cập màn hình này. Mọi tài khoản nhân viên khác chỉ được xem số liệu cá nhân của chính mình.
+            <p className={`text-[11px] mt-1 font-medium truncate ${alertCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+              {alertCount > 0 ? 'Cúi gù lâu / Nhịp tim hoặc SpO₂ bất thường' : 'Tất cả nhân viên an toàn ổn định'}
             </p>
           </div>
         </div>
-
-        {onOpenUserManagement && (
-          <button
-            onClick={onOpenUserManagement}
-            className="self-start sm:self-auto py-2 px-3.5 rounded-xl bg-white hover:bg-sky-50 border border-sky-300 text-sky-800 font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap active:scale-98"
-          >
-            <span>Quản trị tài khoản & Giao việc</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[260px]">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Tìm theo tên thành viên, email hoặc phòng ban..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+          />
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 shrink-0">
+          {[
+            { id: 'all', label: `Tất cả (${users.length})` },
+            { id: 'online', label: `Trực tuyến (${onlineCount})` },
+            { id: 'alerts', label: `Có cảnh báo (${alertCount})` },
+            { id: 'bad_posture', label: 'Sai tư thế' },
+            { id: 'absent', label: 'Vắng mặt' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id as any)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                statusFilter === tab.id
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* User Telemetry Overview Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {filteredItems.map(({ user, live, isOnline, hasAlert, isBadPosture, isAbsent }) => {
+          const isAdmin = isUserAdmin(user);
+          const hM = (user.height || 170) / 100;
+          const bmiVal = ((user.weight || 65) / (hM * hM)).toFixed(1);
+
+          const bpm = isOnline ? (live?.bpm ?? 0) : 0;
+          const spo2 = isOnline ? (live?.spo2 ?? 0) : 0;
+          const postureStatus = isOnline ? (live?.postureStatus ?? -1) : -1;
+          const postureLabel = isOnline ? (live?.postureLabel || 'Chưa có dữ liệu') : 'Chưa có dữ liệu';
+          const isSimulating = isOnline ? Boolean(live?.isSimulating) : false;
+
+          let postureColor = 'bg-slate-100 text-slate-600 border-slate-200';
+          if (postureStatus === 0) postureColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+          else if (postureStatus === 1) postureColor = 'bg-rose-50 text-rose-700 border-rose-200';
+          else if (postureStatus === 3) postureColor = 'bg-rose-100 text-rose-800 border-rose-300 font-extrabold';
+          else if (postureStatus === 2) postureColor = 'bg-amber-50 text-amber-800 border-amber-200';
+
+          return (
+            <div
+              key={user.id}
+              className={`bg-white rounded-2xl border transition-all duration-200 shadow-sm flex flex-col justify-between overflow-hidden ${
+                hasAlert 
+                  ? 'border-rose-300 ring-2 ring-rose-100' 
+                  : isOnline 
+                  ? 'border-slate-300 hover:border-indigo-300' 
+                  : 'border-slate-200/80 opacity-90'
+              }`}
+            >
+              {/* Card Header: User identity & role badge */}
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0 overflow-hidden shadow-2xs">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      user.fullName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm truncate">{user.fullName}</span>
+                      {isAdmin && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-500 block truncate">
+                      {user.email}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status indicator pill */}
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  {isSimulating ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
+                      Mô phỏng
+                    </span>
+                  ) : isOnline ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Trực tuyến
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                      <WifiOff className="w-3 h-3" />
+                      Chờ tín hiệu
+                    </span>
+                  )}
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {user.department || 'Văn Phòng IoT'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card Body: Live Telemetry Metrics */}
+              <div className="p-4 space-y-3 flex-1">
+                {/* 2 Vital Stat Pills: BPM & SpO2 */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* BPM */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Nhịp tim
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className={`text-xl font-extrabold font-mono ${bpm > 0 ? (bpm < 50 || bpm > 110 ? 'text-rose-600' : 'text-slate-900') : 'text-slate-400'}`}>
+                          {bpm > 0 ? bpm : '--'}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">BPM</span>
+                      </div>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bpm > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Heart className={`w-4 h-4 ${bpm > 0 ? 'animate-pulse' : ''}`} />
+                    </div>
+                  </div>
+
+                  {/* SpO2 */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Oxy SpO₂
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className={`text-xl font-extrabold font-mono ${spo2 > 0 ? (spo2 < 94 ? 'text-rose-600' : 'text-slate-900') : 'text-slate-400'}`}>
+                          {spo2 > 0 ? `${spo2}%` : '--'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${spo2 > 0 ? 'bg-sky-50 text-sky-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Wind className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Posture Status Badge */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[11px] font-semibold text-slate-500">Tư thế ngồi:</span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {live?.inZone === false ? 'Ngoài vùng camera' : 'Trong vùng camera'}
+                    </span>
+                  </div>
+                  <div className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-between ${postureColor}`}>
+                    <span className="truncate">{postureLabel}</span>
+                    {hasAlert && <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />}
+                  </div>
+                </div>
+
+                {/* Body Specs (Age, BMI) */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-mono">
+                  <span>Tuổi: <b>{user.age || 28}</b> • BMI: <b>{bmiVal}</b></span>
+                  <span>{user.height || 170}cm / {user.weight || 65}kg</span>
+                </div>
+
+                {/* Warning message if any */}
+                {live?.postureWarning && (
+                  <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-tight flex items-start gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span className="line-clamp-2">{live.postureWarning}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Card Footer: Quick Actions */}
+              <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForDetail(user)}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs transition cursor-pointer active:scale-95"
+                  title="Xem chi tiết các chỉ số sinh trắc học và lịch sử của tài khoản này"
+                >
+                  <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Xem Chi Tiết</span>
+                </button>
+
+                {onOpenTaskModalWithUser && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTaskModalWithUser(user)}
+                    className="flex items-center justify-center gap-1 h-8 px-2.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer active:scale-95"
+                    title={`Giao nhiệm vụ hoặc gửi nhắc nhở sức khỏe cho ${user.fullName}`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Giao việc</span>
+                  </button>
+                )}
+
+                {onSwitchUser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveCurrentUser(user);
+                      onSwitchUser(user);
+                    }}
+                    className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/90 flex items-center justify-center transition cursor-pointer"
+                    title={`Đăng nhập thử tài khoản của ${user.fullName}`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {filteredItems.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 shadow-sm">
+          <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-slate-700">Không tìm thấy tài khoản nào phù hợp bộ lọc.</p>
+          <p className="text-xs text-slate-400 mt-1">Hãy thử xóa bộ lọc tìm kiếm hoặc làm mới dữ liệu.</p>
+        </div>
+      )}
+
+      {/* Modal: Detailed User Inspection */}
+      {selectedUserForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div 
+            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-sm">
+                  {selectedUserForDetail.avatar ? (
+                    <img src={selectedUserForDetail.avatar} alt={selectedUserForDetail.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    selectedUserForDetail.fullName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 leading-tight">
+                      {selectedUserForDetail.fullName}
+                    </h3>
+                    {isUserAdmin(selectedUserForDetail) ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                        Admin Duy Nhất
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                        Nhân viên
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-slate-500 mt-0.5">
+                    {selectedUserForDetail.email} • {selectedUserForDetail.department || 'Văn Phòng IoT'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedUserForDetail(null)}
+                className="w-8 h-8 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4">
+              {/* Live Metric Cards for this User */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Nhịp tim</span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-2xl font-extrabold font-mono text-slate-900">
+                      {detailTelemetry?.bpm ?? telemetryMap[selectedUserForDetail.id]?.bpm ?? 0}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500">BPM</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Oxy máu</span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-2xl font-extrabold font-mono text-slate-900">
+                      {detailTelemetry?.spo2 ?? telemetryMap[selectedUserForDetail.id]?.spo2 ?? 0}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500">%</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Góc nghiêng cổ</span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-2xl font-extrabold font-mono text-slate-900">
+                      {detailTelemetry?.angleNeck ?? telemetryMap[selectedUserForDetail.id]?.angleNeck ?? 155}°
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Vùng quan sát</span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className={`text-xs font-bold ${detailTelemetry?.inZone !== false ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {detailTelemetry?.inZone !== false ? 'Trong vùng' : 'Ngoài vùng'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Posture Details */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">Trạng Thái Tư Thế Hiện Tại:</span>
+                  <span className="text-xs font-mono text-slate-400">
+                    Nguồn: {detailTelemetry?.source || telemetryMap[selectedUserForDetail.id]?.source || 'Cảm biến Raspberry Pi 4'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-white border border-slate-200 font-bold text-sm text-slate-900 flex items-center justify-between">
+                  <span>{detailTelemetry?.postureLabel || telemetryMap[selectedUserForDetail.id]?.postureLabel || 'Chưa có dữ liệu'}</span>
+                  {detailTelemetry?.postureStatus === 0 ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  ) : detailTelemetry?.postureStatus === 1 || detailTelemetry?.postureStatus === 3 ? (
+                    <AlertTriangle className="w-5 h-5 text-rose-600" />
+                  ) : null}
+                </div>
+                {detailTelemetry?.postureWarning && (
+                  <p className="text-xs text-rose-700 font-medium">
+                    ⚠️ {detailTelemetry.postureWarning}
+                  </p>
+                )}
+              </div>
+
+              {/* User Health Profile */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <span className="text-xs font-bold text-slate-700 block">Thông Tin Hồ Sơ Cá Nhân:</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Tuổi</span>
+                    <span className="font-bold text-slate-800">{selectedUserForDetail.age || 28} tuổi</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Giới tính</span>
+                    <span className="font-bold text-slate-800">{selectedUserForDetail.gender === 'female' ? 'Nữ' : 'Nam'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Thể trạng</span>
+                    <span className="font-bold text-slate-800">{selectedUserForDetail.height || 170}cm / {selectedUserForDetail.weight || 65}kg</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Ngồi tối đa</span>
+                    <span className="font-bold text-slate-800">{selectedUserForDetail.maxSittingHours || 6} tiếng/ngày</span>
+                  </div>
+                </div>
+                {selectedUserForDetail.healthNotes && (
+                  <p className="text-xs text-slate-600 mt-2 bg-white p-2.5 rounded-lg border border-slate-200">
+                    <b>Ghi chú y tế:</b> {selectedUserForDetail.healthNotes}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForDetail(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer"
+              >
+                Đóng
+              </button>
+
+              <div className="flex items-center gap-2">
+                {onOpenTaskModalWithUser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenTaskModalWithUser(selectedUserForDetail);
+                      setSelectedUserForDetail(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Giao Nhiệm Vụ Cho User</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

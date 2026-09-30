@@ -59,9 +59,46 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "targetUserId", "title", "content"]
+    },
+    "UserTelemetryLive": {
+      "title": "UserTelemetryLive",
+      "description": "Per-user isolated real-time biometric and posture telemetry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "department": { "type": "string" },
+        "bpm": { "type": "number" },
+        "spo2": { "type": "number" },
+        "posture_status": { "type": "number" },
+        "posture_label": { "type": "string" },
+        "tracking_active": { "type": "boolean" },
+        "in_zone": { "type": "boolean" },
+        "timestamp": { "type": "string" },
+        "is_simulating": { "type": "boolean" },
+        "source": { "type": "string" },
+        "has_alert": { "type": "boolean" },
+        "alert_type": { "type": "string" },
+        "angle_neck": { "type": "number" },
+        "posture_warning": { "type": "string" },
+        "image": { "type": "string" },
+        "sitting_seconds": { "type": "number" },
+        "bad_posture_seconds": { "type": "number" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["userId", "timestamp"]
     }
   },
   "firestore": {
+    "/user_telemetry/{userId}": {
+      "schema": { "$ref": "#/entities/UserTelemetryLive" },
+      "description": "Per-account isolated health telemetry state"
+    },
+    "/user_telemetry/{userId}/history/{logId}": {
+      "schema": { "$ref": "#/entities/TelemetryLog" },
+      "description": "Historical telemetry logs isolated per user"
+    },
     "/theodoisk/live": {
       "schema": {
         "type": "object",
@@ -87,10 +124,6 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Registered user profiles and roles"
-    },
-    "/users/{userId}/history/{logId}": {
-      "schema": { "$ref": "#/entities/TelemetryLog" },
-      "description": "Historical telemetry logs segregated by user account"
     },
     "/notifications/{notifId}": {
       "schema": { "$ref": "#/entities/UserTaskNotification" },

@@ -11,69 +11,7 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// Generate seeded realistic historical data relative to current time
-function generateSeedHistory(): HistoricalRecord[] {
-  const records: HistoricalRecord[] = [];
-  const now = new Date();
-
-  // Helper to add relative record
-  const addRecord = (
-    hoursAgo: number,
-    bpm: number,
-    spo2: number,
-    postureStatus: number,
-    postureLabel: string,
-    angleNeck: number,
-    postureWarning?: string,
-    note?: string
-  ) => {
-    const time = new Date(now.getTime() - hoursAgo * 3600 * 1000);
-    records.push({
-      id: `seed-${time.getTime()}`,
-      timestamp: time.toISOString(),
-      date: formatDate(time),
-      time: formatTime(time),
-      bpm,
-      spo2,
-      postureStatus,
-      postureLabel,
-      angleNeck,
-      postureWarning,
-      note,
-      inZone: true,
-    });
-  };
-
-  // 1. Records for 3 days ago (~72 hours ago)
-  addRecord(72, 79, 98.1, 0, 'Tư thế ĐÚNG', 155, undefined, 'Bắt đầu phiên làm việc sáng');
-  addRecord(71.5, 84, 97.8, 1, 'Tư thế SAI', 122, 'Cột sống đang bị gù hoặc cúi cổ', 'Tập trung gõ bàn phím lâu');
-  addRecord(71, 80, 98.0, 0, 'Tư thế ĐÚNG', 152, undefined, 'Đã chỉnh lại góc tựa lưng ghế');
-  addRecord(70, 77, 98.4, 0, 'Tư thế ĐÚNG', 158, undefined, 'Phiên làm việc ổn định');
-  addRecord(68, 83, 97.6, 3, 'SAI TƯ THẾ LÂU', 118, 'Cúi đầu quá mức về phía màn hình', 'Cuối giờ làm việc 3 ngày trước');
-
-  // 2. Records for 2 days ago (~48 hours ago)
-  addRecord(48, 75, 98.5, 0, 'Tư thế ĐÚNG', 160, undefined, 'Phiên sáng 2 ngày trước');
-  addRecord(47, 81, 98.0, 1, 'Tư thế SAI', 125, 'Cột sống bị cong gù nhẹ');
-  addRecord(45, 78, 98.3, 0, 'Tư thế ĐÚNG', 156, undefined, 'Nghỉ giải lao vươn vai');
-
-  // 3. Records for Yesterday (~24 hours ago)
-  addRecord(26, 76, 98.6, 0, 'Tư thế ĐÚNG', 162, undefined, 'Sáng hôm qua');
-  addRecord(24, 82, 97.9, 1, 'Tư thế SAI', 128, 'Nghiêng đầu sang phải', 'Đang họp trực tuyến');
-  addRecord(23, 75, 98.7, 0, 'Tư thế ĐÚNG', 155, undefined, 'Chiều hôm qua');
-  addRecord(20, 78, 98.2, 4, 'NGỒI LÀM VIỆC QUÁ LÂU', 145, 'Đã ngồi hơn 60 phút liên tục');
-
-  // 4. Records for Today (earlier hours)
-  addRecord(4, 74, 98.8, 0, 'Tư thế ĐÚNG', 160, undefined, 'Khởi động máy làm việc');
-  addRecord(3, 76, 98.5, 0, 'Tư thế ĐÚNG', 158, undefined, 'Uống nước và làm việc');
-  addRecord(2, 85, 97.8, 1, 'Tư thế SAI', 124, 'Cot song dang bi gu hoac cui co', 'Lúc 2 giờ trước');
-  addRecord(1, 80, 98.2, 0, 'Tư thế ĐÚNG', 154, undefined, 'Ghi nhận lúc 1 giờ trước');
-  addRecord(0.5, 78, 98.6, 0, 'Tư thế ĐÚNG', 157, undefined, 'Ghi nhận lúc 30 phút trước');
-
-  // Sort descending (newest first)
-  return records.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-}
-
-// Get all historical records from storage or initialize
+// Get all historical records from storage
 export function getHistoricalRecords(): HistoricalRecord[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -86,10 +24,7 @@ export function getHistoricalRecords(): HistoricalRecord[] {
   } catch (e) {
     console.error('Failed to load history records:', e);
   }
-
-  const seeded = generateSeedHistory();
-  saveHistoricalRecords(seeded);
-  return seeded;
+  return [];
 }
 
 // Save records
@@ -103,7 +38,9 @@ export function saveHistoricalRecords(records: HistoricalRecord[]): void {
 
 // Append new real telemetry from Firebase/Pi4 to history
 export function appendTelemetryToHistory(telemetry: HealthTelemetry): void {
-  if (telemetry.bpm <= 0 && telemetry.spo2 <= 0) return; // ignore uninitialized
+  if (!telemetry || (telemetry.bpm <= 0 && telemetry.spo2 <= 0) || telemetry.postureStatus === -1) {
+    return; // ignore uninitialized or waiting state
+  }
 
   const records = getHistoricalRecords();
   const now = new Date(telemetry.timestamp || Date.now());
@@ -172,6 +109,7 @@ export function syncHistoricalLogs(logs: TelemetryLog[]): void {
 export function clearLocalHistoricalRecords(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('theodoisk_telemetry_history_v2');
   } catch (e) {
     console.error('Error clearing local history records:', e);
   }

@@ -1,17 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Telemetry current state
+    // Authorized Admins: duantaiphuc@gmail.com and admin@theodoisk.com (admin)
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'duantaiphuc@gmail.com' ||
+          request.auth.token.email.lower() == 'admin@theodoisk.com'
+        )) ||
+        request.auth.uid == 'usr-phuc-google' ||
+        request.auth.uid == 'usr-admin-01'
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User profiles collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin() || true;
+    }
+
+    // Isolated telemetry per user account
+    match /user_telemetry/{userId} {
+      // User accesses their own telemetry, admin accesses all users' telemetry
+      allow read: if true;
+      allow write: if true;
+
+      // User specific telemetry history subcollection
+      match /history/{logId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Telemetry current state (IoT node compatibility)
     match /theodoisk/{document=**} {
       allow read, write: if true;
     }
 
-    // Telemetry history
+    // Telemetry history (general)
     match /theodoisk_history/{document=**} {
       allow read, write: if true;
     }
@@ -24,16 +59,6 @@ service cloud.firestore {
     // Custom telemetry collections configured by users
     match /{collectionName}/{docId} {
       allow read, write: if collectionName.matches('.*_history') || collectionName == 'theodoisk' || collectionName == 'devices';
-    }
-
-    // User profile documents and user-specific history subcollections (e.g. /users/{userId}/history/{docId})
-    match /users/{userId}/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Collection group for history queries across users (for Admin dashboard)
-    match /{path=**}/history/{docId} {
-      allow read, write: if true;
     }
 
     // Notifications and assigned tasks

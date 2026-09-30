@@ -38,8 +38,7 @@ import {
   adminDeleteUser, 
   adminCreateUser, 
   saveCurrentUser,
-  isSystemAdmin,
-  enforceStrictRole
+  isUserAdmin
 } from '../services/authService';
 import {
   sendTaskNotificationToFirebase,
@@ -108,12 +107,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setIsLoading(true);
     try {
       const data = await fetchAllUsers();
-      const emailMap = new Map<string, AuthUser>();
-      data.forEach(u => {
-        const key = (u.email || u.username || u.id).trim().toLowerCase();
-        emailMap.set(key, enforceStrictRole(u));
-      });
-      setUsers(Array.from(emailMap.values()));
+      setUsers(data);
     } catch (err) {
       console.error('Lỗi tải danh sách người dùng:', err);
     } finally {
@@ -151,20 +145,25 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   });
 
   const handleToggleRole = async (user: AuthUser) => {
-    const isAdmin = isSystemAdmin(user.email, user.username);
-    if (isAdmin) {
-      setNotice(`Tài khoản ${user.fullName} là Quản Trị Viên hệ thống cố định.`);
+    const isCurrentlyAdmin = user.role === 'admin' || isUserAdmin(user);
+    if ((user.email || '').toLowerCase() === 'duantaiphuc@gmail.com') {
+      setNotice('Tài khoản duantaiphuc@gmail.com là Quản Trị Viên hệ thống.');
       setTimeout(() => setNotice(null), 3000);
       return;
     }
-    setNotice(`Chỉ duy nhất duantaiphuc@gmail.com và admin có quyền Quản trị viên. Các tài khoản khác là Nhân viên.`);
-    setTimeout(() => setNotice(null), 3500);
+    const newRole = isCurrentlyAdmin ? 'employee' : 'admin';
+    const updated: AuthUser = { ...user, role: newRole };
+    const ok = await adminUpdateUser(updated);
+    if (ok) {
+      setUsers(prev => prev.map(u => (u.id === user.id ? updated : u)));
+      setNotice(`Đã chuyển vai trò của ${user.fullName} thành: ${newRole === 'admin' ? 'Quản Trị Viên (Admin)' : 'Nhân Viên'}`);
+      setTimeout(() => setNotice(null), 3500);
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {
     if (userId === currentUser.id) {
-      setNotice('Không thể tự xóa tài khoản đang đăng nhập hiện tại!');
-      setTimeout(() => setNotice(null), 3000);
+      alert('Không thể tự xóa tài khoản đang đăng nhập hiện tại!');
       setConfirmDeleteId(null);
       return;
     }
@@ -334,7 +333,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-5 sm:px-6 pt-3 border-b border-slate-200 bg-white flex items-center gap-6 shrink-0 overflow-x-auto">
+        <div className="px-5 sm:px-6 pt-3 border-b border-slate-200 bg-white flex items-center gap-6 shrink-0">
           <button
             onClick={() => setActiveTab('accounts')}
             className={`pb-3 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
@@ -442,7 +441,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     <tbody className="divide-y divide-slate-100">
                       {filteredUsers.map(u => {
                         const isCurrent = u.id === currentUser.id || u.email === currentUser.email;
-                        const isAdmin = isSystemAdmin(u.email, u.username);
+                        const isAdmin = u.role === 'admin' || u.role === 'manager';
                         const hM = (u.height || 170) / 100;
                         const bmiVal = ((u.weight || 65) / (hM * hM)).toFixed(1);
 
@@ -477,18 +476,29 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               </div>
                             </td>
 
-                            {/* Role badge */}
+                            {/* Role display */}
                             <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                              <span
-                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${
-                                  isAdmin 
-                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs' 
-                                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
-                              >
-                                <Shield className={`w-3.5 h-3.5 ${isAdmin ? 'text-indigo-600' : 'text-slate-500'}`} />
-                                <span>{isAdmin ? 'Admin' : 'Nhân viên'}</span>
-                              </span>
+                              {isAdmin ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRole(u)}
+                                  title="Bấm để chuyển đổi vai trò người dùng"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs hover:bg-indigo-100 transition cursor-pointer active:scale-95"
+                                >
+                                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                                  <span>Admin</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRole(u)}
+                                  title="Bấm để nâng cấp thành Quản Trị Viên (Admin)"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 transition cursor-pointer active:scale-95"
+                                >
+                                  <User className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Nhân viên</span>
+                                </button>
+                              )}
                             </td>
 
                             {/* Age & Biometrics */}

@@ -54,10 +54,6 @@ export const TopNav: React.FC<TopNavProps> = ({
       title: 'Trang chủ',
       subtitle: 'Giám sát chỉ số sinh trắc học & tư thế thời gian thực'
     },
-    admin: {
-      title: 'Admin Dashboard',
-      subtitle: 'Tổng quan giám sát đa thiết bị IoT Raspberry Pi & nhân viên văn phòng'
-    },
     zone: {
       title: 'Chỉnh vùng quan sát',
       subtitle: 'Cấu hình tọa độ camera AI nhận diện tư thế người dùng'
@@ -69,6 +65,10 @@ export const TopNav: React.FC<TopNavProps> = ({
     tasks: {
       title: 'Giao việc & Nhiệm vụ',
       subtitle: 'Danh sách nhắc nhở và thông báo tác vụ hệ thống'
+    },
+    admin_overview: {
+      title: 'Danh mục quản trị',
+      subtitle: 'Giám sát tổng thể tài khoản & chỉ số sinh trắc học thời gian thực'
     }
   };
 

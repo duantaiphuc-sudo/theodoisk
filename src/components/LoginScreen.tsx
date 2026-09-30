@@ -623,44 +623,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </p>
               </div>
 
-              {/* 1-Click Fast Access Chips (Instant Login, Zero Domain Lock) */}
-              <div className="mt-3.5 p-2.5 rounded-xl bg-gradient-to-r from-sky-50/90 via-indigo-50/80 to-slate-50 border border-sky-200/90 shadow-2xs">
-                <div className="flex items-center justify-between text-[11px] font-bold text-sky-950 mb-1.5 px-0.5">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Đăng nhập nhanh 1-chạm (Bỏ qua lỗi tên miền):</span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLoginAs('admin')}
-                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
-                    title="Vào ngay với tài khoản Quản Trị Viên (admin / admin123)"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <span className="truncate">Admin</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLoginAs('tai')}
-                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
-                    title="Vào ngay với tài khoản Nhân viên Tài (tai / user123)"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="truncate">Tài (Nhân viên)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLoginAs('duantaiphuc')}
-                    className="py-1.5 px-2 rounded-lg bg-white hover:bg-sky-50 border border-sky-300 text-sky-900 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs group"
-                    title="Vào ngay với tài khoản Chủ Dự Án (duantaiphuc@gmail.com)"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-sky-500" />
-                    <span className="truncate">Phúc (Admin)</span>
-                  </button>
-                </div>
-              </div>
+
 
               {/* Method Selector Tabs */}
               <div className="mt-3 flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-600">
@@ -1104,27 +1067,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </div>
               )}
 
-              {/* Footer Note */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Tài khoản nhanh:</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLoginAs('admin')}
-                    className="font-mono font-bold text-slate-700 hover:text-sky-600 hover:underline cursor-pointer"
-                  >
-                    admin
-                  </button>
-                  <span>/</span>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLoginAs('user')}
-                    className="font-mono font-bold text-slate-700 hover:text-sky-600 hover:underline cursor-pointer"
-                  >
-                    user
-                  </button>
-                </div>
-              </div>
+
             </div>
           </div>
         )}

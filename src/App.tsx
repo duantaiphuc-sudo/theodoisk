@@ -255,6 +255,7 @@ export default function App() {
   const lastInZoneStatusRef = useRef<boolean>(true);
   const lastFirebaseHistorySaveRef = useRef<number>(0);
   const lastPostureStatusRef = useRef<number>(-1);
+  const lastPresenceSyncRef = useRef<{ timestamp: number; posture: string; hasAlert: boolean }>({ timestamp: 0, posture: '', hasAlert: false });
   const telemetryRef = useRef(telemetry);
   telemetryRef.current = telemetry;
   const thresholdsRef = useRef(thresholds);
@@ -473,7 +474,18 @@ export default function App() {
       ? '– Chờ kết nối'
       : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
-    if (activeUser && firebaseConfig.autoConnect) {
+    const nowTime = Date.now();
+    const timeSinceLastPresence = nowTime - lastPresenceSyncRef.current.timestamp;
+    const postureChangedForPresence = 
+      lastPresenceSyncRef.current.posture !== posture ||
+      lastPresenceSyncRef.current.hasAlert !== (Boolean(hasAlert));
+
+    if (activeUser && firebaseConfig.autoConnect && (postureChangedForPresence || timeSinceLastPresence > 30000)) {
+      lastPresenceSyncRef.current = {
+        timestamp: nowTime,
+        posture,
+        hasAlert: Boolean(hasAlert)
+      };
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
         isOnline: true,
         lastActive: new Date().toISOString(),
@@ -484,14 +496,13 @@ export default function App() {
         bpm: (isAbsent || !hasLiveSignal) ? 0 : data.bpm,
         spo2: (isAbsent || !hasLiveSignal) ? 0 : data.spo2,
         hasAlert: hasLiveSignal && !isAbsent && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
-        alertReason: hasLiveSignal && !isAbsent && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
+        alertReason: hasLiveSignal && !isAbsent && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
         device: firebaseConfig.documentId || (activeUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
       }).catch(() => {});
     }
 
     // Save to Firebase Firestore / RTDB history collection:
     // Frequent recording so all devices (PC, Mobile, Admin) share identical history logs
-    const nowTime = Date.now();
     const timeSinceLastRemote = nowTime - lastFirebaseHistorySaveRef.current;
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
     lastPostureStatusRef.current = data.postureStatus;
@@ -773,24 +784,39 @@ export default function App() {
         ? '– Chờ kết nối'
         : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
-      updateUserRealtimePresence(firebaseConfig, currentUser.id, {
-        isOnline: true,
-        lastActive: new Date().toISOString(),
-        currentPresence: presence,
-        currentPosture: posture,
-        currentPostureText: postureText,
-        sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
-        spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
-        hasAlert: hasLiveSignal && !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
-        alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : undefined,
-        device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
-      }).catch(() => {});
+      const hasAlertNow = Boolean(hasLiveSignal && !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))));
+
+      const nowTime = Date.now();
+      const timeSinceLastPresence = nowTime - lastPresenceSyncRef.current.timestamp;
+      const postureChanged = 
+        lastPresenceSyncRef.current.posture !== posture ||
+        lastPresenceSyncRef.current.hasAlert !== hasAlertNow;
+
+      if (postureChanged || timeSinceLastPresence >= 30000) {
+        lastPresenceSyncRef.current = {
+          timestamp: nowTime,
+          posture,
+          hasAlert: hasAlertNow
+        };
+        updateUserRealtimePresence(firebaseConfig, currentUser.id, {
+          isOnline: true,
+          lastActive: new Date().toISOString(),
+          currentPresence: presence,
+          currentPosture: posture,
+          currentPostureText: postureText,
+          sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
+          bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
+          spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
+          hasAlert: hasAlertNow,
+          alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
+          device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
+        }).catch(() => {});
+      }
     };
 
-    // Immediate sync on metric update or simulation toggle
+    // Periodic heartbeat check every 30 seconds
     syncPresence();
-    const interval = setInterval(syncPresence, 1200);
+    const interval = setInterval(syncPresence, 30000);
 
     return () => {
       clearInterval(interval);
@@ -944,7 +970,15 @@ export default function App() {
   };
 
   const handleDeleteSingleLog = async (logId: string) => {
-    setHistory(prev => prev.filter(item => item.id !== logId));
+    setHistory(prev => {
+      const updated = prev.filter(item => item.id !== logId);
+      if (currentUser) {
+        try {
+          localStorage.setItem(`theodoisk_history_${currentUser.id}`, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     try {
       await deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId, currentUser?.id);
       setClearNotice('Đã xóa bản ghi thành công khỏi thiết bị và Firebase Firestore.');
@@ -956,20 +990,44 @@ export default function App() {
     }
   };
 
-  const handleClearHistory = async () => {
+  const handleClearHistory = async (targetAccount?: string) => {
     setIsClearingFirebase(true);
-    setHistory([]);
+    const isClearingAll = !targetAccount || targetAccount === 'all';
+    const targetUserId = isClearingAll ? undefined : (targetAccount || currentUser?.id);
+
+    // 1. Update React state immediately
+    if (isClearingAll) {
+      setHistory([]);
+    } else if (targetUserId) {
+      setHistory(prev => prev.filter(item => item.userId && item.userId !== targetUserId));
+    }
+
+    // 2. Remove from localStorage cache
     try {
-      localStorage.removeItem('theodoisk_telemetry_history_v2');
-      localStorage.removeItem('theodoisk_historical_records_v1');
-    } catch {}
+      if (isClearingAll) {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('theodoisk_history_') || k.startsWith('theodoisk_historical_records') || k.startsWith('theodoisk_telemetry_history'))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      } else if (targetUserId) {
+        localStorage.removeItem(`theodoisk_history_${targetUserId}`);
+        localStorage.removeItem('theodoisk_telemetry_history_v2');
+      }
+    } catch (e) {
+      console.warn('Lỗi dọn dẹp localStorage:', e);
+    }
     clearLocalHistoricalRecords();
 
+    // 3. Delete from Firebase Firestore & Realtime Database
     try {
-      const res = await clearFirebaseHistory(firebaseConfig);
+      const res = await clearFirebaseHistory(firebaseConfig, targetUserId, isClearingAll);
       setClearNotice(`Đã xóa sạch hoàn toàn ${res.deletedCount} bản ghi lịch sử trên Firebase Firestore & thiết bị!`);
       setTimeout(() => setClearNotice(null), 4500);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Lỗi xóa lịch sử từ Firebase:', err);
       setClearNotice('Đã xóa lịch sử bộ nhớ trong máy.');
       setTimeout(() => setClearNotice(null), 4000);

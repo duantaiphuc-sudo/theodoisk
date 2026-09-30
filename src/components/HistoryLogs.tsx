@@ -23,7 +23,7 @@ import { getCurrentUser } from '../services/authService';
 interface HistoryLogsProps {
   history: TelemetryLog[];
   currentUser?: AuthUser | null;
-  onClearHistory?: () => void;
+  onClearHistory?: (targetAccount?: string) => void;
   onDeleteSingleLog?: (id: string) => void;
   onRefreshHistory?: () => void;
   onSaveSnapshot?: () => void;
@@ -201,7 +201,11 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
 
   const handleConfirmClear = () => {
     if (onClearHistory) {
-      onClearHistory();
+      if (isManager) {
+        onClearHistory(selectedAccountFilter);
+      } else {
+        onClearHistory(currentUser?.id || 'all');
+      }
     }
     setShowConfirmClear(false);
   };

@@ -6,6 +6,7 @@ import {
   collection, 
   collectionGroup,
   query, 
+  where,
   orderBy, 
   limit, 
   setDoc,
@@ -1013,7 +1014,11 @@ export function subscribeToFirebaseHistory(
  * (including theodoisk_history, devices_history, and configured history names).
  * Uses batched deletions with pagination loop to guarantee complete wipeout.
  */
-export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Promise<{ success: boolean; deletedCount: number }> {
+export async function clearFirebaseHistory(
+  config: FirebaseConnectionConfig,
+  userId?: string,
+  clearAllUsers?: boolean
+): Promise<{ success: boolean; deletedCount: number }> {
   const app = initializeFirebaseApp(config);
   const histColName = getHistoryCollectionName(config);
 
@@ -1031,8 +1036,22 @@ export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Pr
   if (config.useRealtimeDb && config.databaseURL) {
     try {
       const rtdb = getDatabase(app);
-      for (const col of targetCollections) {
-        await remove(ref(rtdb, col)).catch(() => {});
+      if (userId && !clearAllUsers) {
+        await remove(ref(rtdb, `users/${userId}/history`)).catch(() => {});
+      } else {
+        for (const col of targetCollections) {
+          await remove(ref(rtdb, col)).catch(() => {});
+        }
+        try {
+          const usersRef = ref(rtdb, 'users');
+          const usersSnap = await get(usersRef);
+          if (usersSnap.exists()) {
+            const val = usersSnap.val();
+            for (const uKey of Object.keys(val)) {
+              await remove(ref(rtdb, `users/${uKey}/history`)).catch(() => {});
+            }
+          }
+        } catch {}
       }
     } catch (e) {
       console.warn('Lỗi khi xóa RTDB history:', e);
@@ -1042,13 +1061,16 @@ export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Pr
   // 2. Delete all records from Firestore collections in safe chunks
   try {
     const db = getFirestore(app);
-    for (const col of targetCollections) {
+
+    // Case A: Clear specific user's private history
+    if (userId && !clearAllUsers) {
+      // 1. Wipe out /users/{userId}/history
+      const userHistColl = collection(db, 'users', userId, 'history');
       let keepDeleting = true;
       let loopCount = 0;
       while (keepDeleting && loopCount < 50) {
         loopCount++;
-        const q = query(collection(db, col), limit(350));
-        const snap = await getDocs(q);
+        const snap = await getDocs(query(userHistColl, limit(350)));
         if (snap.empty) {
           keepDeleting = false;
           break;
@@ -1064,6 +1086,79 @@ export async function clearFirebaseHistory(config: FirebaseConnectionConfig): Pr
         if (snap.docs.length < 350) {
           keepDeleting = false;
         }
+      }
+
+      // 2. Also wipe user's records in the root history collections
+      for (const col of targetCollections) {
+        try {
+          const q1 = query(collection(db, col), where('user_id', '==', userId), limit(350));
+          const snap1 = await getDocs(q1);
+          if (!snap1.empty) {
+            const batch = writeBatch(db);
+            snap1.docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            totalDeleted += snap1.docs.length;
+          }
+        } catch {}
+
+        try {
+          const q2 = query(collection(db, col), where('userId', '==', userId), limit(350));
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty) {
+            const batch = writeBatch(db);
+            snap2.docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            totalDeleted += snap2.docs.length;
+          }
+        } catch {}
+      }
+    } else {
+      // Case B: Clear all history across all users & collections
+      for (const col of targetCollections) {
+        let keepDeleting = true;
+        let loopCount = 0;
+        while (keepDeleting && loopCount < 50) {
+          loopCount++;
+          const q = query(collection(db, col), limit(350));
+          const snap = await getDocs(q);
+          if (snap.empty) {
+            keepDeleting = false;
+            break;
+          }
+
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => {
+            batch.delete(d.ref);
+          });
+          await batch.commit();
+          totalDeleted += snap.docs.length;
+
+          if (snap.docs.length < 350) {
+            keepDeleting = false;
+          }
+        }
+      }
+
+      // Also clean up subcollection /users/{uid}/history for all users
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        for (const uDoc of usersSnap.docs) {
+          const userHistColl = collection(db, 'users', uDoc.id, 'history');
+          let keepSubDeleting = true;
+          let subLoop = 0;
+          while (keepSubDeleting && subLoop < 20) {
+            subLoop++;
+            const snap = await getDocs(query(userHistColl, limit(350)));
+            if (snap.empty) break;
+            const batch = writeBatch(db);
+            snap.docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            totalDeleted += snap.docs.length;
+            if (snap.docs.length < 350) break;
+          }
+        }
+      } catch (errUsers) {
+        console.warn('Lỗi khi xóa subcollections users/*/history:', errUsers);
       }
     }
   } catch (err) {
@@ -1099,6 +1194,13 @@ export async function deleteSingleTelemetryLogFromFirebase(
     }
     if (userId) {
       await deleteDoc(doc(db, 'users', userId, 'history', logId)).catch(() => {});
+    } else {
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        for (const uDoc of usersSnap.docs) {
+          await deleteDoc(doc(db, 'users', uDoc.id, 'history', logId)).catch(() => {});
+        }
+      } catch {}
     }
 
     // 2. Realtime Database deletion
@@ -1405,8 +1507,17 @@ export async function updateUserRealtimePresence(
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
     const userRef = doc(db, 'users', userId);
+    
+    // Firestore throws error if any field is undefined. Strip all undefined keys.
+    const cleanPresence: Record<string, any> = {};
+    for (const [key, val] of Object.entries(presenceData)) {
+      if (val !== undefined) {
+        cleanPresence[key] = val;
+      }
+    }
+
     await setDoc(userRef, {
-      ...presenceData,
+      ...cleanPresence,
       lastActive: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }, { merge: true });
