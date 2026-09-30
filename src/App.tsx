@@ -255,7 +255,6 @@ export default function App() {
   const lastInZoneStatusRef = useRef<boolean>(true);
   const lastFirebaseHistorySaveRef = useRef<number>(0);
   const lastPostureStatusRef = useRef<number>(-1);
-  const lastPresenceSyncRef = useRef<{ timestamp: number; posture: string; hasAlert: boolean }>({ timestamp: 0, posture: '', hasAlert: false });
   const telemetryRef = useRef(telemetry);
   telemetryRef.current = telemetry;
   const thresholdsRef = useRef(thresholds);
@@ -474,18 +473,7 @@ export default function App() {
       ? '– Chờ kết nối'
       : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
-    const nowTime = Date.now();
-    const timeSinceLastPresence = nowTime - lastPresenceSyncRef.current.timestamp;
-    const postureChangedForPresence = 
-      lastPresenceSyncRef.current.posture !== posture ||
-      lastPresenceSyncRef.current.hasAlert !== (Boolean(hasAlert));
-
-    if (activeUser && firebaseConfig.autoConnect && (postureChangedForPresence || timeSinceLastPresence > 30000)) {
-      lastPresenceSyncRef.current = {
-        timestamp: nowTime,
-        posture,
-        hasAlert: Boolean(hasAlert)
-      };
+    if (activeUser && firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
         isOnline: true,
         lastActive: new Date().toISOString(),
@@ -503,6 +491,7 @@ export default function App() {
 
     // Save to Firebase Firestore / RTDB history collection:
     // Frequent recording so all devices (PC, Mobile, Admin) share identical history logs
+    const nowTime = Date.now();
     const timeSinceLastRemote = nowTime - lastFirebaseHistorySaveRef.current;
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
     lastPostureStatusRef.current = data.postureStatus;
@@ -784,39 +773,24 @@ export default function App() {
         ? '– Chờ kết nối'
         : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
-      const hasAlertNow = Boolean(hasLiveSignal && !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))));
-
-      const nowTime = Date.now();
-      const timeSinceLastPresence = nowTime - lastPresenceSyncRef.current.timestamp;
-      const postureChanged = 
-        lastPresenceSyncRef.current.posture !== posture ||
-        lastPresenceSyncRef.current.hasAlert !== hasAlertNow;
-
-      if (postureChanged || timeSinceLastPresence >= 30000) {
-        lastPresenceSyncRef.current = {
-          timestamp: nowTime,
-          posture,
-          hasAlert: hasAlertNow
-        };
-        updateUserRealtimePresence(firebaseConfig, currentUser.id, {
-          isOnline: true,
-          lastActive: new Date().toISOString(),
-          currentPresence: presence,
-          currentPosture: posture,
-          currentPostureText: postureText,
-          sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-          bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
-          spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
-          hasAlert: hasAlertNow,
-          alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
-          device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
-        }).catch(() => {});
-      }
+      updateUserRealtimePresence(firebaseConfig, currentUser.id, {
+        isOnline: true,
+        lastActive: new Date().toISOString(),
+        currentPresence: presence,
+        currentPosture: posture,
+        currentPostureText: postureText,
+        sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
+        bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
+        spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
+        hasAlert: hasLiveSignal && !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
+        alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
+        device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
+      }).catch(() => {});
     };
 
-    // Periodic heartbeat check every 30 seconds
+    // Immediate sync on metric update or simulation toggle
     syncPresence();
-    const interval = setInterval(syncPresence, 30000);
+    const interval = setInterval(syncPresence, 1200);
 
     return () => {
       clearInterval(interval);
@@ -1121,15 +1095,17 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 0: ADMIN DASHBOARD (Tổng Quan Nhân Viên & IoT Nodes theo Ảnh 2) */}
-          {mainNavTab === 'admin' && isManager && (
+          {/* TAB 0: ADMIN DASHBOARD (Tổng Quan Nhân Viên & IoT Nodes) */}
+          {(mainNavTab === 'admin_overview' || (mainNavTab as string) === 'admin') && isManager && currentUser && (
             <AdminDashboard
               currentUser={currentUser}
-              onOpenUserManagement={() => setIsUserManagementOpen(true)}
-              onOpenTaskModal={() => setMainNavTab('tasks')}
-              liveTelemetry={telemetry}
-              timeStats={timeStats}
-              historyLogs={history}
+              firebaseConfig={firebaseConfig}
+              onOpenUserManagementModal={() => setIsUserManagementOpen(true)}
+              onOpenTaskModalWithUser={(_user) => setMainNavTab('tasks')}
+              onSwitchUser={(user) => setCurrentUser(user)}
+              onWipeAllData={async () => {
+                await handleClearHistory('all');
+              }}
             />
           )}
 
