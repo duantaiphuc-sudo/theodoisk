@@ -47,6 +47,7 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
 import { HealthChatbot } from './components/HealthChatbot';
 import { AdminDashboard } from './components/AdminDashboard';
+import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
 import { 
   Sparkles, 
   AlertTriangle, 
@@ -75,6 +76,7 @@ export default function App() {
   const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConnectionConfig>(getSavedFirebaseConfig());
   const [isConnected, setIsConnected] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simPostureMode, setSimPostureMode] = useState<SimPostureScenario>('auto');
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   const handleLoginSuccess = (user: AuthUser) => {
@@ -699,53 +701,24 @@ export default function App() {
     setIsConnected(true);
     let step = 0;
 
+    // Immediately emit initial sample so user doesn't wait 2 seconds for feedback
+    const initialSim = generateSimulatedTelemetry(0, simPostureMode);
+    handleIncomingTelemetry({
+      ...initialSim,
+      timestamp: new Date().toISOString(),
+    });
+
     const simInterval = setInterval(() => {
       step++;
-      // Natural jitter for heart rate & spo2
-      const jitterBpm = Math.round(74 + Math.sin(step * 0.3) * 6 + (Math.random() - 0.5) * 3);
-      const jitterSpO2 = Number((98.2 + Math.cos(step * 0.2) * 0.8 + (Math.random() - 0.5) * 0.3).toFixed(1));
-
-      // Posture cycle:
-      // 0 - 14: Tư thế ĐÚNG (inZone = true)
-      // 15 - 21: Tư thế SAI (inZone = true) -> Kích hoạt nhắc nhở: "Xin hãy ngồi thẳng lưng lên!"
-      // 22 - 27: NGOÀI VÙNG QUAN SÁT (inZone = false) -> Kích hoạt nhắc nhở: "Bạn đang ngồi ngoài vùng quan sát..."
-      let simPosture = 0;
-      let label = 'Tư thế ĐÚNG';
-      let angle = 158;
-      let inZone = true;
-      let warning: string | undefined = undefined;
-
-      const cycle = step % 28;
-      if (cycle >= 14 && cycle < 21) {
-        simPosture = 1;
-        label = 'Tư thế SAI (Cúi gù)';
-        angle = 125;
-        warning = 'Cột sống đang bị gù hoặc cúi cổ';
-      } else if (cycle >= 21) {
-        simPosture = 2;
-        label = 'NGOÀI VÙNG QUAN SÁT';
-        inZone = false;
-        angle = 0;
-        warning = 'Người ngồi lệch ngoài vùng quan sát của Camera';
-      }
-
+      const simData = generateSimulatedTelemetry(step, simPostureMode);
       handleIncomingTelemetry({
-        bpm: jitterBpm,
-        spo2: jitterSpO2,
-        postureStatus: simPosture,
-        postureLabel: label,
-        trackingActive: simPosture !== 2,
-        inZone: inZone,
+        ...simData,
         timestamp: new Date().toISOString(),
-        source: 'Raspberry Pi 4 (Giả Lập)',
-        confidence: inZone ? 97 : 12,
-        angleNeck: angle,
-        postureWarning: warning,
       });
     }, 2000);
 
     return () => clearInterval(simInterval);
-  }, [isSimulating, handleIncomingTelemetry]);
+  }, [isSimulating, simPostureMode, handleIncomingTelemetry]);
 
   // Broadcast active user's realtime presence & telemetry to Firestore so Admin Dashboard sees them live immediately
   useEffect(() => {
@@ -766,7 +739,7 @@ export default function App() {
       const isAbsent = hasLiveSignal && (telemetry.postureStatus === 2 || isOutOfZone);
       const isBad = hasLiveSignal && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
-      const presence: 'Present' | 'Away' = 'Present'; // Active logged-in user is Present (Đang hoạt động)
+      const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
       const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
         ? 'waiting'
         : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
@@ -780,12 +753,27 @@ export default function App() {
         currentPresence: presence,
         currentPosture: posture,
         currentPostureText: postureText,
+        posture_status: telemetry.postureStatus,
+        postureStatus: telemetry.postureStatus,
+        posture_label: telemetry.postureLabel,
+        postureLabel: telemetry.postureLabel,
+        in_zone: telemetry.inZone,
+        inZone: telemetry.inZone,
+        tracking_active: telemetry.trackingActive,
+        trackingActive: telemetry.trackingActive,
+        posture_warning: telemetry.postureWarning || '',
+        postureWarning: telemetry.postureWarning || '',
+        angle_neck: telemetry.angleNeck || 0,
+        angleNeck: telemetry.angleNeck || 0,
+        isSimulating: isSimulating,
+        is_simulating: isSimulating,
         sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
         bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
         spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
-        hasAlert: hasLiveSignal && !isAbsent && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
-        alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
-        device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2')
+        hasAlert: hasLiveSignal && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
+        alertReason: hasLiveSignal && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
+        device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2'),
+        timestamp: new Date().toISOString()
       }).catch(() => {});
     };
 
@@ -1191,19 +1179,87 @@ export default function App() {
 
               {/* Notification bar if simulation is active */}
               {isSimulating && (
-                <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
-                    <span>
-                      <b>Chế độ mô phỏng đang bật:</b> Đang tạo dữ liệu nhịp tim và tư thế tự động để bạn kiểm thử toàn bộ giao diện và âm thanh cảnh báo.
-                    </span>
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-amber-900 shadow-xs space-y-2.5">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                      <span className="text-xs sm:text-sm font-semibold text-slate-800">
+                        <b>Chế độ giả lập Pi 4 đang bật:</b> Thử nghiệm các trạng thái tư thế và cảm biến đo đạc.
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setIsSimulating(false)}
+                      className="px-3 py-1 rounded-xl text-xs font-bold text-amber-900 bg-white hover:bg-amber-100 border border-amber-300 shadow-2xs transition cursor-pointer self-end sm:self-auto"
+                    >
+                      Dừng giả lập
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setIsSimulating(false)}
-                    className="underline font-semibold hover:text-amber-950 ml-2 cursor-pointer"
-                  >
-                    Dừng giả lập
-                  </button>
+
+                  {/* Posture Scenario Switcher */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-amber-200/70 text-xs">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mr-1">
+                      Kịch bản kiểm thử:
+                    </span>
+                    <button
+                      onClick={() => setSimPostureMode('auto')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        simPostureMode === 'auto'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'
+                      }`}
+                      title="Tự động luân phiên: Đúng (12s) -> Sai (12s) -> Không có người (12s)"
+                    >
+                      🔄 Vòng lặp tự động (Đúng ⇄ Sai ⇄ Vắng)
+                    </button>
+
+                    <button
+                      onClick={() => setSimPostureMode('correct')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        simPostureMode === 'correct'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
+                      }`}
+                      title="Giả lập tư thế ngồi chuẩn thẳng lưng, nhịp tim và SpO2 ổn định"
+                    >
+                      ✓ Tư thế Đúng
+                    </button>
+
+                    <button
+                      onClick={() => setSimPostureMode('incorrect')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        simPostureMode === 'incorrect'
+                          ? 'bg-rose-600 text-white shadow-2xs'
+                          : 'bg-white text-rose-800 hover:bg-rose-50 border border-rose-200'
+                      }`}
+                      title="Giả lập tư thế ngồi gù lưng, cúi đầu kích hoạt cảnh báo giọng nói"
+                    >
+                      ⚠ Tư thế Sai (Cúi gù)
+                    </button>
+
+                    <button
+                      onClick={() => setSimPostureMode('absent')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        simPostureMode === 'absent'
+                          ? 'bg-slate-700 text-white shadow-2xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                      }`}
+                      title="Giả lập không có người tại bàn làm việc (Rời khỏi ghế, nhịp tim 0, SpO2 0)"
+                    >
+                      🚫 Không có người (Vắng mặt)
+                    </button>
+
+                    <button
+                      onClick={() => setSimPostureMode('long_incorrect')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        simPostureMode === 'long_incorrect'
+                          ? 'bg-rose-800 text-white shadow-2xs'
+                          : 'bg-white text-rose-900 hover:bg-rose-50 border border-rose-300'
+                      }`}
+                      title="Giả lập ngồi sai tư thế kéo dài quá ngưỡng cho phép"
+                    >
+                      🚨 Sai tư thế lâu
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1494,6 +1550,8 @@ export default function App() {
               <AdminDashboard
                 currentUser={currentUser}
                 firebaseConfig={firebaseConfig}
+                currentTelemetry={telemetry}
+                isSimulating={isSimulating}
                 onOpenUserManagementModal={() => setIsUserManagementOpen(true)}
                 onOpenTaskModalWithUser={(_user) => {
                   setIsUserManagementOpen(true);

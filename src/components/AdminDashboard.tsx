@@ -46,6 +46,8 @@ import {
 interface AdminDashboardProps {
   currentUser: AuthUser;
   firebaseConfig: FirebaseConnectionConfig;
+  currentTelemetry?: HealthTelemetry;
+  isSimulating?: boolean;
   onOpenUserManagementModal: () => void;
   onOpenTaskModalWithUser?: (user: AuthUser) => void;
   onSwitchUser?: (user: AuthUser) => void;
@@ -55,6 +57,8 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
   firebaseConfig,
+  currentTelemetry,
+  isSimulating,
   onOpenUserManagementModal,
   onOpenTaskModalWithUser,
   onSwitchUser,
@@ -140,13 +144,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const totalUsersCount = users.length;
 
   const usersWithTelemetry = users.map(u => {
-    const live = telemetryMap[u.id];
+    // Check if this card represents the current logged-in user in this session
+    const isCurrentActiveUser = currentUser && (
+      u.id === currentUser.id ||
+      (u.email && currentUser.email && u.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+    );
+
+    // Prioritize active session telemetry for currentUser, then Firestore real-time map
+    const remoteLive = telemetryMap[u.id] || (u.email ? telemetryMap[u.email.toLowerCase().trim()] : undefined);
+    const live = (isCurrentActiveUser && currentTelemetry) ? currentTelemetry : remoteLive;
+
     let isOnline = false;
     let isRecent = false;
-    if (live && live.timestamp) {
+
+    if (isCurrentActiveUser) {
+      isOnline = true;
+      isRecent = true;
+    } else if (live && live.timestamp) {
       const packetAge = Math.floor((now - new Date(live.timestamp).getTime()) / 1000);
-      isRecent = !isNaN(packetAge) && packetAge < 60;
-      isOnline = isRecent && (Boolean(live.isSimulating) || (Boolean(live.trackingActive) && Number(live.bpm) > 0));
+      isRecent = !isNaN(packetAge) && packetAge < 90;
+      isOnline = isRecent && (Boolean(live.isSimulating) || Boolean(live.trackingActive) || Number(live.bpm) > 0 || (live.postureStatus !== undefined && live.postureStatus >= 0));
+    } else if (u.isOnline) {
+      isOnline = true;
+      isRecent = true;
     }
 
     const hasAlert = isOnline && Boolean(live?.hasAlert || (live && (live.postureStatus === 1 || live.postureStatus === 3)));
@@ -385,7 +405,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           const spo2 = isOnline ? (live?.spo2 ?? 0) : 0;
           const postureStatus = isOnline ? (live?.postureStatus ?? -1) : -1;
           const postureLabel = isOnline ? (live?.postureLabel || 'Chưa có dữ liệu') : 'Chưa có dữ liệu';
-          const isSimulating = isOnline ? Boolean(live?.isSimulating) : false;
+          const isUserSimulating = isOnline ? Boolean(live?.isSimulating || (currentUser && (user.id === currentUser.id || (user.email && currentUser.email && user.email.toLowerCase() === currentUser.email.toLowerCase())) && isSimulating)) : false;
 
           let postureColor = 'bg-slate-100 text-slate-600 border-slate-200';
           if (postureStatus === 0) postureColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -431,7 +451,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* Status indicator pill */}
                 <div className="shrink-0 flex flex-col items-end gap-1">
-                  {isSimulating ? (
+                  {isUserSimulating ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                       <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
                       Mô phỏng

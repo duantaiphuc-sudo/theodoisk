@@ -12,6 +12,8 @@ export interface HealthTelemetry {
   confidence?: number;
   angleNeck?: number;
   postureWarning?: string;
+  hasAlert?: boolean;
+  isSimulating?: boolean;
   isStale?: boolean;
   packetAgeSeconds?: number;
   image?: string; // Base64 data URL or HTTP image URL from Pi Camera / Firebase

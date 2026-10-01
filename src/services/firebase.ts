@@ -200,7 +200,16 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
   // Posture status normalization
   // -1: Chưa có dữ liệu, 0: Đúng, 1: Sai, 2: Vắng, 3: Sai lâu, 4: Ngồi lâu
   let postureStatus = 0;
-  const rawStatusVal = raw.posture_status ?? raw.postureStatus ?? raw.posture ?? raw.status ?? raw.Status ?? raw.raw_pred ?? raw.pred;
+  const rawStatusVal = 
+    raw.posture_status ?? 
+    raw.postureStatus ?? 
+    raw.currentPosture ?? 
+    raw.current_posture ?? 
+    raw.posture ?? 
+    raw.status ?? 
+    raw.Status ?? 
+    raw.raw_pred ?? 
+    raw.pred;
 
   if (rawStatusVal === -1 || rawStatusVal === '-1') {
     postureStatus = -1;
@@ -215,7 +224,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
         postureStatus = 4;
       } else if (p.includes('sai') || p.includes('bad') || p.includes('incorrect') || p.includes('cui') || p.includes('gu') || p === '1') {
         postureStatus = 1;
-      } else if (p.includes('vắng') || p.includes('vang') || p.includes('absent') || p === '2') {
+      } else if (p.includes('vắng') || p.includes('vang') || p.includes('absent') || p.includes('away') || p === '2') {
         postureStatus = 2;
       } else if (p.includes('dung') || p.includes('đúng') || p.includes('correct') || p.includes('good') || p.includes('normal') || p === '0') {
         postureStatus = 0;
@@ -231,8 +240,8 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
   const postureLabels: Record<number, string> = {
     [-1]: 'Chưa có dữ liệu',
     0: 'Tư thế ĐÚNG',
-    1: 'Tư thế SAI',
-    2: 'VẮNG MẶT',
+    1: 'Tư thế SAI (Cúi gù)',
+    2: 'VẮNG MẶT (Không có người)',
     3: 'SAI TƯ THẾ LÂU',
     4: 'NGỒI LÀM VIỆC QUÁ LÂU',
   };
@@ -303,18 +312,27 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     }
   }
 
+  const resolvedLabel = 
+    raw.posture_label || 
+    raw.postureLabel || 
+    raw.currentPostureText || 
+    postureLabels[postureStatus] || 
+    (typeof raw.posture_status === 'string' ? raw.posture_status : 'Tư thế ĐÚNG');
+
   return {
     bpm: Math.round(bpm),
     spo2: Number(spo2.toFixed(1)),
     postureStatus,
-    postureLabel: postureLabels[postureStatus] || (typeof raw.posture_status === 'string' ? raw.posture_status : 'Tư thế ĐÚNG'),
+    postureLabel: resolvedLabel,
     trackingActive,
     inZone,
     timestamp: timestampStr,
     source: sourceName,
     confidence: raw.confidence ? Number(raw.confidence) : 95,
     angleNeck: raw.angle_neck !== undefined ? Number(raw.angle_neck) : undefined,
-    postureWarning: raw.posture_warning ? String(raw.posture_warning) : undefined,
+    postureWarning: raw.posture_warning || raw.postureWarning || (postureStatus === 1 ? 'Cột sống đang bị gù hoặc cúi cổ' : undefined),
+    hasAlert: Boolean(raw.hasAlert || raw.has_alert || postureStatus === 1 || postureStatus === 3),
+    isSimulating: Boolean(raw.isSimulating || raw.is_simulating),
     isStale,
     packetAgeSeconds,
     image,
@@ -1501,7 +1519,7 @@ export function subscribeToUsers(
 export async function updateUserRealtimePresence(
   config: FirebaseConnectionConfig,
   userId: string,
-  presenceData: Partial<AuthUser>
+  presenceData: Partial<AuthUser> & Record<string, any>
 ): Promise<void> {
   try {
     const app = initializeFirebaseApp(config);
@@ -1541,7 +1559,11 @@ export function subscribeToAllUsersTelemetry(
       const map: Record<string, HealthTelemetry> = {};
       snap.forEach((d) => {
         const data = d.data();
-        map[d.id] = normalizeTelemetry(data, data.device || `Tài khoản ${d.id}`);
+        const norm = normalizeTelemetry(data, data.device || `Tài khoản ${d.id}`);
+        map[d.id] = norm;
+        if (data.id) map[data.id] = norm;
+        if (data.userId) map[data.userId] = norm;
+        if (data.email) map[data.email.toLowerCase().trim()] = norm;
       });
       callback(map);
     }, (err) => {
