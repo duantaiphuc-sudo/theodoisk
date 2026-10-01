@@ -152,6 +152,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
 
       if (filterPosture === 'all') return true;
       if (filterPosture === 'good') return item.postureStatus === 0;
+      if (filterPosture === 'standing') return item.postureStatus === 5;
       if (filterPosture === 'bad') return item.postureStatus === 1 || item.postureStatus === 3;
       if (filterPosture === 'absent') return item.postureStatus === 2;
       return true;
@@ -192,9 +193,21 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
 
   const handleExportPDF = () => {
     if (userFilteredHistory.length === 0) return;
-    const user = getCurrentUser();
+    let targetUser = currentUser || getCurrentUser();
+    if (selectedAccountFilter !== 'all') {
+      const found = distinctAccounts.find(a => a.id === selectedAccountFilter);
+      if (found) {
+        targetUser = {
+          id: found.id,
+          username: found.name,
+          fullName: found.name,
+          email: found.email,
+          role: 'employee',
+        };
+      }
+    }
     exportHealthReportToPDF({
-      currentUser: user,
+      currentUser: targetUser,
       historyLogs: userFilteredHistory,
     });
   };
@@ -451,6 +464,16 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             Tư thế Đúng
           </button>
           <button
+            onClick={() => setFilterPosture('standing')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+              filterPosture === 'standing' 
+                ? 'bg-indigo-600 text-white shadow-2xs' 
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+            }`}
+          >
+            Tư thế Đứng
+          </button>
+          <button
             onClick={() => setFilterPosture('bad')}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'bad' 
@@ -501,6 +524,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                   {filteredLogs.map(item => {
                     let postureBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
                     if (item.postureStatus === 0) postureBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                    else if (item.postureStatus === 5) postureBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
                     else if (item.postureStatus === 1 || item.postureStatus === 3) postureBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
                     else if (item.postureStatus === 4) postureBadgeClass = 'bg-amber-50 text-amber-800 border-amber-200';
 
@@ -601,6 +625,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
               {filteredLogs.map(item => {
                 let postureBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
                 if (item.postureStatus === 0) postureBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                else if (item.postureStatus === 5) postureBadgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-300';
                 else if (item.postureStatus === 1 || item.postureStatus === 3) postureBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300';
                 else if (item.postureStatus === 4) postureBadgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
 

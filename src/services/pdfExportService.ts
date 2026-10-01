@@ -45,6 +45,7 @@ export function exportHealthReportToPDF(data: PDFExportData): void {
   let avgBpm = data.summary?.avgBpm || 0;
   let avgSpo2 = data.summary?.avgSpo2 || 0;
   let correctCount = 0;
+  let standingCount = 0;
   let alertCount = 0;
 
   if (logs.length > 0) {
@@ -59,17 +60,23 @@ export function exportHealthReportToPDF(data: PDFExportData): void {
       avgSpo2 = Number((sumSpo2 / validSpo2Logs.length).toFixed(1));
     }
     correctCount = logs.filter(l => l.postureStatus === 0).length;
+    standingCount = logs.filter(l => l.postureStatus === 5).length;
     alertCount = logs.filter(l => l.postureStatus === 1 || l.postureStatus === 3 || l.postureStatus === 4).length;
   } else {
     avgBpm = 0;
     avgSpo2 = 0;
     correctCount = 0;
+    standingCount = 0;
     alertCount = 0;
   }
 
-  const postureRate = logs.length > 0 ? Math.round((correctCount / logs.length) * 100) : 0;
-  const adminName = data.currentUser?.fullName || 'Đoàn Tài Phúc (Admin)';
-  const adminEmail = data.currentUser?.email || 'duantaiphuc@gmail.com';
+  const activePostureCount = correctCount + standingCount;
+  const postureRate = logs.length > 0 ? Math.round((activePostureCount / logs.length) * 100) : 100;
+  const targetUser = data.currentUser;
+  const accountName = targetUser?.fullName || targetUser?.username || 'Nhan vien theo doi';
+  const accountEmail = targetUser?.email || 'user@healthiot.local';
+  const accountDept = targetUser?.department || 'Bo phan lam viec van phong';
+  const accountRole = targetUser?.role === 'admin' ? 'Quan tri vien (Admin)' : (targetUser?.role === 'manager' ? 'Quan ly (Manager)' : 'Nhan vien (Employee)');
 
   // --- 1. HEADER BRANDING ---
   // Blue decorative top bar
@@ -102,20 +109,19 @@ export function exportHealthReportToPDF(data: PDFExportData): void {
   doc.text(`${dateStr} luc ${timeStr}`, 58, 37);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('NGUOI LAP BAO CAO:', 16, 43);
+  doc.text('HO SO TAI KHOAN:', 16, 43);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${cleanAsciiText(adminName)} (${adminEmail})`, 58, 43);
+  doc.text(`${cleanAsciiText(accountName)} - ${cleanAsciiText(accountRole)}`, 58, 43);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('HE THONG THIET BI:', 115, 37);
+  doc.text('EMAIL & PHONG BAN:', 115, 37);
   doc.setFont('helvetica', 'normal');
-  const nodeCount = data.nodes && data.nodes.length > 0 ? data.nodes.length : 1;
-  doc.text(`${nodeCount} Node(s) Raspberry Pi 4 (Camera AI + MAX30102)`, 152, 37);
+  doc.text(`${cleanAsciiText(accountEmail)} | ${cleanAsciiText(accountDept)}`, 155, 37);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('CO SO DU LIEU:', 115, 43);
+  doc.text('THIET BI & CLOUD:', 115, 43);
   doc.setFont('helvetica', 'normal');
-  doc.text('Cloud Firestore (ai-studio-theodoisk)', 152, 43);
+  doc.text('Raspberry Pi 4 • Firebase Firestore', 155, 43);
 
   // --- 3. EXECUTIVE KPI CARDS ---
   // Background container
@@ -310,7 +316,7 @@ export function exportHealthReportToPDF(data: PDFExportData): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(cleanAsciiText(adminName), 35, currentY + 16, { align: 'center' });
+  doc.text(cleanAsciiText(accountName), 35, currentY + 16, { align: 'center' });
   doc.text('HE THONG IOT HEALTHOFFICE', 160, currentY + 16, { align: 'center' });
 
   // Page numbering footer

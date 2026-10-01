@@ -20,8 +20,17 @@ describe('generateSimulatedTelemetry', () => {
     expect(res.postureWarning).toBeDefined();
   });
 
-  it('generates absent / no person for steps 12-17 in auto mode with 0 bpm and out of zone', () => {
+  it('generates standing posture for steps 12-17 in auto mode', () => {
     const res = generateSimulatedTelemetry(12, 'auto');
+    expect(res.postureStatus).toBe(5);
+    expect(res.postureLabel).toContain('ĐỨNG');
+    expect(res.inZone).toBe(true);
+    expect(res.trackingActive).toBe(true);
+    expect(res.bpm).toBeGreaterThan(60);
+  });
+
+  it('generates absent / no person for steps 18-23 in auto mode with 0 bpm and out of zone', () => {
+    const res = generateSimulatedTelemetry(18, 'auto');
     expect(res.postureStatus).toBe(2);
     expect(res.postureLabel).toContain('VẮNG MẶT');
     expect(res.inZone).toBe(false);
@@ -33,6 +42,10 @@ describe('generateSimulatedTelemetry', () => {
   it('supports explicit scenario selection for instant testing', () => {
     const correct = generateSimulatedTelemetry(10, 'correct');
     expect(correct.postureStatus).toBe(0);
+
+    const standing = generateSimulatedTelemetry(0, 'standing');
+    expect(standing.postureStatus).toBe(5);
+    expect(standing.postureLabel).toContain('ĐỨNG');
 
     const incorrect = generateSimulatedTelemetry(0, 'incorrect');
     expect(incorrect.postureStatus).toBe(1);

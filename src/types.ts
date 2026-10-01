@@ -1,9 +1,9 @@
-export type PostureType = 'correct' | 'incorrect' | 'long_incorrect' | 'long_sitting' | 'absent';
+export type PostureType = 'correct' | 'incorrect' | 'long_incorrect' | 'long_sitting' | 'absent' | 'standing';
 
 export interface HealthTelemetry {
   bpm: number;
   spo2: number;
-  postureStatus: number; // 0: Đúng, 1: Sai, 2: Vắng, 3: Sai lâu, 4: Ngồi lâu
+  postureStatus: number; // -1: Chưa có dữ liệu, 0: Đúng, 1: Sai, 2: Vắng, 3: Sai lâu, 4: Ngồi lâu, 5: Đứng
   postureLabel: string;
   trackingActive: boolean;
   inZone: boolean;

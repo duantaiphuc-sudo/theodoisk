@@ -3,7 +3,7 @@
  * Generates realistic biometrics, posture states, and presence.
  */
 
-export type SimPostureScenario = 'auto' | 'correct' | 'incorrect' | 'absent' | 'long_incorrect';
+export type SimPostureScenario = 'auto' | 'correct' | 'incorrect' | 'absent' | 'long_incorrect' | 'standing';
 
 export interface SimTelemetryStep {
   bpm: number;
@@ -22,20 +22,40 @@ export function generateSimulatedTelemetry(
   step: number,
   mode: SimPostureScenario = 'auto'
 ): SimTelemetryStep {
-  // If mode is auto, cycle through the 3 key states in 6-step blocks (12 seconds each, total 36s cycle)
+  // If mode is auto, cycle through the 4 key states in 6-step blocks (12 seconds each, total 48s cycle)
   // block 0 (steps 0..5): correct posture (ĐÚNG)
   // block 1 (steps 6..11): incorrect posture (SAI)
-  // block 2 (steps 12..17): absent / no person (KHÔNG CÓ NGƯỜI / VẮNG MẶT)
+  // block 2 (steps 12..17): standing posture (ĐỨNG)
+  // block 3 (steps 18..23): absent / no person (KHÔNG CÓ NGƯỜI / VẮNG MẶT)
   let activeScenario = mode;
   if (mode === 'auto') {
-    const cycle = step % 18;
+    const cycle = step % 24;
     if (cycle < 6) {
       activeScenario = 'correct';
     } else if (cycle < 12) {
       activeScenario = 'incorrect';
+    } else if (cycle < 18) {
+      activeScenario = 'standing';
     } else {
       activeScenario = 'absent';
     }
+  }
+
+  if (activeScenario === 'standing') {
+    const jitterBpm = Math.round(82 + Math.sin(step * 0.3) * 4);
+    const jitterSpO2 = Number((98.5 + Math.cos(step * 0.2) * 0.5).toFixed(1));
+    return {
+      bpm: jitterBpm,
+      spo2: jitterSpO2,
+      postureStatus: 5,
+      postureLabel: 'Tư thế ĐỨNG (Làm việc)',
+      trackingActive: true,
+      inZone: true,
+      angleNeck: 168 + Math.round(Math.cos(step) * 2),
+      postureWarning: undefined,
+      source: 'Raspberry Pi 4 (Giả Lập - Đứng)',
+      confidence: 99,
+    };
   }
 
   if (activeScenario === 'absent') {

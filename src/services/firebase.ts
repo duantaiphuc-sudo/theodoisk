@@ -226,6 +226,8 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
         postureStatus = 1;
       } else if (p.includes('vắng') || p.includes('vang') || p.includes('absent') || p.includes('away') || p === '2') {
         postureStatus = 2;
+      } else if (p.includes('đứng') || p.includes('dung_day') || p.includes('stand') || p.includes('standing') || p === '5') {
+        postureStatus = 5;
       } else if (p.includes('dung') || p.includes('đúng') || p.includes('correct') || p.includes('good') || p.includes('normal') || p === '0') {
         postureStatus = 0;
       } else {
@@ -237,6 +239,13 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     }
   }
 
+  // Check if raw label or status from Python specifically indicates standing
+  const rawLabelStr = String(raw.posture_label || raw.postureLabel || raw.label || '').toLowerCase();
+  const rawStatusName = String(raw.status || raw.Status || '').toUpperCase();
+  if (rawStatusName === 'STAND' || rawLabelStr.includes('đứng') || rawLabelStr.includes('dung /') || rawLabelStr.includes('stand')) {
+    postureStatus = 5;
+  }
+
   const postureLabels: Record<number, string> = {
     [-1]: 'Chưa có dữ liệu',
     0: 'Tư thế ĐÚNG',
@@ -244,6 +253,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     2: 'VẮNG MẶT (Không có người)',
     3: 'SAI TƯ THẾ LÂU',
     4: 'NGỒI LÀM VIỆC QUÁ LÂU',
+    5: 'Tư thế ĐỨNG (Làm việc)',
   };
 
   // Check if camera reported in_zone
@@ -262,7 +272,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     postureStatus = 2; // 2: VẮNG MẶT
   }
 
-  const isHumanDetected = (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4) && inZone;
+  const isHumanDetected = (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4 || postureStatus === 5) && inZone;
 
   const trackingActive = Boolean(
     !inZone || postureStatus === 2 || postureStatus === -1
@@ -440,15 +450,19 @@ export async function pushMockTelemetryToFirebase(config: FirebaseConnectionConf
 export function normalizeHistoryLog(docId: string, raw: any): TelemetryLog {
   const bpm = Number(raw.bpm || raw.heart_rate || 0);
   const spo2 = Number(raw.spo2 || raw.oxygen || 0);
-  const postureStatus = Number(raw.posture_status ?? raw.postureStatus ?? 0);
-  
+  let postureStatus = Number(raw.posture_status ?? raw.postureStatus ?? 0);
   let postureLabel = String(raw.posture_label || raw.postureLabel || '');
+  if (postureLabel.toLowerCase().includes('đứng') || postureLabel.toLowerCase().includes('dung /') || postureLabel.toLowerCase().includes('stand')) {
+    postureStatus = 5;
+  }
+  
   if (!postureLabel) {
     if (postureStatus === 0) postureLabel = 'Tư thế ĐÚNG';
     else if (postureStatus === 1) postureLabel = 'Tư thế SAI';
     else if (postureStatus === 2) postureLabel = 'VẮNG MẶT';
     else if (postureStatus === 3) postureLabel = 'SAI TƯ THẾ LÂU';
     else if (postureStatus === 4) postureLabel = 'NGỒI LÀM VIỆC QUÁ LÂU';
+    else if (postureStatus === 5) postureLabel = 'Tư thế ĐỨNG';
     else postureLabel = 'Đang theo dõi';
   }
 
@@ -1434,13 +1448,14 @@ export function subscribeToUsers(
         const now = Date.now();
         const firestoreUsers: AuthUser[] = snap.docs.map(d => {
           const data = d.data();
-          const email = data.email || `${d.id}@theodoisk.com`;
-          const username = data.username || (data.email ? data.email.split('@')[0] : d.id);
+          const isPresetAdmin = d.id === 'usr-admin-01' || (data.email && data.email.toLowerCase().includes('usr-admin-01'));
+          const email = data.email || (isPresetAdmin ? 'admin@theodoisk.com' : `${d.id}@theodoisk.com`);
+          const username = data.username || (isPresetAdmin ? 'admin' : (data.email ? data.email.split('@')[0] : d.id));
           const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
 
           const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
           // An account is actively logged in if flagged isOnline, with a 15-minute window for mobile tabs & network latency
-          const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < 15 * 60 * 1000) : true;
+          const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < 15 * 60 * 1000) : false;
           const isLiveHeartbeatActive = Boolean(data.isOnline) && isRecentPing;
 
           // Posture data is only present if camera or simulation has pushed active posture
@@ -1455,10 +1470,13 @@ export function subscribeToUsers(
           );
 
           let postureText = '– Chờ kết nối';
-          let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = 'waiting';
+          let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = 'waiting';
 
           if (hasPostureSignal) {
-            if (data.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
+            if (data.currentPosture === 'standing' || rawPostureText.includes('Đứng')) {
+              posture = 'standing';
+              postureText = '↑ Đứng';
+            } else if (data.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
               posture = 'incorrect';
               postureText = '⚠ Sai';
             } else if (data.currentPosture === 'absent' || rawPostureText.includes('Vắng')) {
@@ -1474,9 +1492,9 @@ export function subscribeToUsers(
             id: d.id,
             username,
             email,
-            fullName: data.fullName || 'Người Dùng Hệ Thống',
+            fullName: data.fullName || (isPresetAdmin ? 'Nguyễn Văn Quản Lý (Admin)' : 'Người Dùng Hệ Thống'),
             role: isAdmin ? 'admin' : 'employee',
-            department: data.department || 'Văn Phòng IoT',
+            department: data.department || (isPresetAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
             avatar: data.avatar || '',
             phoneNumber: data.phoneNumber || '',
             age: Number(data.age) || 28,

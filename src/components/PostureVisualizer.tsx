@@ -86,6 +86,12 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
       tip: 'Quy tắc 20-20-20: Đứng dậy đi lấy nước, vươn vai và nhìn xa 6 mét trong 20 giây.',
       color: 'amber',
     },
+    5: {
+      title: 'Tư thế đứng làm việc (Sit-Stand Mode)',
+      desc: 'Bạn đang đứng làm việc. Tư thế đứng giúp giải phóng áp lực lên các đĩa đệm thắt lưng L1-L5, kích hoạt tuần hoàn máu và đốt cháy calo.',
+      tip: 'Giữ hai chân vững chắc rộng bằng vai, màn hình nâng ngang tầm mắt để giữ cột sống thẳng tự nhiên.',
+      color: 'indigo',
+    },
     2: {
       title: 'Chưa phát hiện nhân viên trong vùng giám sát',
       desc: 'Camera AI chưa nhận diện được người ngồi trong khung hình Monitor Zone. Không có người ở bàn làm việc.',
@@ -99,6 +105,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
 
   const currentAdvice = isAbsent ? adviceMap[2] : (adviceMap[postureStatus] || adviceMap[0]);
 
+  const isStanding = !isAbsent && postureStatus === 5;
   const isGood = !isAbsent && postureStatus === 0;
   const isBad = !isAbsent && (postureStatus === 1 || postureStatus === 3);
   const isSittingLong = !isAbsent && postureStatus === 4;
@@ -268,20 +275,20 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                   {/* Head */}
                   <circle
                     cx={isBad ? 108 : 95}
-                    cy={isBad ? 54 : 45}
+                    cy={isBad ? 54 : (isStanding ? 38 : 45)}
                     r="16"
-                    fill={isBad ? '#fee2e2' : '#d1fae5'}
-                    stroke={isBad ? '#ef4444' : '#10b981'}
+                    fill={isBad ? '#fee2e2' : (isStanding ? '#e0e7ff' : '#d1fae5')}
+                    stroke={isBad ? '#ef4444' : (isStanding ? '#6366f1' : '#10b981')}
                     strokeWidth="3"
                   />
                   
                   {/* Eye Sight Line */}
                   <line
                     x1={isBad ? 116 : 103}
-                    y1={isBad ? 55 : 46}
+                    y1={isBad ? 55 : (isStanding ? 39 : 46)}
                     x2="165"
                     y2="85"
-                    stroke={isBad ? '#ef4444' : '#0284c7'}
+                    stroke={isBad ? '#ef4444' : (isStanding ? '#6366f1' : '#0284c7')}
                     strokeWidth="2"
                     strokeDasharray="4 3"
                   />
@@ -296,8 +303,17 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                       strokeWidth="7"
                       strokeLinecap="round"
                     />
+                  ) : isStanding ? (
+                    // Tall upright standing spine
+                    <path
+                      d="M95 54 L95 135"
+                      fill="none"
+                      stroke="#6366f1"
+                      strokeWidth="7"
+                      strokeLinecap="round"
+                    />
                   ) : (
-                    // Upright ergonomic spinal curve
+                    // Upright ergonomic spinal curve (sitting)
                     <path
                       d="M93 61 Q95 90 90 115 T82 155"
                       fill="none"
@@ -309,25 +325,37 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
 
                   {/* Shoulders & Arms */}
                   <path
-                    d={isBad ? "M98 85 L125 105 L155 115" : "M92 75 L120 100 L152 115"}
+                    d={isBad ? "M98 85 L125 105 L155 115" : (isStanding ? "M95 70 L120 95 L152 110" : "M92 75 L120 100 L152 115")}
                     fill="none"
-                    stroke={isBad ? "#f87171" : "#10b981"}
+                    stroke={isBad ? "#f87171" : (isStanding ? "#6366f1" : "#10b981")}
                     strokeWidth="5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
 
                   {/* Thighs & Legs */}
-                  <path
-                    d="M80 155 L125 155 L130 198"
-                    fill="none"
-                    stroke="#64748b"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  {isStanding ? (
+                    // Straight standing legs down to floor
+                    <path
+                      d="M95 135 L95 210"
+                      fill="none"
+                      stroke="#4f46e5"
+                      strokeWidth="7"
+                      strokeLinecap="round"
+                    />
+                  ) : (
+                    // Seated thighs and bent legs
+                    <path
+                      d="M80 155 L125 155 L130 198"
+                      fill="none"
+                      stroke="#64748b"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
                   {/* Feet */}
-                  <path d="M125 198 L142 198" stroke="#475569" strokeWidth="4" strokeLinecap="round" />
+                  <path d={isStanding ? "M95 210 L115 210" : "M125 198 L142 198"} stroke="#475569" strokeWidth="4" strokeLinecap="round" />
 
                   {/* Stress Point Alert Indicators if bad */}
                   {isBad && (
@@ -355,11 +383,12 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             <div className="flex items-center gap-2">
               <span className={`p-1.5 rounded-lg ${
                 isAbsent ? 'bg-amber-100 text-amber-700' :
+                isStanding ? 'bg-indigo-100 text-indigo-700' :
                 isGood ? 'bg-emerald-100 text-emerald-700' :
                 isBad ? 'bg-rose-100 text-rose-700' :
                 isSittingLong ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
               }`}>
-                {isAbsent ? <UserX className="w-4 h-4" /> : isGood ? <CheckCircle className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
+                {isAbsent ? <UserX className="w-4 h-4" /> : isStanding ? <UserCheck className="w-4 h-4" /> : isGood ? <CheckCircle className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
               </span>
               <h3 className="text-sm font-bold text-slate-900">{currentAdvice.title}</h3>
             </div>

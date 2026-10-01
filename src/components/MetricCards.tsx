@@ -171,6 +171,12 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
         postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
         displayedPostureLabel = 'Tư thế ĐÚNG';
         break;
+      case 5: // Đứng
+        postureCardBg = 'bg-indigo-50/50 border-indigo-200';
+        postureBadgeStyle = 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold';
+        postureIcon = <Activity className="w-5 h-5 text-indigo-600" />;
+        displayedPostureLabel = 'Tư thế ĐỨNG (Làm việc)';
+        break;
       case 1: // Sai
         postureCardBg = 'bg-rose-50/50 border-rose-200';
         postureBadgeStyle = 'bg-rose-100 text-rose-800 border-rose-300';

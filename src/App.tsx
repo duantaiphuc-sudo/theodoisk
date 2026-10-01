@@ -26,7 +26,7 @@ import {
   updateTaskStatusInFirebase,
   updateUserRealtimePresence,
 } from './services/firebase';
-import { getCurrentUser, saveCurrentUser, logout } from './services/authService';
+import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { notificationManager } from './services/notificationService';
@@ -37,6 +37,7 @@ import { MetricCards } from './components/MetricCards';
 import { PostureVisualizer } from './components/PostureVisualizer';
 import { TrendChart } from './components/TrendChart';
 import { TimeCounters } from './components/TimeCounters';
+import { WeeklyPostureChart } from './components/WeeklyPostureChart';
 import { MonitorZoneCard } from './components/MonitorZoneCard';
 import { HistoryLogs } from './components/HistoryLogs';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
@@ -264,6 +265,21 @@ export default function App() {
   thresholdsRef.current = thresholds;
   const currentUserRef = useRef(currentUser);
   currentUserRef.current = currentUser;
+  const timeStatsRef = useRef(timeStats);
+  timeStatsRef.current = timeStats;
+  const isSimulatingRef = useRef(isSimulating);
+  isSimulatingRef.current = isSimulating;
+  const lastProcessedPacketTimestampRef = useRef<string>('');
+
+  const [allRegisteredUsers, setAllRegisteredUsers] = useState<AuthUser[]>([]);
+
+  useEffect(() => {
+    fetchAllUsers().then(users => {
+      if (users && users.length > 0) {
+        setAllRegisteredUsers(users);
+      }
+    }).catch(() => {});
+  }, [firebaseConfig]);
 
   // Save thresholds & zone when changed
   useEffect(() => {
@@ -291,6 +307,12 @@ export default function App() {
 
   // Handle new incoming telemetry packet
   const handleIncomingTelemetry = useCallback((data: HealthTelemetry) => {
+    // Deduplicate exact same packet repeatedly emitted by Firestore cache
+    if (data.timestamp && data.timestamp === lastProcessedPacketTimestampRef.current) {
+      return;
+    }
+    lastProcessedPacketTimestampRef.current = data.timestamp || '';
+
     // Only consider packet empty if posture is unknown/cleared (-1) AND no sensors or camera frames are present
     const isEmptyPacket = data.postureStatus === -1 && data.bpm === 0 && data.spo2 === 0 && !data.trackingActive && !data.image;
 
@@ -466,15 +488,16 @@ export default function App() {
     );
     const isCameraUntracked = isOutOfZone || data.trackingActive === false;
     const isAbsent = hasLiveSignal && (data.postureStatus === 2 || isCameraUntracked);
+    const isStanding = hasLiveSignal && !isAbsent && data.postureStatus === 5;
     const isBad = hasLiveSignal && !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
 
     const presence: 'Present' | 'Away' = 'Present'; // Active logged-in session is always Present (Đang hoạt động)
-    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
+    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = !hasLiveSignal
       ? 'waiting'
-      : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+      : (isAbsent ? 'absent' : (isStanding ? 'standing' : (isBad ? 'incorrect' : 'correct')));
     const postureText = !hasLiveSignal
       ? '– Chờ kết nối'
-      : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+      : (isAbsent ? '– Vắng' : (isStanding ? '↑ Đứng' : (isBad ? '⚠ Sai' : '✓ Đúng')));
 
     if (activeUser && firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
@@ -483,7 +506,7 @@ export default function App() {
         currentPresence: presence,
         currentPosture: posture,
         currentPostureText: postureText,
-        sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
+        sittingMinutes: Math.floor((timeStatsRef.current.sittingSeconds || 0) / 60),
         bpm: (isAbsent || !hasLiveSignal) ? 0 : data.bpm,
         spo2: (isAbsent || !hasLiveSignal) ? 0 : data.spo2,
         hasAlert: hasLiveSignal && !isAbsent && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
@@ -493,16 +516,24 @@ export default function App() {
     }
 
     // Save to Firebase Firestore / RTDB history collection:
-    // Frequent recording so all devices (PC, Mobile, Admin) share identical history logs
+    // CRITICAL: Prevents exhausting the Firebase daily write quota ("Quota limits exceeded"):
+    // 1. NEVER auto-save simulated telemetry to remote Firestore history!
+    // 2. NEVER auto-save stale cached packets re-fired by Firestore listeners!
+    // 3. For live hardware data, save ONLY when:
+    //    - Posture status changes (e.g. from Good to Bad, or Sitting to Standing)
+    //    - OR a health alert occurs (e.g. abnormal HR or SpO2)
+    //    - OR an intentional periodic checkpoint after at least 5 minutes (300,000ms), NOT 3 seconds!
+    const isSimulated = isSimulatingRef.current || data.source?.includes('Giả Lập') || data.source?.includes('Simulated');
+    const isStale = Boolean(data.isStale);
+
     const nowTime = Date.now();
     const timeSinceLastRemote = nowTime - lastFirebaseHistorySaveRef.current;
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
     lastPostureStatusRef.current = data.postureStatus;
 
-    // Valid metrics include posture state transitions (even absent/away status 2) or live vitals
     const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus !== undefined && data.postureStatus >= 0);
-    const shouldSaveRemote = hasValidMetrics &&
-      (hasAlert || postureChanged || timeSinceLastRemote > 3000);
+    const shouldSaveRemote = !isSimulated && !isStale && hasValidMetrics &&
+      (hasAlert || postureChanged || timeSinceLastRemote > 300000);
 
     if (shouldSaveRemote && firebaseConfig.autoConnect && activeUser) {
       lastFirebaseHistorySaveRef.current = nowTime;
@@ -510,7 +541,7 @@ export default function App() {
         console.warn('Ghi log lịch sử Firebase thất bại:', err);
       });
     }
-  }, [firebaseConfig, timeStats.sittingSeconds]);
+  }, [firebaseConfig]);
 
   // Subscribe to Firebase Live Telemetry
   useEffect(() => {
@@ -661,12 +692,13 @@ export default function App() {
         const currentThresh = thresholdsRef.current;
 
         // In seat / active
-        const isSeated = current.trackingActive && current.postureStatus !== 2 && current.postureStatus !== -1;
+        const isStanding = current.trackingActive && current.postureStatus === 5;
+        const isSeated = current.trackingActive && current.postureStatus !== 2 && current.postureStatus !== -1 && current.postureStatus !== 5;
         const isBad = isSeated && (current.postureStatus === 1 || current.postureStatus === 3);
 
         const newBad = isBad ? prev.badPostureSeconds + 1 : 0;
         const newSitting = isSeated ? prev.sittingSeconds + 1 : prev.sittingSeconds;
-        const newMoving = !isSeated ? prev.movingSeconds + 1 : prev.movingSeconds;
+        const newMoving = (!isSeated || isStanding) ? prev.movingSeconds + 1 : prev.movingSeconds;
         const newContinuous = isSeated ? prev.continuousSittingSeconds + 1 : 0;
 
         // Trigger chime & voice alert if crossing bad posture limit or continuous sitting
@@ -696,7 +728,27 @@ export default function App() {
 
   // Simulation mode (generates realistic Raspberry Pi 4 sensor fluctuations)
   useEffect(() => {
-    if (!isSimulating) return;
+    if (!isSimulating) {
+      setTelemetry(prev => {
+        if (prev.source?.includes('Giả Lập') || prev.source?.includes('Simulated')) {
+          setHasReceivedData(false);
+          setLastUpdate(null);
+          return {
+            bpm: 0,
+            spo2: 0,
+            postureStatus: -1,
+            postureLabel: 'Chưa có dữ liệu',
+            trackingActive: false,
+            inZone: false,
+            timestamp: new Date().toISOString(),
+            source: 'Chờ Raspberry Pi 4...',
+            confidence: 0,
+          };
+        }
+        return prev;
+      });
+      return;
+    }
 
     setIsConnected(true);
     let step = 0;
@@ -1225,6 +1277,18 @@ export default function App() {
                     </button>
 
                     <button
+                      onClick={() => setSimPostureMode('standing')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        simPostureMode === 'standing'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200'
+                      }`}
+                      title="Giả lập tư thế đứng làm việc (Sit-stand, giải phóng cột sống, nhịp tim ~82)"
+                    >
+                      🚶 Tư thế Đứng
+                    </button>
+
+                    <button
                       onClick={() => setSimPostureMode('incorrect')}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
                         simPostureMode === 'incorrect'
@@ -1320,6 +1384,17 @@ export default function App() {
                   thresholds={thresholds}
                   onResetTimers={handleResetTimers}
                   hasData={hasReceivedData}
+                />
+              </div>
+
+              {/* 4. Weekly Grouped Bar Chart (Sitting, Standing, Bad Posture by Week) */}
+              <div className="mt-4 sm:mt-6">
+                <WeeklyPostureChart
+                  history={history}
+                  currentUser={currentUser}
+                  currentTimeStats={timeStats}
+                  isManager={isManager}
+                  allUsers={allRegisteredUsers}
                 />
               </div>
             </div>

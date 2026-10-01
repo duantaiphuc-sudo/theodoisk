@@ -273,26 +273,28 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
       const now = Date.now();
       const firestoreUsers: AuthUser[] = snap.docs.map(d => {
         const data = d.data();
-        const email = data.email || `${d.id}@theodoisk.com`;
-        const username = data.username || (data.email ? data.email.split('@')[0] : d.id);
+        const isPresetAdmin = d.id === 'usr-admin-01' || (data.email && data.email.toLowerCase().includes('usr-admin-01'));
+        const preset = PRESET_ACCOUNTS.find(p => p.user.id === d.id || (data.email && p.user.email.toLowerCase() === data.email.toLowerCase()));
+        const email = data.email || preset?.user.email || (isPresetAdmin ? 'admin@theodoisk.com' : `${d.id}@theodoisk.com`);
+        const username = data.username || preset?.user.username || (isPresetAdmin ? 'admin' : (data.email ? data.email.split('@')[0] : d.id));
         const isAdmin = isSystemAdmin(email, username);
         const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-        const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? Math.abs(now - lastActiveTime) < 15 * 60 * 1000 : true);
+        const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? Math.abs(now - lastActiveTime) < 15 * 60 * 1000 : false);
         return {
           id: d.id,
           username,
           email,
-          fullName: data.fullName || 'Người Dùng Hệ Thống',
+          fullName: data.fullName || preset?.user.fullName || (isAdmin ? 'Nguyễn Văn Quản Lý (Admin)' : 'Người Dùng Hệ Thống'),
           role: isAdmin ? 'admin' : 'employee',
-          department: data.department || 'Văn Phòng IoT',
-          avatar: data.avatar || '',
+          department: data.department || preset?.user.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
+          avatar: data.avatar || preset?.user.avatar || '',
           phoneNumber: data.phoneNumber || '',
-          age: Number(data.age) || 28,
-          gender: data.gender || 'male',
-          height: Number(data.height) || 170,
-          weight: Number(data.weight) || 65,
-          maxSittingHours: Number(data.maxSittingHours) || 6,
-          healthNotes: data.healthNotes || '',
+          age: Number(data.age) || preset?.user.age || 28,
+          gender: data.gender || preset?.user.gender || 'male',
+          height: Number(data.height) || preset?.user.height || 170,
+          weight: Number(data.weight) || preset?.user.weight || 65,
+          maxSittingHours: Number(data.maxSittingHours) || preset?.user.maxSittingHours || 6,
+          healthNotes: data.healthNotes || preset?.user.healthNotes || '',
           status: data.status || 'active',
           lastLogin: data.lastLogin || data.updatedAt || '',
           createdAt: data.createdAt || data.updatedAt || '',
@@ -313,13 +315,18 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
       // Merge firestore with local - strictly deduplicated by email
       const map = new Map<string, AuthUser>();
       const addOrMerge = (user: AuthUser) => {
-        const key = (user.email || user.username || user.id).trim().toLowerCase();
+        let key = (user.email || user.username || user.id).trim().toLowerCase();
+        if (key.includes('usr-admin-01') || key.includes('admin@theodoisk.com')) {
+          key = 'admin@theodoisk.com';
+        }
         if (map.has(key)) {
           const existing = map.get(key)!;
           map.set(key, enforceStrictRole({
             ...existing,
             ...user,
             id: existing.id || user.id,
+            fullName: (user.fullName && user.fullName !== 'Người Dùng Hệ Thống') ? user.fullName : existing.fullName,
+            email: existing.email || user.email,
             isOnline: Boolean(existing.isOnline || user.isOnline),
             currentPresence: (existing.currentPresence === 'Present' || user.currentPresence === 'Present') ? 'Present' : 'Away',
             currentPosture: user.currentPosture || existing.currentPosture || 'waiting',

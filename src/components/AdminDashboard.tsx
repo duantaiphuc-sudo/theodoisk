@@ -35,7 +35,7 @@ import {
   FileText,
   Trash2
 } from 'lucide-react';
-import { fetchAllUsers, isUserAdmin, saveCurrentUser } from '../services/authService';
+import { fetchAllUsers, isUserAdmin, saveCurrentUser, adminDeleteUser } from '../services/authService';
 import { 
   subscribeToAllUsersTelemetry, 
   subscribeToUserTelemetry,
@@ -409,6 +409,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           let postureColor = 'bg-slate-100 text-slate-600 border-slate-200';
           if (postureStatus === 0) postureColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+          else if (postureStatus === 5) postureColor = 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold';
           else if (postureStatus === 1) postureColor = 'bg-rose-50 text-rose-700 border-rose-200';
           else if (postureStatus === 3) postureColor = 'bg-rose-100 text-rose-800 border-rose-300 font-extrabold';
           else if (postureStatus === 2) postureColor = 'bg-amber-50 text-amber-800 border-amber-200';
@@ -577,6 +578,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     title={`Đăng nhập thử tài khoản của ${user.fullName}`}
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {user.id !== currentUser.id && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${user.fullName}" (${user.email}) khỏi hệ thống?`)) {
+                        await adminDeleteUser(user.id);
+                        setUsers(prev => prev.filter(u => u.id !== user.id));
+                      }
+                    }}
+                    className="w-8 h-8 rounded-lg bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200/90 hover:border-rose-200 flex items-center justify-center transition cursor-pointer"
+                    title={`Xóa tài khoản ${user.fullName}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
