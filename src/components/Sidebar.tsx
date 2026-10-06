@@ -42,6 +42,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenRpiGuide: () => void;
   onOpenFirebase: () => void;
+  onOpenSupabase?: () => void;
   onOpenProfile: () => void;
   onLogout: () => void;
   mobileOpen: boolean;
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   onOpenRpiGuide,
   onOpenFirebase,
+  onOpenSupabase,
   onOpenProfile,
   onLogout,
   mobileOpen,
@@ -433,6 +435,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {isExpanded && <span className="truncate whitespace-nowrap">Cấu hình Firebase</span>}
                 </div>
                 {isExpanded && <span className="text-[10px] text-slate-400 font-mono shrink-0">DB</span>}
+              </button>
+
+              {/* 1.1 Supabase Configuration (PostgreSQL) */}
+              <button
+                onClick={() => {
+                  if (isManager && onOpenSupabase) {
+                    onOpenSupabase();
+                    onCloseMobile();
+                  }
+                }}
+                disabled={!isManager}
+                className={`w-full flex items-center transition text-left group ${
+                  isExpanded
+                    ? `justify-between px-3 py-2 rounded-xl text-xs font-semibold ${
+                        isManager
+                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
+                          : 'text-slate-400 cursor-not-allowed opacity-60'
+                      }`
+                    : `justify-center w-11 h-11 mx-auto rounded-xl ${
+                        isManager ? 'hover:bg-slate-100 cursor-pointer' : 'cursor-not-allowed opacity-60'
+                      }`
+                }`}
+                title={isManager ? "Cấu hình kết nối Supabase (PostgreSQL)" : "Chức năng dành cho Quản trị viên"}
+              >
+                <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
+                  <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                    <Database className="w-3.5 h-3.5" />
+                  </div>
+                  {isExpanded && <span className="truncate whitespace-nowrap">Cấu hình Supabase</span>}
+                </div>
+                {isExpanded && <span className="text-[10px] text-emerald-700 font-bold font-mono shrink-0">SQL</span>}
               </button>
 
               {/* 2. Raspberry Pi 4 Guide & Code */}

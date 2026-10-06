@@ -25,6 +25,8 @@ import {
   subscribeToTaskNotifications,
   updateTaskStatusInFirebase,
   updateUserRealtimePresence,
+  checkIsQuotaExceeded,
+  onQuotaExceededChange,
 } from './services/firebase';
 import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
@@ -41,8 +43,15 @@ import { WeeklyPostureChart } from './components/WeeklyPostureChart';
 import { MonitorZoneCard } from './components/MonitorZoneCard';
 import { HistoryLogs } from './components/HistoryLogs';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
+import { SupabaseModal } from './components/SupabaseModal';
 import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
+import { 
+  insertTelemetryToSupabase, 
+  subscribeToSupabaseRealtime,
+  clearSupabaseHistory,
+  deleteSingleLogFromSupabase 
+} from './services/supabaseService';
 import { UserProfileModal } from './components/UserProfileModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
@@ -119,9 +128,17 @@ export default function App() {
   const [hasReceivedData, setHasReceivedData] = useState<boolean>(false);
   const [isClearingFirebase, setIsClearingFirebase] = useState(false);
   const [clearNotice, setClearNotice] = useState<string | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(() => checkIsQuotaExceeded());
+
+  useEffect(() => {
+    return onQuotaExceededChange((exceeded) => {
+      setIsQuotaExceeded(exceeded);
+    });
+  }, []);
 
   // 2. Modals State
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isRpiGuideModalOpen, setIsRpiGuideModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
@@ -147,6 +164,7 @@ export default function App() {
       incorrectPostureSec: 30,
       longIncorrectSec: 120,
       longSittingSec: 3600,
+      standingTargetSec: 300,
       soundEnabled: true,
       voiceAlertEnabled: true,
       outOfZoneAlertEnabled: true,
@@ -179,9 +197,11 @@ export default function App() {
   // 7. Time Statistics State
   const [timeStats, setTimeStats] = useState<TimeCalculations>({
     sittingSeconds: 0,
+    standingSeconds: 0,
     movingSeconds: 0,
     badPostureSeconds: 0,
     continuousSittingSeconds: 0,
+    continuousStandingSeconds: 0,
   });
 
   // Main vertical sidebar navigation tab: 'overview' | 'zone' | 'logs' | 'tasks'
@@ -228,8 +248,8 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const userOnly = parsed.filter(l => 
-            !l.userId || l.userId === currentUser.id || 
-            (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase())
+            (l.userId && l.userId === currentUser.id) || 
+            (l.userEmail && currentUser.email && l.userEmail.toLowerCase() === currentUser.email.toLowerCase())
           );
           setHistory(userOnly);
           return;
@@ -535,11 +555,21 @@ export default function App() {
     const shouldSaveRemote = !isSimulated && !isStale && hasValidMetrics &&
       (hasAlert || postureChanged || timeSinceLastRemote > 300000);
 
-    if (shouldSaveRemote && firebaseConfig.autoConnect && activeUser) {
+    if (shouldSaveRemote && activeUser && firebaseConfig.autoConnect) {
       lastFirebaseHistorySaveRef.current = nowTime;
       saveTelemetryHistoryToFirebase(firebaseConfig, newEntry).catch(err => {
         console.warn('Ghi log lịch sử Firebase thất bại:', err);
       });
+    }
+
+    // Tự động ghi vào Supabase PostgreSQL (Hỗ trợ cả chế độ Mô phỏng để kiểm tra kết nối ngay)
+    const shouldSaveSupabase = activeUser && hasValidMetrics && (
+      (!isSimulated && (hasAlert || postureChanged || timeSinceLastRemote > 60000)) ||
+      (isSimulated && (postureChanged || hasAlert || timeSinceLastRemote > 8000))
+    );
+
+    if (shouldSaveSupabase) {
+      insertTelemetryToSupabase(newEntry, activeUser).catch(() => {});
     }
   }, [firebaseConfig]);
 
@@ -564,6 +594,36 @@ export default function App() {
       if (unsubscribe) unsubscribe();
     };
   }, [firebaseConfig, isSimulating, handleIncomingTelemetry]);
+
+  // Subscribe to Supabase Realtime Telemetry (WebSocket / postgres_changes)
+  useEffect(() => {
+    if (isSimulating) return;
+
+    const unsubSupabase = subscribeToSupabaseRealtime(
+      undefined, // Không nạp audit log làm dữ liệu cảm biến live để tránh lỗi tự nhảy số
+      (newLog) => {
+        if (!currentUser) return;
+        const isEmployee = currentUser.role === 'employee';
+        const matchesUser = (newLog.userId && newLog.userId === currentUser.id) ||
+          (newLog.userEmail && currentUser.email && newLog.userEmail.toLowerCase() === currentUser.email.toLowerCase());
+
+        // Nếu là nhân viên: CHỈ nhận bản ghi của chính tài khoản mình
+        // Nếu là quản trị viên: Nhận bản ghi để giám sát
+        if (matchesUser || !isEmployee) {
+          setHistory(prev => {
+            if (prev.some(l => l.id === newLog.id || l.timestamp === newLog.timestamp)) return prev;
+            return [newLog, ...prev.slice(0, 299)];
+          });
+        }
+      },
+      currentUser?.id,
+      currentUser?.email
+    );
+
+    return () => {
+      unsubSupabase();
+    };
+  }, [isSimulating, currentUser?.id, currentUser?.email]);
 
   // Fetch & Subscribe to Firebase History Collection (Per-account for every user, always synced across PC & Mobile)
   useEffect(() => {
@@ -691,34 +751,76 @@ export default function App() {
         const current = telemetryRef.current;
         const currentThresh = thresholdsRef.current;
 
+        // Nếu chưa có dữ liệu hoặc không hoạt động theo dõi: Dừng toàn bộ bộ đếm thời gian, không tự động nhảy giây
+        const hasActiveData = current.trackingActive && current.postureStatus !== -1;
+        if (!hasActiveData) {
+          return prev;
+        }
+
         // In seat / active
         const isStanding = current.trackingActive && current.postureStatus === 5;
         const isSeated = current.trackingActive && current.postureStatus !== 2 && current.postureStatus !== -1 && current.postureStatus !== 5;
+        const isMoving = current.trackingActive && (current.postureStatus === 2 || !current.inZone);
         const isBad = isSeated && (current.postureStatus === 1 || current.postureStatus === 3);
 
         const newBad = isBad ? prev.badPostureSeconds + 1 : 0;
         const newSitting = isSeated ? prev.sittingSeconds + 1 : prev.sittingSeconds;
-        const newMoving = (!isSeated || isStanding) ? prev.movingSeconds + 1 : prev.movingSeconds;
+        const newStanding = isStanding ? (prev.standingSeconds || 0) + 1 : (prev.standingSeconds || 0);
+        const newMoving = isMoving ? prev.movingSeconds + 1 : prev.movingSeconds;
         const newContinuous = isSeated ? prev.continuousSittingSeconds + 1 : 0;
+        const newContinuousStanding = isStanding ? (prev.continuousStandingSeconds || 0) + 1 : 0;
 
-        // Trigger chime & voice alert if crossing bad posture limit or continuous sitting
+        const targetStandingSec = currentThresh.standingTargetSec || 300;
+        const targetStandingMin = Math.max(1, Math.round(targetStandingSec / 60));
+
+        // 1. Trigger chime & voice alert if crossing bad posture limit
         if (newBad === currentThresh.incorrectPostureSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
           playErgonomicVoiceAlert('long_incorrect', {
             playChime: currentThresh.soundEnabled,
             playVoice: currentThresh.voiceAlertEnabled,
           });
-        } else if (newContinuous === currentThresh.longSittingSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
-          playErgonomicVoiceAlert('long_sitting', {
+        } 
+        // 2. Trigger sit-to-stand prompt when continuous sitting reaches threshold
+        else if (newContinuous === currentThresh.longSittingSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
+          playErgonomicVoiceAlert('sit_to_stand_prompt', {
             playChime: currentThresh.soundEnabled,
             playVoice: currentThresh.voiceAlertEnabled,
+            customMessage: `Cảnh báo: Bạn đã ngồi làm việc liên tục ${Math.floor(currentThresh.longSittingSec / 60)} phút! Xin hãy đứng dậy làm việc trong ${targetStandingMin} phút để bảo vệ cột sống và giải phóng áp lực đĩa đệm nhé!`
           });
+
+          if (currentThresh.browserNotificationEnabled) {
+            notificationManager.sendNotification({
+              title: '⏰ Hãy đứng dậy làm việc!',
+              body: `Bạn đã ngồi liên tục ${Math.floor(currentThresh.longSittingSec / 60)} phút. Khuyến nghị đứng dậy làm việc trong ${targetStandingMin} phút nhé!`,
+              tag: 'sit_to_stand_alert',
+              requireInteraction: true
+            });
+          }
+        }
+        // 3. Trigger standing goal reached notification when user stood for the target duration
+        else if (newContinuousStanding === targetStandingSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
+          playErgonomicVoiceAlert('standing_goal_reached', {
+            playChime: currentThresh.soundEnabled,
+            playVoice: currentThresh.voiceAlertEnabled,
+            customMessage: `Tuyệt vời! Bạn đã hoàn thành ${targetStandingMin} phút đứng làm việc theo mục tiêu. Bạn có thể ngồi xuống tiếp tục công việc rồi nhé!`
+          });
+
+          if (currentThresh.browserNotificationEnabled) {
+            notificationManager.sendNotification({
+              title: '🎉 Hoàn thành mục tiêu đứng!',
+              body: `Bạn đã đứng đủ ${targetStandingMin} phút. Cột sống đã được giải phóng áp lực, bạn có thể ngồi xuống tiếp tục làm việc!`,
+              tag: 'standing_goal_reached'
+            });
+          }
         }
 
         return {
           sittingSeconds: newSitting,
+          standingSeconds: newStanding,
           movingSeconds: newMoving,
           badPostureSeconds: newBad,
           continuousSittingSeconds: newContinuous,
+          continuousStandingSeconds: newContinuousStanding,
         };
       });
     }, 1000);
@@ -772,78 +874,85 @@ export default function App() {
     return () => clearInterval(simInterval);
   }, [isSimulating, simPostureMode, handleIncomingTelemetry]);
 
-  // Broadcast active user's realtime presence & telemetry to Firestore so Admin Dashboard sees them live immediately
+  const lastPresenceKeyRef = useRef<string>('');
+  const lastPresenceSyncTimeRef = useRef<number>(0);
+
+  // Synchronize presence and live metrics to Firestore user account (throttled & state-driven)
   useEffect(() => {
-    if (!currentUser || !firebaseConfig.autoConnect) return;
+    if (!currentUser || checkIsQuotaExceeded()) return;
 
-    const syncPresence = () => {
-      // Determine if real telemetry is present
-      const hasLiveSignal = Boolean(
-        telemetry && (
-          telemetry.postureStatus >= 0 ||
-          telemetry.bpm > 0 ||
-          telemetry.spo2 > 0 ||
-          (telemetry.inZone && telemetry.trackingActive)
-        )
-      );
+    const hasLiveSignal = Boolean(
+      telemetry && (
+        telemetry.postureStatus >= 0 ||
+        telemetry.bpm > 0 ||
+        telemetry.spo2 > 0 ||
+        (telemetry.inZone && telemetry.trackingActive)
+      )
+    );
 
-      const isOutOfZone = telemetry.inZone === false || telemetry.trackingActive === false;
-      const isAbsent = hasLiveSignal && (telemetry.postureStatus === 2 || isOutOfZone);
-      const isBad = hasLiveSignal && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
+    const isOutOfZone = telemetry.inZone === false || telemetry.trackingActive === false;
+    const isAbsent = hasLiveSignal && (telemetry.postureStatus === 2 || isOutOfZone);
+    const isStanding = telemetry.postureStatus === 5;
+    const isBad = hasLiveSignal && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
-      const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
-      const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
-        ? 'waiting'
-        : (isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
-      const postureText = !hasLiveSignal
-        ? '– Chờ kết nối'
-        : (isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+    const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
+    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
+      ? 'waiting'
+      : (isStanding ? 'correct' : isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
+    const postureText = !hasLiveSignal
+      ? '– Chờ kết nối'
+      : (isStanding ? '– Đứng' : isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
-      updateUserRealtimePresence(firebaseConfig, currentUser.id, {
-        isOnline: true,
-        lastActive: new Date().toISOString(),
-        currentPresence: presence,
-        currentPosture: posture,
-        currentPostureText: postureText,
-        posture_status: telemetry.postureStatus,
-        postureStatus: telemetry.postureStatus,
-        posture_label: telemetry.postureLabel,
-        postureLabel: telemetry.postureLabel,
-        in_zone: telemetry.inZone,
-        inZone: telemetry.inZone,
-        tracking_active: telemetry.trackingActive,
-        trackingActive: telemetry.trackingActive,
-        posture_warning: telemetry.postureWarning || '',
-        postureWarning: telemetry.postureWarning || '',
-        angle_neck: telemetry.angleNeck || 0,
-        angleNeck: telemetry.angleNeck || 0,
-        isSimulating: isSimulating,
-        is_simulating: isSimulating,
-        sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-        bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
-        spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
-        hasAlert: hasLiveSignal && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
-        alertReason: hasLiveSignal && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
-        device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2'),
-        timestamp: new Date().toISOString()
-      }).catch(() => {});
-    };
+    const stateKey = `${currentUser.id}_${presence}_${posture}_${telemetry.postureStatus}_${isBad}`;
+    const now = Date.now();
+    const isStateChanged = lastPresenceKeyRef.current !== stateKey;
+    const isIntervalElapsed = now - lastPresenceSyncTimeRef.current > 45000;
 
-    // Immediate sync on metric update or simulation toggle
-    syncPresence();
-    const interval = setInterval(syncPresence, 1200);
+    if (!isStateChanged && !isIntervalElapsed) {
+      return;
+    }
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [currentUser, firebaseConfig, telemetry, timeStats, thresholds, isSimulating]);
+    lastPresenceKeyRef.current = stateKey;
+    lastPresenceSyncTimeRef.current = now;
+
+    updateUserRealtimePresence(firebaseConfig, currentUser.id, {
+      isOnline: true,
+      lastActive: new Date().toISOString(),
+      currentPresence: presence,
+      currentPosture: posture,
+      currentPostureText: postureText,
+      posture_status: telemetry.postureStatus,
+      postureStatus: telemetry.postureStatus,
+      posture_label: telemetry.postureLabel,
+      postureLabel: telemetry.postureLabel,
+      in_zone: telemetry.inZone,
+      inZone: telemetry.inZone,
+      tracking_active: telemetry.trackingActive,
+      trackingActive: telemetry.trackingActive,
+      posture_warning: telemetry.postureWarning || '',
+      postureWarning: telemetry.postureWarning || '',
+      angle_neck: telemetry.angleNeck || 0,
+      angleNeck: telemetry.angleNeck || 0,
+      isSimulating: isSimulating,
+      is_simulating: isSimulating,
+      sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
+      bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
+      spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
+      hasAlert: hasLiveSignal && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
+      alertReason: hasLiveSignal && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
+      device: currentUser.device || (currentUser.role === 'admin' ? 'pi4_node_1' : 'pi4_node_2'),
+      timestamp: new Date().toISOString()
+    }).catch(() => {});
+  }, [currentUser?.id, firebaseConfig, telemetry.postureStatus, telemetry.inZone, telemetry.trackingActive, isSimulating]);
 
   const handleResetTimers = () => {
     setTimeStats({
       sittingSeconds: 0,
+      standingSeconds: 0,
       movingSeconds: 0,
       badPostureSeconds: 0,
       continuousSittingSeconds: 0,
+      continuousStandingSeconds: 0,
     });
   };
 
@@ -980,7 +1089,8 @@ export default function App() {
 
     setHistory(prev => [snapEntry, ...prev.slice(0, 199)]);
     saveTelemetryHistoryToFirebase(firebaseConfig, snapEntry).catch(() => {});
-    setClearNotice('Đã lưu mốc dữ liệu hiện tại vào Firebase Firestore và bộ nhớ thiết bị!');
+    insertTelemetryToSupabase(snapEntry, activeUser).catch(() => {});
+    setClearNotice('Đã lưu mốc dữ liệu vào Supabase PostgreSQL và Firebase!');
     setTimeout(() => setClearNotice(null), 4000);
   };
 
@@ -995,8 +1105,11 @@ export default function App() {
       return updated;
     });
     try {
-      await deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId, currentUser?.id);
-      setClearNotice('Đã xóa bản ghi thành công khỏi thiết bị và Firebase Firestore.');
+      await Promise.allSettled([
+        deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId, currentUser?.id),
+        deleteSingleLogFromSupabase(logId)
+      ]);
+      setClearNotice('Đã xóa bản ghi thành công khỏi thiết bị, Firebase và Supabase.');
       setTimeout(() => setClearNotice(null), 3000);
     } catch (err: any) {
       console.warn('Lỗi khi xóa bản ghi đơn lẻ:', err);
@@ -1037,13 +1150,17 @@ export default function App() {
     }
     clearLocalHistoricalRecords();
 
-    // 3. Delete from Firebase Firestore & Realtime Database
+    // 3. Delete synchronously from both Firebase AND Supabase!
     try {
-      const res = await clearFirebaseHistory(firebaseConfig, targetUserId, isClearingAll);
-      setClearNotice(`Đã xóa sạch hoàn toàn ${res.deletedCount} bản ghi lịch sử trên Firebase Firestore & thiết bị!`);
+      const [firebaseRes] = await Promise.allSettled([
+        clearFirebaseHistory(firebaseConfig, targetUserId, isClearingAll),
+        clearSupabaseHistory(targetUserId)
+      ]);
+      const deletedCount = firebaseRes.status === 'fulfilled' ? firebaseRes.value.deletedCount : 0;
+      setClearNotice(`Đã dọn sạch hoàn toàn lịch sử trên cả Supabase PostgreSQL, Firebase & thiết bị!`);
       setTimeout(() => setClearNotice(null), 4500);
     } catch (err: any) {
-      console.warn('Lỗi xóa lịch sử từ Firebase:', err);
+      console.warn('Lỗi xóa lịch sử:', err);
       setClearNotice('Đã xóa lịch sử bộ nhớ trong máy.');
       setTimeout(() => setClearNotice(null), 4000);
     } finally {
@@ -1095,6 +1212,7 @@ export default function App() {
         onOpenSettings={() => isManager && setIsSettingsModalOpen(true)}
         onOpenRpiGuide={() => isManager && setIsRpiGuideModalOpen(true)}
         onOpenFirebase={() => isManager && setIsFirebaseModalOpen(true)}
+        onOpenSupabase={() => isManager && setIsSupabaseModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onLogout={handleLogout}
         mobileOpen={mobileSidebarOpen}
@@ -1125,6 +1243,19 @@ export default function App() {
 
         {/* Main Content Dashboard */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-8 space-y-4 sm:space-y-6">
+          {/* Firestore Quota Exceeded Notification */}
+          {isQuotaExceeded && (
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚡</span>
+                <div>
+                  <span className="font-bold">Đã đạt hạn mức miễn phí Firestore hôm nay (50.000 lượt).</span>
+                  <span className="text-amber-800 ml-1">Hệ thống đã tự động kích hoạt bộ đệm an toàn (Local Storage / RTDB). Mọi chức năng đo tư thế, đếm thời gian và cảnh báo vẫn hoạt động bình thường!</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Success clear notification */}
           {clearNotice && (
             <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs shadow-xs">
@@ -1134,18 +1265,6 @@ export default function App() {
               </span>
               <button onClick={() => setClearNotice(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2 cursor-pointer">✕</button>
             </div>
-          )}
-
-          {/* TAB 0: ADMIN DASHBOARD (Tổng Quan Nhân Viên & IoT Nodes theo Ảnh 2) */}
-          {mainNavTab === 'admin' && isManager && (
-            <AdminDashboard
-              currentUser={currentUser}
-              onOpenUserManagement={() => setIsUserManagementOpen(true)}
-              onOpenTaskModal={() => setMainNavTab('tasks')}
-              liveTelemetry={telemetry}
-              timeStats={timeStats}
-              historyLogs={history}
-            />
           )}
 
           {/* TAB 1: OVERVIEW (Trang chủ) */}
@@ -1386,17 +1505,6 @@ export default function App() {
                   hasData={hasReceivedData}
                 />
               </div>
-
-              {/* 4. Weekly Grouped Bar Chart (Sitting, Standing, Bad Posture by Week) */}
-              <div className="mt-4 sm:mt-6">
-                <WeeklyPostureChart
-                  history={history}
-                  currentUser={currentUser}
-                  currentTimeStats={timeStats}
-                  isManager={isManager}
-                  allUsers={allRegisteredUsers}
-                />
-              </div>
             </div>
           )}
 
@@ -1483,6 +1591,7 @@ export default function App() {
                 isSyncing={isSyncingHistory}
                 firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
                 isManager={isManager}
+                onOpenSupabase={() => setIsSupabaseModalOpen(true)}
               />
             </div>
           )}
@@ -1702,6 +1811,10 @@ export default function App() {
         badPostureSeconds={timeStats.badPostureSeconds}
         hasData={hasReceivedData}
         userName={currentUser.fullName}
+        userId={currentUser.id}
+        history={history}
+        timeStats={timeStats}
+        allUsers={allRegisteredUsers}
       />
 
       {/* On-screen Realtime Task & Broadcast Notification Banner */}
@@ -1736,6 +1849,14 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Supabase Connection & Time-Series Analytics Modal */}
+      <SupabaseModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+        currentUser={currentUser}
+        onNavigateToAdminQuery={() => setMainNavTab('admin_overview')}
+      />
 
       {/* Modals (Only Manager has access) */}
       {isManager && (

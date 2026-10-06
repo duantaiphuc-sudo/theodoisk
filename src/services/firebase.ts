@@ -29,6 +29,43 @@ export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
 
 let currentUnsubscribe: (() => void) | null = null;
 
+// Circuit Breaker for Firestore Quota Exceeded (Spark Plan limit)
+let isQuotaExceeded = false;
+const quotaListeners: Array<(exceeded: boolean) => void> = [];
+
+export function checkIsQuotaExceeded(): boolean {
+  return isQuotaExceeded;
+}
+
+export function onQuotaExceededChange(callback: (exceeded: boolean) => void): () => void {
+  quotaListeners.push(callback);
+  callback(isQuotaExceeded);
+  return () => {
+    const idx = quotaListeners.indexOf(callback);
+    if (idx !== -1) quotaListeners.splice(idx, 1);
+  };
+}
+
+export function markQuotaExceeded(err?: any): boolean {
+  const isQuota = 
+    err?.code === 'resource-exhausted' || 
+    err?.message?.includes('Quota exceeded') || 
+    err?.message?.includes('resource-exhausted') ||
+    String(err).includes('resource-exhausted');
+
+  if (isQuota) {
+    if (!isQuotaExceeded) {
+      isQuotaExceeded = true;
+      console.warn('⚠️ [Firestore Quota] Đã chạm hạn mức Firestore trong ngày (50k lượt/ngày). Ứng dụng tự động kích hoạt Circuit Breaker, chuyển sang Local Cache / RTDB để đảm bảo hệ thống tiếp tục hoạt động mượt mà không bị gián đoạn.');
+      quotaListeners.forEach(cb => {
+        try { cb(true); } catch {}
+      });
+    }
+    return true;
+  }
+  return false;
+}
+
 export function getHistoryCollectionName(config: FirebaseConnectionConfig): string {
   const base = config.collectionName || 'theodoisk';
   return `${base}_history`;
@@ -154,6 +191,10 @@ export function subscribeToFirebaseTelemetry(
           }
         },
         error => {
+          if (markQuotaExceeded(error)) {
+            onError(error);
+            return;
+          }
           onError(error);
         }
       );
@@ -162,6 +203,7 @@ export function subscribeToFirebaseTelemetry(
       return unsubscribeDoc;
     }
   } catch (error) {
+    markQuotaExceeded(error);
     onError(error as Error);
     return () => {};
   }
@@ -173,6 +215,7 @@ function tryListenLatestCollection(
   onData: (data: HealthTelemetry) => void,
   onError: (err: Error) => void
 ) {
+  if (isQuotaExceeded) return;
   try {
     const collRef = collection(db, collectionName);
     const q = query(collRef, orderBy('timestamp', 'desc'), limit(1));
@@ -185,10 +228,17 @@ function tryListenLatestCollection(
           onData(telemetry);
         }
       },
-      err => onError(err)
+      err => {
+        if (markQuotaExceeded(err)) {
+          onError(err);
+          return;
+        }
+        onError(err);
+      }
     );
     currentUnsubscribe = unsubscribeCol;
   } catch (e) {
+    markQuotaExceeded(e);
     onError(e as Error);
   }
 }
@@ -586,6 +636,7 @@ export async function saveTelemetryHistoryToFirebase(
         await set(ref(rtdb, `theodoisk_history/${docId}`), payload);
       }
     } else {
+      if (isQuotaExceeded) return;
       const db = getFirestore(app);
       // 1. Lưu lịch sử theo từng tài khoản riêng biệt: users/{userId}/history/{docId}
       const userHistDocRef = doc(db, 'users', targetUserId, 'history', docId);
@@ -600,6 +651,7 @@ export async function saveTelemetryHistoryToFirebase(
       }
     }
   } catch (error) {
+    if (markQuotaExceeded(error)) return;
     console.warn('Lỗi ghi bản ghi lịch sử lên Firebase:', error);
   }
 }
@@ -963,7 +1015,11 @@ export function subscribeToFirebaseHistory(
             });
             broadcastMerged();
           },
-          () => {
+          (err) => {
+            if (markQuotaExceeded(err)) {
+              onError?.(err);
+              return;
+            }
             try {
               const fallbackUnsub = onSnapshot(userCollRef, snapFallback => {
                 snapFallback.docs.forEach(d => {
@@ -971,9 +1027,13 @@ export function subscribeToFirebaseHistory(
                   cacheMap.set(item.id, item);
                 });
                 broadcastMerged();
-              }, err2 => onError?.(err2));
+              }, err2 => {
+                markQuotaExceeded(err2);
+                onError?.(err2);
+              });
               unsubs.push(fallbackUnsub);
             } catch (e) {
+              markQuotaExceeded(e);
               onError?.(e as Error);
             }
           }
@@ -1002,7 +1062,11 @@ export function subscribeToFirebaseHistory(
           });
           broadcastMerged();
         },
-        () => {
+        (err) => {
+          if (markQuotaExceeded(err)) {
+            onError?.(err);
+            return;
+          }
           try {
             const fallbackUnsub = onSnapshot(
               collRef,
@@ -1021,10 +1085,14 @@ export function subscribeToFirebaseHistory(
                 });
                 broadcastMerged();
               },
-              fallbackErr => onError?.(fallbackErr)
+              fallbackErr => {
+                markQuotaExceeded(fallbackErr);
+                onError?.(fallbackErr);
+              }
             );
             unsubs.push(fallbackUnsub);
           } catch (e) {
+            markQuotaExceeded(e);
             onError?.(e as Error);
           }
         }
@@ -1522,10 +1590,12 @@ export function subscribeToUsers(
         onUsers(firestoreUsers);
       }
     }, err => {
+      if (markQuotaExceeded(err)) return;
       console.warn('Lỗi lắng nghe users từ Firestore:', err);
     });
     return unsub;
   } catch (err) {
+    markQuotaExceeded(err);
     console.warn('Lỗi kết nối subscribeToUsers:', err);
     return () => {};
   }
@@ -1539,6 +1609,7 @@ export async function updateUserRealtimePresence(
   userId: string,
   presenceData: Partial<AuthUser> & Record<string, any>
 ): Promise<void> {
+  if (isQuotaExceeded) return;
   try {
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
@@ -1558,6 +1629,7 @@ export async function updateUserRealtimePresence(
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (err) {
+    if (markQuotaExceeded(err)) return;
     console.warn('Lỗi cập nhật hiện diện người dùng:', err);
   }
 }
@@ -1569,6 +1641,7 @@ export function subscribeToAllUsersTelemetry(
   config: FirebaseConnectionConfig,
   callback: (map: Record<string, HealthTelemetry>) => void
 ): () => void {
+  if (isQuotaExceeded) return () => {};
   try {
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
@@ -1585,10 +1658,12 @@ export function subscribeToAllUsersTelemetry(
       });
       callback(map);
     }, (err) => {
+      if (markQuotaExceeded(err)) return;
       console.warn('Lỗi subscribeToAllUsersTelemetry:', err);
     });
     return unsub;
   } catch (err) {
+    markQuotaExceeded(err);
     console.warn('Lỗi khởi tạo subscribeToAllUsersTelemetry:', err);
     return () => {};
   }
@@ -1602,6 +1677,7 @@ export function subscribeToUserTelemetry(
   userId: string,
   callback: (telemetry: HealthTelemetry | null) => void
 ): () => void {
+  if (isQuotaExceeded) return () => {};
   try {
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
@@ -1614,10 +1690,12 @@ export function subscribeToUserTelemetry(
         callback(null);
       }
     }, (err) => {
+      if (markQuotaExceeded(err)) return;
       console.warn('Lỗi subscribeToUserTelemetry:', err);
     });
     return unsub;
   } catch (err) {
+    markQuotaExceeded(err);
     console.warn('Lỗi khởi tạo subscribeToUserTelemetry:', err);
     return () => {};
   }

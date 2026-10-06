@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   X, 
   Send, 
@@ -6,10 +6,16 @@ import {
   Sparkles, 
   Clock, 
   RotateCcw,
-  HelpCircle
+  CheckCircle2,
+  AlertTriangle,
+  Heart,
+  Activity,
+  MessageSquare,
+  ShieldCheck,
+  ChevronDown,
+  Users
 } from 'lucide-react';
-import { HealthTelemetry, UserRole, ChatMessage } from '../types';
-import { queryHistoricalData } from '../services/historyService';
+import { HealthTelemetry, UserRole, ChatMessage, TelemetryLog, TimeCalculations, AuthUser } from '../types';
 
 interface HealthChatbotProps {
   telemetry: HealthTelemetry;
@@ -18,22 +24,44 @@ interface HealthChatbotProps {
   badPostureSeconds: number;
   hasData: boolean;
   userName?: string;
+  userId?: string;
+  history?: TelemetryLog[];
+  timeStats?: TimeCalculations;
+  allUsers?: AuthUser[];
 }
 
 export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   telemetry,
   role,
+  sittingSeconds,
+  badPostureSeconds,
   hasData,
   userName = 'bạn',
+  userId,
+  history = [],
+  timeStats,
+  allUsers = []
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
+  const isAdmin = role === 'admin' || role === 'manager';
+
+  const selectedMemberObj = useMemo(() => {
+    if (selectedMemberId === 'all') return null;
+    return allUsers.find(u => u.id === selectedMemberId) || null;
+  }, [selectedMemberId, allUsers]);
+
+  const selectedMemberName = selectedMemberObj ? (selectedMemberObj.fullName || selectedMemberObj.username) : 'Tất cả';
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       sender: 'bot',
-      text: `Xin chào ${userName}! Tôi là Trợ Lý Công Thái Học & Sức Khỏe AI thông minh.\n\nTôi có thể **truy xuất dữ liệu lịch sử đo** (nhịp tim 1 giờ trước, 3 ngày trước, tư thế hôm qua...), giải thích chỉ số y tế và gợi ý bài tập cột sống. Hãy thử hỏi tôi bất kỳ câu hỏi nào!`,
+      text: isAdmin 
+        ? `Chào Quản trị viên **${userName}**! Tôi là **Trợ Lý AI Công Thái Học & Quản Trị Nhân Sự**.\n\nTôi có toàn quyền truy xuất dữ liệu của **toàn bộ thành viên** trong công ty từ Supabase:\n- *"Trần Thị Nhân Viên lúc 16h44 ngồi đúng hay sai?"*\n- *"Ai là người ngồi sai tư thế nhiều nhất hôm nay?"*\n- *"Tài Thành nhịp tim và tư thế hôm nay thế nào?"*\n\nBạn có thể chọn thành viên ở thanh trên hoặc hỏi trực tiếp tên bất kỳ ai!`
+        : `Chào **${userName}**! Tôi là **Trợ Lý Công Thái Học & Sức Khỏe AI**, kết nối trực tiếp với cảm biến IoT và Supabase.\n\nTôi có thể tra cứu chính xác lịch sử theo từng phút, ví dụ:\n- *"Lúc 15h50 tôi ngồi đúng hay sai?"*\n- *"Hôm nay nhịp tim trung bình của tôi là bao nhiêu?"*\n- *"Tôi đã ngồi liên tục bao lâu rồi?"*`,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -46,126 +74,112 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
     }
   }, [messages, isOpen, isTyping]);
 
-  const generateAIResponse = (userQuery: string): string => {
-    const text = userQuery.trim();
-    const lower = text.toLowerCase();
-
-    // 1. Check if query is asking for historical / time-based data retrieval
-    const hasTimeKeyword = 
-      lower.includes('ngày trước') ||
-      lower.includes('giờ trước') ||
-      lower.includes('tiếng trước') ||
-      lower.includes('hôm qua') ||
-      lower.includes('hôm kia') ||
-      lower.includes('ngày qua') ||
-      lower.includes('3 ngày') ||
-      lower.includes('1 giờ') ||
-      lower.includes('2 giờ') ||
-      lower.includes('lúc trước') ||
-      lower.includes('hồi trước') ||
-      lower.includes('lịch sử') ||
-      lower.includes('trung bình') ||
-      lower.includes('thống kê') ||
-      lower.includes('tuần này');
-
-    if (hasTimeKeyword || (lower.includes('nhịp tim') && (lower.includes('trước') || lower.includes('qua')))) {
-      const result = queryHistoricalData(text, hasData ? telemetry : undefined);
-      if (result.matched) {
-        return result.summaryText;
+  // Quick suggestion prompts dynamically adapt for Admin and selected member
+  const suggestions = useMemo(() => {
+    if (isAdmin) {
+      if (selectedMemberId === 'all') {
+        return [
+          'Ai ngồi sai tư thế nhiều nhất hôm nay?',
+          'So sánh nhịp tim và tư thế các thành viên',
+          'Có nhân viên nào đang bị cảnh báo không?',
+          'Tổng quan sức khỏe toàn bộ nhân viên'
+        ];
       }
+      return [
+        `${selectedMemberName} lúc 16h44 ngồi đúng hay sai?`,
+        `Tổng quan tư thế và nhịp tim của ${selectedMemberName}`,
+        `${selectedMemberName} hôm nay có bị cảnh báo không?`,
+        `Đánh giá thói quen ngồi của ${selectedMemberName}`
+      ];
     }
+    return [
+      'Lúc 15h50 tôi ngồi đúng hay sai?',
+      'Tổng quan tư thế và nhịp tim hôm nay',
+      'Tôi đã ngồi làm việc liên tục bao lâu?',
+      'Gợi ý bài tập giãn cơ cổ và thắt lưng'
+    ];
+  }, [isAdmin, selectedMemberId, selectedMemberName]);
 
-    // 2. Query about current live posture
-    if (lower.includes('tư thế') || lower.includes('posture') || lower.includes('ngồi') || lower.includes('cột sống')) {
-      if (!hasData) {
-        return `⚠️ Hiện tại hệ thống **chưa nhận được dữ liệu thời gian thực** từ Raspberry Pi 4 hoặc cảm biến camera.\n\n➔ Hãy kiểm tra kết nối thiết bị hoặc bấm nút "Giả lập Pi 4" trên thanh công cụ để thử nghiệm ngay lập tức.\n➔ Tuy nhiên, bạn có thể hỏi tôi dữ liệu quá khứ, ví dụ: *"Tư thế của tôi 3 ngày trước thế nào?"* hoặc *"Hôm qua tôi ngồi bao lâu?"*.`;
+  // Fallback heuristic analyzer when server is unreachable
+  const generateFallbackResponse = (userQuery: string): string => {
+    const text = userQuery.trim().toLowerCase();
+
+    // Check for exact hour/minute matching in query, e.g. "15h50", "15:50", "14h", "16h05"
+    const timeMatch = text.match(/(\d{1,2})[h:](\d{1,2})?/);
+    if (timeMatch && history.length > 0) {
+      const targetHour = parseInt(timeMatch[1], 10);
+      const targetMinute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const targetTimeMinutes = targetHour * 60 + targetMinute;
+
+      // Find closest history log in minutes
+      let closestLog: TelemetryLog | null = null;
+      let minDiff = Infinity;
+
+      for (const log of history) {
+        const d = new Date(log.timestamp);
+        const logMinutes = d.getHours() * 60 + d.getMinutes();
+        const diff = Math.abs(logMinutes - targetTimeMinutes);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestLog = log;
+        }
       }
-      let reply = `🔍 **Trạng thái tư thế thời gian thực:** "${telemetry.postureLabel}".\n\n`;
-      if (telemetry.angleNeck !== undefined) {
-        reply += `📐 **Góc nghiêng cổ:** ${telemetry.angleNeck}° (Góc chuẩn công thái học nên từ 150° - 165°).\n`;
-      }
-      if (telemetry.postureWarning) {
-        reply += `⚠️ **Cảnh báo:** ${telemetry.postureWarning}\n\n`;
-      }
-      if (telemetry.postureStatus === 0) {
-        reply += `✅ Rất tốt! Bạn đang ngồi thẳng lưng, tầm mắt ngang 1/3 trên màn hình. Hãy duy trì trạng thái này!`;
-      } else if (telemetry.postureStatus === 1 || telemetry.postureStatus === 3) {
-        reply += `⚠️ Bạn đang cúi đầu hoặc gù lưng. Lực đè lên đốt sống cổ C5-C7 đang tăng gấp 3-4 lần trọng lượng đầu (~18-22kg). Hãy kéo bả vai ra sau và nâng cằm lên nhé!`;
-      } else if (telemetry.postureStatus === 4) {
-        reply += `⏰ Bạn đã ngồi làm việc liên tục khá lâu. Đứng dậy đi lại 3 phút để kích hoạt tĩnh mạch chi dưới nhé.`;
+
+      if (closestLog && minDiff <= 35) {
+        const logDate = new Date(closestLog.timestamp);
+        const exactTime = logDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const isGood = closestLog.postureStatus === 0;
+        const isBad = closestLog.postureStatus === 1 || closestLog.postureStatus === 3;
+        const isStanding = closestLog.postureStatus === 5;
+        const isAbsent = closestLog.postureStatus === 2;
+
+        let verdict = '';
+        if (isGood) {
+          verdict = `✅ Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} đang **ngồi ĐÚNG TƯ THẾ** (thẳng lưng, mắt nhìn ngang màn hình).`;
+        } else if (isBad) {
+          verdict = `⚠️ Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} đang **ngồi SAI TƯ THẾ** (${closestLog.postureLabel || 'Cúi gù lưng / chúi cổ về trước'}). Hệ thống đã kích hoạt cảnh báo tư thế.`;
+        } else if (isStanding) {
+          verdict = `🚶 Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} đang ở trạng thái **ĐỨNG / VẬN ĐỘNG**.`;
+        } else if (isAbsent) {
+          verdict = `👤 Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} **VẮNG MẶT** khỏi khu vực quan sát của camera.`;
+        } else {
+          verdict = `📊 Vào lúc **${exactTime}**, trạng thái ghi nhận: **${closestLog.postureLabel}**.`;
+        }
+
+        return `${verdict}\n\n- **Nhịp tim:** ${closestLog.bpm > 0 ? `${closestLog.bpm} BPM` : 'Không đeo cảm biến'}\n- **Nồng độ SpO2:** ${closestLog.spo2 > 0 ? `${closestLog.spo2}%` : 'Không đeo cảm biến'}\n\n💡 **Lời khuyên:** Duy trì góc nghiêng cổ từ 150° - 165° để giảm 70% áp lực chèn ép lên đốt sống cổ C5-C7 nhé!`;
       } else {
-        reply += `👤 Chưa phát hiện người ngồi trong vùng giám sát Monitor Zone của camera.`;
+        return `🔍 Tôi đã quét dữ liệu lịch sử nhưng **không tìm thấy bản ghi nào quanh mốc ${timeMatch[0]}** (có thể do lúc đó thiết bị chưa bật, hoặc lịch sử vừa được làm sạch).\n\nBản ghi gần đây nhất trong máy là lúc **${history[0]?.timeFormatted || 'chưa có'}** với trạng thái: *${history[0]?.postureLabel || 'không có dữ liệu'}*.`;
       }
-      return reply;
     }
 
-    // 3. Query about current heart rate
-    if (lower.includes('nhịp tim') || lower.includes('bpm') || lower.includes('tim')) {
-      if (!hasData) {
-        return `❤️ Hiện tại **chưa có dữ liệu nhịp tim trực tiếp** từ cảm biến MAX30102.\n\nBạn có thể hỏi tôi dữ liệu quá khứ: *"Nhịp tim của tôi 1 giờ trước thế nào?"* hoặc *"Nhịp tim của tôi 3 ngày trước?"* để tôi truy xuất ngay từ kho lưu trữ!`;
-      }
-      let reply = `❤️ **Nhịp tim đo được từ MAX30102:** **${telemetry.bpm} BPM**\n\n`;
-      if (telemetry.bpm >= 60 && telemetry.bpm <= 85) {
-        reply += `✅ Nhịp tim đang ở mức nghỉ ngơi tối ưu (60 - 85 bpm), thể hiện bạn đang bình tĩnh và tập trung tốt.`;
-      } else if (telemetry.bpm > 85 && telemetry.bpm <= 100) {
-        reply += `⚡ Nhịp tim hơi nhanh nhẹ. Hãy uống một ngụm nước ấm và hít thở sâu 3 nhịp.`;
-      } else if (telemetry.bpm > 100) {
-        reply += `🚨 Nhịp tim cao (>100 bpm). Bạn có đang lo lắng hoặc vừa vận động không? Hãy tạm dừng công việc 2 phút để thư giãn.`;
-      } else {
-        reply += `Đang chờ đặt ngón tay cố định lên mắt cảm biến MAX30102...`;
-      }
-      return reply;
+    if (isAdmin && (text.includes('ai ngồi sai') || text.includes('sai nhiều nhất') || text.includes('so sánh'))) {
+      return `📊 **Phân tích Quản trị viên:**\n\nĐể xem xếp hạng chi tiết và so sánh tư thế của tất cả nhân viên, bạn hãy chuyển qua tab **\"Truy Vấn Lịch Sử Supabase SQL\"** trong **Danh Mục Quản Trị Hệ Thống** để xem bảng thống kê số học trực tiếp từ PostgreSQL!`;
     }
 
-    // 4. Query about SpO2
-    if (lower.includes('spo2') || lower.includes('oxy') || lower.includes('oxygen')) {
-      if (!hasData) {
-        return `🫁 **SpO₂ trực tiếp:** Đang chờ tín hiệu từ cảm biến quang học MAX30102. Bạn có thể hỏi *"SpO2 1 giờ trước"* hoặc *"SpO2 3 ngày trước"* để xem lịch sử đo!`;
-      }
-      let reply = `🫁 **Nồng độ oxy trong máu SpO₂:** **${telemetry.spo2}%**\n\n`;
-      if (telemetry.spo2 >= 96) {
-        reply += `✅ Mức bão hòa oxy máu rất dồi dào (>96%), đảm bảo tuần hoàn não minh mẫn và phản xạ nhanh nhạy.`;
-      } else {
-        reply += `⚠️ Nồng độ oxy dưới 96%. Bạn nên mở cửa sổ hoặc đi ra nơi thoáng gió để hít thở không khí tươi.`;
-      }
-      return reply;
+    // Work summary
+    if (text.includes('tổng quan') || text.includes('hôm nay') || text.includes('thống kê') || text.includes('bao lâu')) {
+      const sittingMins = Math.floor((sittingSeconds || 0) / 60);
+      const badMins = Math.floor((badPostureSeconds || 0) / 60);
+      return `📊 **Báo cáo sức khỏe & thời gian làm việc hôm nay:**\n\n- ⏱️ **Tổng thời gian ngồi:** ${sittingMins} phút\n- ⚠️ **Thời gian ngồi sai tư thế:** ${badMins} phút\n- ❤️ **Nhịp tim hiện tại:** ${telemetry.bpm > 0 ? `${telemetry.bpm} BPM` : 'Đang chờ cảm biến'}\n- 🫁 **SpO2 hiện tại:** ${telemetry.spo2 > 0 ? `${telemetry.spo2}%` : 'Đang chờ cảm biến'}\n- 📐 **Tư thế trực tiếp:** ${telemetry.postureLabel}\n\n💡 Bạn nên áp dụng quy tắc **50-10**: Cứ 50 phút ngồi hãy đứng lên đi lại 10 phút để tăng lưu thông máu não.`;
     }
 
-    // 5. Ergonomic exercises
-    if (lower.includes('bài tập') || lower.includes('giãn cơ') || lower.includes('mỏi cổ') || lower.includes('mỏi lưng') || lower.includes('đau')) {
-      return `🧘 **3 Bài tập giải tỏa áp lực cột sống trong 60 giây tại bàn làm việc:**\n\n` +
-        `1. **Chin Tuck (Rút cằm chống gù cổ):** Giữ thẳng lưng, kéo cằm vào trong như tạo cằm đôi, giữ 5 giây rồi thả lỏng. Lặp lại 5 lần để đưa đốt sống cổ về trục chuẩn.\n\n` +
-        `2. **Mở rộng ngực & bả vai:** Đan hai tay sau gáy, mở rộng hai khuỷu tay sang hai bên, hít sâu nâng lồng ngực lên trần nhà, giữ 10 giây.\n\n` +
-        `3. **Xoay thân ghế:** Ngồi thẳng, đặt tay phải lên tựa lưng bên trái, xoay nhẹ thân trên sang trái thở ra, giữ 8 giây rồi đổi bên. Giúp bôi trơn đĩa đệm thắt lưng L4-L5.`;
+    // Exercise tips
+    if (text.includes('bài tập') || text.includes('giãn cơ') || text.includes('mỏi cổ') || text.includes('đau lưng')) {
+      return `🧘 **3 bài tập công thái học nhanh tại bàn làm việc (1 phút):**\n\n1. **Kéo cằm (Chin Tuck):** Ngồi thẳng lưng, nhìn thẳng về phía trước, nhẹ nhàng thu cằm về sau như thể tạo nọng cằm. Giữ 5 giây, lặp lại 5 lần (giảm đau đốt sống cổ).\n2. **Mở ngực & ép bả vai (Chest Opener):** Đan hai tay ra sau gáy, hít sâu và mở rộng khuỷu tay sang hai bên, ép hai bả vai vào nhau. Giữ 10 giây.\n3. **Vươn cột sống:** Đan hai bàn tay lại, ngửa lòng bàn tay hướng lên trần nhà và vươn người cao hết mức có thể trong 15 giây.`;
     }
 
-    // 6. Raspberry Pi & Firebase Connection help
-    if (lower.includes('pi') || lower.includes('raspberry') || lower.includes('kết nối') || lower.includes('firebase')) {
-      return `🔌 **Hướng dẫn kết nối Raspberry Pi 4 lên Firebase:**\n\n` +
-        `1. Mở mục **"Code Raspberry Pi 4"** trên thanh tiêu đề để tải script Python hoàn chỉnh.\n` +
-        `2. Script sẽ tự động gửi vào Collection: \`devices\`, Document: \`pi4_node_1\`.\n` +
-        `3. Các trường dữ liệu chuẩn gồm: \`heart_rate\`, \`spo2\`, \`posture_status\`, \`angle_neck\`, \`posture_warning\`.\n` +
-        `4. Trên Firebase Firestore, đảm bảo Rules cho phép ghi: \`allow read, write: if true;\`.`;
-    }
-
-    // 7. General fallback with suggestions
-    return `Tôi hiểu câu hỏi của bạn! Tôi có thể giúp bạn các tính năng sau:\n\n` +
-      `🕒 **Truy xuất dữ liệu lịch sử:**\n` +
-      `• *"Nhịp tim của tôi 1 giờ trước như thế nào?"*\n` +
-      `• *"Nhịp tim & SpO₂ của tôi 3 ngày trước ra sao?"*\n` +
-      `• *"Hôm qua tôi có bị cảnh báo gù lưng không?"*\n\n` +
-      `🩺 **Tư vấn công thái học:**\n` +
-      `• *"Gợi ý bài tập giảm mỏi cổ"* | *"Tư thế hiện tại của tôi"*`;
+    // Default general response
+    return `🩺 **Trợ lý Công thái học:** Hiện tại tư thế của bạn đang là **${telemetry.postureLabel}** (Nhịp tim: ${telemetry.bpm} BPM, SpO2: ${telemetry.spo2}%).\n\nBạn có thể hỏi tôi về mốc thời gian cụ thể trong ngày (ví dụ: *"Lúc 15h50 tôi ngồi đúng hay sai?"*) hoặc kiểm tra thời gian ngồi làm việc hôm nay!`;
   };
 
-  const handleSend = (textToSend?: string) => {
-    const text = (textToSend || input).trim();
-    if (!text) return;
+  const handleSend = async (overrideText?: string) => {
+    const textToSend = (overrideText || input).trim();
+    if (!textToSend || isTyping) return;
 
     const userMsg: ChatMessage = {
       id: String(Date.now()),
       sender: 'user',
-      text,
+      text: textToSend,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -173,186 +187,248 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
     setInput('');
     setIsTyping(true);
 
-    // Simulate intelligent AI processing
-    setTimeout(() => {
-      const botReplyText = generateAIResponse(text);
+    try {
+      // Call server-side Gemini API proxy /api/chat with rich context
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: textToSend,
+          telemetry,
+          history: history.slice(0, 50),
+          timeStats,
+          userName,
+          userId,
+          role,
+          targetMemberName: selectedMemberId !== 'all' ? selectedMemberName : undefined,
+          targetMemberId: selectedMemberId !== 'all' ? selectedMemberId : undefined,
+          allUsers: allUsers.map(u => ({
+            id: u.id,
+            fullName: u.fullName,
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            department: u.department
+          }))
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+
+      const data = await response.json();
+      const botReply = data.reply || generateFallbackResponse(textToSend);
+
       const botMsg: ChatMessage = {
         id: String(Date.now() + 1),
         sender: 'bot',
-        text: botReplyText,
+        text: botReply,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages(prev => [...prev, botMsg]);
+    } catch (err) {
+      console.warn('Lỗi gọi AI server, kích hoạt bộ phân tích dữ liệu cục bộ:', err);
+      // Fallback local smart answer
+      const fallbackText = generateFallbackResponse(textToSend);
+      const botMsg: ChatMessage = {
+        id: String(Date.now() + 1),
+        sender: 'bot',
+        text: fallbackText,
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages(prev => [...prev, botMsg]);
+    } finally {
       setIsTyping(false);
-    }, 450);
+    }
   };
 
-  const quickPrompts = [
-    'Nhịp tim của tôi 1 giờ trước thế nào?',
-    'Nhịp tim của tôi 3 ngày trước ra sao?',
-    'Hôm qua tôi có bị sai tư thế không?',
-    'Thống kê sức khỏe tuần này',
-    'Gợi ý bài tập giãn cơ cổ & lưng',
-  ];
+  const handleResetChat = () => {
+    setMessages([
+      {
+        id: String(Date.now()),
+        sender: 'bot',
+        text: `Đã làm mới cuộc hội thoại! Bạn có thể hỏi tôi bất kỳ thông tin nào về tư thế và dữ liệu sức khỏe đã đo đạc.`,
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  };
 
   return (
     <>
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-4 right-3.5 sm:bottom-5 sm:right-5 z-40 flex items-center gap-2 p-2.5 sm:px-4 sm:py-3 rounded-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-600/30 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
-        title="Hỏi Trợ Lý AI"
-      >
-        <Bot className="w-5 h-5 animate-pulse" />
-        <span className="text-xs font-bold hidden sm:inline">Hỏi Trợ Lý AI</span>
-        <span className="flex h-2 w-2 relative">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-        </span>
-      </button>
+      {/* Sleek Floating Trigger Button (Executive Light Command Center Style) */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 h-11 px-4 rounded-full bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl border border-slate-700/80 transition-all duration-200 cursor-pointer group active:scale-95"
+          aria-label="Mở Trợ lý AI"
+        >
+          <div className="relative flex items-center justify-center">
+            <Bot className="w-4.5 h-4.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse" />
+          </div>
+          <span className="text-xs font-bold tracking-tight whitespace-nowrap">Hỏi Trợ Lý AI</span>
+          <span className="hidden sm:inline-flex px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-white/20 text-emerald-300 uppercase">
+            Gemini
+          </span>
+        </button>
+      )}
 
-      {/* Floating Chatbot Window */}
+      {/* Main Chat Drawer/Modal */}
       {isOpen && (
-        <div className="fixed bottom-16 sm:bottom-20 left-2 right-2 sm:left-auto sm:right-5 z-50 sm:w-[420px] max-w-[calc(100vw-16px)] h-[560px] max-h-[82vh] rounded-2xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-slate-800">
+        <div className="fixed bottom-4 right-4 z-50 w-[95vw] sm:w-[420px] max-w-[440px] h-[580px] max-h-[85vh] flex flex-col rounded-2xl bg-white border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn text-slate-800">
           {/* Header */}
-          <div className="p-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 select-none">
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-sky-100 text-sky-700 border border-sky-200">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shadow-xs">
+                <Bot className="w-4.5 h-4.5" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>Trợ Lý Sức Khỏe AI & Truy Xuất Dữ Liệu</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                </h3>
-                <p className="text-[10px] text-slate-500">
-                  {role === 'manager' ? 'Chế độ Quản Trị Viên (Admin)' : 'Chế độ Người Dùng Cá Nhân (User)'} • Raspberry Pi 4
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">Trợ Lý Công Thái Học AI</h3>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                  <span>Gemini Model</span>
+                  <span>•</span>
+                  <span>Đồng bộ Supabase & IoT</span>
                 </p>
               </div>
             </div>
+
             <div className="flex items-center gap-1">
               <button
-                onClick={() => {
-                  setMessages([
-                    {
-                      id: String(Date.now()),
-                      sender: 'bot',
-                      text: 'Đã xóa hội thoại cũ. Bạn cần truy xuất dữ liệu nào (ví dụ: *"Nhịp tim 3 ngày trước"*, *"1 giờ trước"*...)?',
-                      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-                    },
-                  ]);
-                }}
-                title="Làm mới hội thoại"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition text-xs cursor-pointer"
+                onClick={handleResetChat}
+                title="Làm mới đoạn chat"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                title="Thu nhỏ cửa sổ chat"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Quick Info bar */}
-          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3 text-sky-600" />
-              Truy xuất dữ liệu: 1h, 3 ngày, hôm qua...
-            </span>
-            <span className="text-emerald-600 font-bold">Ready</span>
-          </div>
-
-          {/* Messages list */}
-          <div className="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs bg-white">
-            {messages.map(m => (
-              <div
-                key={m.id}
-                className={`flex gap-2.5 ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+          {/* Admin Member Context Selector */}
+          {isAdmin && (
+            <div className="px-3.5 py-2 bg-indigo-50/70 border-b border-indigo-100/80 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-900 shrink-0">
+                <Users className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Tra cứu:</span>
+              </div>
+              <select
+                value={selectedMemberId}
+                onChange={(e) => setSelectedMemberId(e.target.value)}
+                className="flex-1 max-w-[250px] px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-950 font-semibold text-xs focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs truncate"
               >
-                {m.sender === 'bot' && (
-                  <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200 mt-0.5">
-                    <Bot className="w-3.5 h-3.5" />
-                  </div>
-                )}
+                <option value="all">Toàn bộ thành viên (Tất cả)</option>
+                {allUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName || u.username} ({u.role === 'admin' ? 'Quản lý' : (u.department || 'Nhân viên')})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Messages Body */}
+          <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 bg-slate-50/50">
+            {messages.map((msg) => {
+              const isUser = msg.sender === 'user';
+              return (
                 <div
-                  className={`max-w-[85%] p-3 rounded-xl leading-relaxed whitespace-pre-line ${
-                    m.sender === 'user'
-                      ? 'bg-sky-600 text-white rounded-br-none shadow-xs font-medium'
-                      : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
-                  }`}
+                  key={msg.id}
+                  className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}
                 >
-                  <p>{m.text}</p>
-                  <span className={`block text-[9px] mt-1 text-right font-mono ${
-                    m.sender === 'user' ? 'text-sky-100' : 'text-slate-400'
-                  }`}>
-                    {m.time}
+                  <div
+                    className={`max-w-[88%] rounded-2xl p-3 text-xs sm:text-sm leading-relaxed transition-all shadow-2xs ${
+                      isUser
+                        ? 'bg-slate-900 text-white rounded-tr-xs font-sans font-medium'
+                        : 'bg-white border border-slate-200/90 text-slate-800 rounded-tl-xs font-sans'
+                    }`}
+                  >
+                    {/* Format simple bolding, bullets, and line breaks */}
+                    <div className="whitespace-pre-line space-y-1">
+                      {msg.text.split('\n').map((line, idx) => {
+                        // Highlight bold strings
+                        const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                        return (
+                          <div 
+                            key={idx} 
+                            dangerouslySetInnerHTML={{ __html: formatted }} 
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono px-1">
+                    {msg.time}
                   </span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
+            {/* Typing indicator */}
             {isTyping && (
-              <div className="flex gap-2.5 justify-start items-center">
-                <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200">
-                  <Bot className="w-3.5 h-3.5" />
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce delay-100"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce delay-200"></span>
-                  <span className="text-[11px] ml-1">Đang tra cứu dữ liệu...</span>
-                </div>
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs w-fit shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                <span className="text-[11px] font-medium">AI đang truy vấn dữ liệu lịch sử...</span>
+                <span className="flex gap-1 ml-1">
+                  <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce" />
+                  <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
+                  <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
+                </span>
               </div>
             )}
 
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick prompts */}
-          <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 space-y-1">
-            <div className="text-[10px] text-slate-500 flex items-center gap-1">
-              <HelpCircle className="w-3 h-3 text-indigo-600" />
-              <span>Gợi ý câu hỏi nhanh:</span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {quickPrompts.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSend(q)}
-                  className="whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] bg-white hover:bg-slate-100 text-slate-700 transition shrink-0 border border-slate-200 hover:border-sky-500 cursor-pointer shadow-2xs font-medium"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+          {/* Quick Suggestions Chips */}
+          <div className="px-3 py-2 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {suggestions.map((s, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSend(s)}
+                disabled={isTyping}
+                className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium whitespace-nowrap transition cursor-pointer border border-slate-200/80 disabled:opacity-50"
+              >
+                {s}
+              </button>
+            ))}
           </div>
 
-          {/* Input form */}
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
-          >
+          {/* Input Bar */}
+          <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
             <input
               type="text"
-              placeholder="VD: Nhịp tim của tôi 3 ngày trước thế nào?"
               value={input}
-              onChange={e => setInput(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition"
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Hỏi tư thế, nhịp tim hoặc mốc giờ cụ thể..."
+              className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+              disabled={isTyping}
             />
+
             <button
-              type="submit"
-              disabled={!input.trim()}
-              className="p-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-500 transition disabled:opacity-40 shadow-xs cursor-pointer"
+              onClick={() => handleSend()}
+              disabled={!input.trim() || isTyping}
+              className="w-9 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs shrink-0"
+              title="Gửi câu hỏi"
             >
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-4 h-4" />
             </button>
-          </form>
+          </div>
         </div>
       )}
     </>

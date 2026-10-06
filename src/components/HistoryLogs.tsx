@@ -30,6 +30,7 @@ interface HistoryLogsProps {
   isSyncing?: boolean;
   firebaseHistoryCollection?: string;
   isManager: boolean;
+  onOpenSupabase?: () => void;
 }
 
 export const HistoryLogs: React.FC<HistoryLogsProps> = ({ 
@@ -41,7 +42,8 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   onSaveSnapshot,
   isSyncing = false,
   firebaseHistoryCollection = 'theodoisk_history',
-  isManager 
+  isManager,
+  onOpenSupabase
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPosture, setFilterPosture] = useState<string>('all');
@@ -88,10 +90,10 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
 
   // Base history filtered by user account isolation
   const userFilteredHistory = useMemo(() => {
-    // If not a manager, STRICTLY only allow currentUser's records
+    // If not a manager, STRICTLY only allow currentUser's records (zero leakage)
     if (!isManager && currentUser) {
       return history.filter(item => 
-        !item.userId || item.userId === currentUser.id || 
+        (item.userId && item.userId === currentUser.id) || 
         (item.userEmail && currentUser.email && item.userEmail.toLowerCase() === currentUser.email.toLowerCase())
       );
     }
@@ -276,6 +278,18 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <Cloud className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>Tự động lưu Firebase Cloud</span>
           </div>
+
+          {/* Supabase SQL Button */}
+          {onOpenSupabase && (
+            <button
+              onClick={onOpenSupabase}
+              title="Cấu hình và truy xuất dữ liệu từ Supabase PostgreSQL"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-xs font-bold whitespace-nowrap shadow-2xs cursor-pointer transition"
+            >
+              <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>Supabase SQL</span>
+            </button>
+          )}
 
           {/* Sync Button */}
           {onRefreshHistory && (
@@ -511,6 +525,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider z-10">
                   <tr>
+                    <th className="px-3 py-2.5 text-center font-mono w-12">STT</th>
                     <th className="px-4 py-2.5">Thời Gian (Ngày & Giờ)</th>
                     <th className="px-4 py-2.5">Trạng Thái Tư Thế</th>
                     <th className="px-4 py-2.5">Nhịp Tim (BPM)</th>
@@ -521,7 +536,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredLogs.map(item => {
+                  {filteredLogs.map((item, idx) => {
                     let postureBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
                     if (item.postureStatus === 0) postureBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                     else if (item.postureStatus === 5) postureBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
@@ -530,6 +545,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition group">
+                        <td className="px-3 py-2.5 text-center font-mono text-[11px] font-bold text-slate-400">
+                          #{idx + 1}
+                        </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-3 h-3 text-sky-600 shrink-0" />

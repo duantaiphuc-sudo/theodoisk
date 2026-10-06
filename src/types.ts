@@ -88,9 +88,11 @@ export interface HistoricalRecord {
 
 export interface TimeCalculations {
   sittingSeconds: number;
-  movingSeconds: number;
-  badPostureSeconds: number;
-  continuousSittingSeconds: number;
+  standingSeconds: number; // Tổng thời gian đứng làm việc
+  movingSeconds: number; // Thời gian di chuyển ngoài vùng
+  badPostureSeconds: number; // Thời gian sai tư thế hiện tại
+  continuousSittingSeconds: number; // Thời gian ngồi liên tục
+  continuousStandingSeconds: number; // Thời gian đứng liên tục trong chu kỳ Sit-Stand
 }
 
 export interface ZoneConfig {
@@ -107,6 +109,7 @@ export interface AlertThresholds {
   incorrectPostureSec: number;
   longIncorrectSec: number;
   longSittingSec: number;
+  standingTargetSec: number; // Ngưỡng thời gian đứng khuyến nghị (giây, mặc định 300s = 5 phút)
   soundEnabled: boolean;
   voiceAlertEnabled: boolean; // Phát âm thanh giọng nói tiếng Việt nhắc nhở
   outOfZoneAlertEnabled: boolean; // Nhắc nhở bằng giọng nói khi rời ngoài vùng quan sát
@@ -140,6 +143,14 @@ export interface FirebaseConnectionConfig {
   documentId: string;
   useRealtimeDb: boolean;
   autoConnect: boolean;
+}
+
+export interface SupabaseConnectionConfig {
+  url: string;
+  anonKey: string;
+  tableName: string;
+  autoSync: boolean;
+  isConnected?: boolean;
 }
 
 export interface ChatMessage {

@@ -108,6 +108,8 @@ export type ErgonomicAlertVoiceType =
   | 'out_of_zone'         // "Bạn đang ngồi ngoài vùng quan sát, xin hãy ngồi lại vào vị trí quan sát!"
   | 'long_incorrect'      // "Cảnh báo: Bạn đã ngồi sai tư thế quá lâu, hãy ngồi thẳng lưng lên ngay!"
   | 'long_sitting'        // "Bạn đã ngồi liên tục quá lâu, hãy đứng dậy vận động và thư giãn một chút nhé!"
+  | 'sit_to_stand_prompt' // "Cảnh báo: Bạn đã ngồi làm việc liên tục. Hãy đứng dậy làm việc trong ít phút!"
+  | 'standing_goal_reached' // "Tuyệt vời! Bạn đã hoàn thành thời gian đứng làm việc. Bạn có thể ngồi xuống tiếp tục công việc!"
   | 'vital_abnormal'      // "Cảnh báo: Chỉ số sinh trắc học có dấu hiệu bất thường!"
   | 'custom';
 
@@ -117,6 +119,8 @@ const LOCAL_AUDIO_FILES: Record<string, string> = {
   out_of_zone: '/audio/out_of_zone.mp3',
   long_incorrect: '/audio/long_incorrect.mp3',
   long_sitting: '/audio/long_sitting.mp3',
+  sit_to_stand_prompt: '/audio/sit_to_stand_prompt.mp3',
+  standing_goal_reached: '/audio/standing_goal_reached.mp3',
   vital_abnormal: '/audio/vital_abnormal.mp3',
 };
 
@@ -125,6 +129,8 @@ const VOICE_ALERT_MESSAGES: Record<ErgonomicAlertVoiceType, string> = {
   out_of_zone: 'Bạn đang ngồi ngoài vùng quan sát, xin hãy ngồi lại vào vị trí quan sát!',
   long_incorrect: 'Cảnh báo: Bạn đã ngồi sai tư thế quá lâu, hãy ngồi thẳng lưng lên ngay!',
   long_sitting: 'Bạn đã ngồi liên tục quá lâu, hãy đứng dậy vận động và thư giãn một chút nhé!',
+  sit_to_stand_prompt: 'Cảnh báo: Bạn đã ngồi làm việc liên tục quá lâu! Hãy đứng dậy làm việc hoặc vận động trong ít phút để giải phóng áp lực cột sống nhé!',
+  standing_goal_reached: 'Tuyệt vời! Bạn đã đứng đủ thời gian khuyến nghị. Bạn có thể ngồi xuống tiếp tục làm việc rồi nhé!',
   vital_abnormal: 'Cảnh báo: Chỉ số sinh trắc học có dấu hiệu bất thường!',
   custom: 'Thông báo nhắc nhở sức khỏe!',
 };
@@ -274,14 +280,18 @@ export function playErgonomicVoiceAlert(
 
   // Play appropriate chime sound
   if (playChime) {
-    const chimeType = (type === 'long_incorrect' || type === 'vital_abnormal') ? 'danger' : 'warning';
+    const chimeType = (type === 'long_incorrect' || type === 'vital_abnormal') 
+      ? 'danger' 
+      : type === 'standing_goal_reached' 
+      ? 'success' 
+      : 'warning';
     playAlertChime(chimeType);
   }
 
   // Speak voice reminder with slight 160ms delay after chime so it sounds natural and does not cut off
   if (playVoice) {
     setTimeout(() => {
-      speakVietnamese(message, options?.customMessage ? undefined : type);
+      speakVietnamese(message, type);
     }, 160);
   }
 }
