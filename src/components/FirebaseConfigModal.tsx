@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Database, Check, AlertCircle, Send, Layers, ClipboardPaste, Trash2 } from 'lucide-react';
 import { FirebaseConnectionConfig } from '../types';
-import { pushMockTelemetryToFirebase, clearFirebaseTelemetry } from '../services/firebase';
+import { pushMockTelemetryToFirebase, clearFirebaseTelemetry, purgeAllFirebaseHistoryCollections } from '../services/firebase';
 
 interface FirebaseConfigModalProps {
   isOpen: boolean;
@@ -95,6 +95,19 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
       setTestStatus('✅ Đã xóa dữ liệu cũ trên Firebase! Màn hình theo dõi đã quay về trạng thái rỗng chờ kết nối mới.');
     } catch (err: any) {
       setTestStatus(`❌ Lỗi xóa: ${err.message || 'Kiểm tra quyền ghi Firestore Rules'}`);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const handlePurgeFirestoreHistory = async () => {
+    setIsClearing(true);
+    setTestStatus('Đang quét và xóa sạch 2 mục devices_history & theodoisk_history trên Firestore...');
+    try {
+      const res = await purgeAllFirebaseHistoryCollections(formData);
+      setTestStatus(`✅ Đã xóa sạch ${res.deletedCount} bản ghi khỏi devices_history & theodoisk_history trên Firebase Console!`);
+    } catch (err: any) {
+      setTestStatus(`❌ Lỗi dọn dẹp Firestore: ${err.message || 'Kiểm tra Firestore Rules'}`);
     } finally {
       setIsClearing(false);
     }
@@ -328,9 +341,19 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                 className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isClearing ? 'Đang xóa...' : 'Xóa dữ liệu cũ trên Firebase'}</span>
+                <span>{isClearing ? 'Đang xóa...' : 'Xóa dữ liệu live trên Firebase'}</span>
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handlePurgeFirestoreHistory}
+              disabled={isTesting || isClearing}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer"
+              title="Xóa triệt để toàn bộ document trong 2 collection devices_history và theodoisk_history trên Firestore"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-amber-600" />
+              <span>Dọn sạch 2 mục History cũ trên Firebase Console (devices_history & theodoisk_history)</span>
+            </button>
             {testStatus && (
               <p className="text-[11px] text-center mt-1.5 font-mono text-slate-600 font-semibold">
                 {testStatus}

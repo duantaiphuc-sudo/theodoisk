@@ -19,6 +19,7 @@ import {
 import { TelemetryLog, AuthUser } from '../types';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
 import { getCurrentUser } from '../services/authService';
+import { normalizeDateFormatted } from '../services/supabaseService';
 
 interface HistoryLogsProps {
   history: TelemetryLog[];
@@ -112,26 +113,30 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
     });
   }, [history, selectedAccountFilter, isManager, currentUser]);
 
-  // Extract unique available dates from user-filtered logs
+  // Extract unique available dates from user-filtered logs (chuẩn hóa về định dạng duy nhất DD/MM/YYYY)
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
     userFilteredHistory.forEach(item => {
-      if (item.dateFormatted) {
-        dates.add(item.dateFormatted);
-      } else if (item.timestamp) {
-        try {
-          const d = new Date(item.timestamp).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-          dates.add(d);
-        } catch {}
+      const normalized = normalizeDateFormatted(item.dateFormatted || item.timestamp);
+      if (normalized) {
+        dates.add(normalized);
       }
     });
-    return Array.from(dates);
+    return Array.from(dates).sort((a, b) => {
+      try {
+        const [d1, m1, y1] = a.split('/').map(Number);
+        const [d2, m2, y2] = b.split('/').map(Number);
+        return new Date(y2, m2 - 1, d2).getTime() - new Date(y1, m1 - 1, d1).getTime();
+      } catch {
+        return b.localeCompare(a);
+      }
+    });
   }, [userFilteredHistory]);
 
   const filteredLogs = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return userFilteredHistory.filter(item => {
-      const dateStr = item.dateFormatted || '';
+      const dateStr = normalizeDateFormatted(item.dateFormatted || item.timestamp) || '';
       const timeStr = item.timeFormatted || '';
       const dateTimeStr = item.dateTimeFormatted || `${dateStr} ${timeStr}`;
 
@@ -255,28 +260,28 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             </span>
 
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-mono font-medium whitespace-nowrap">
-              <Cloud className="w-3 h-3 text-sky-600 shrink-0" />
-              <span>Supabase: {selectedAccountFilter !== 'all' ? `telemetry_logs?user=${selectedAccountFilter}` : firebaseHistoryCollection}</span>
+              <Database className="w-3 h-3 text-sky-600 shrink-0" />
+              <span>Supabase: telemetry_logs {selectedAccountFilter !== 'all' ? `(User: ${selectedAccountFilter})` : '(Toàn bộ)'}</span>
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Hệ thống tự động lưu dữ liệu thời gian thực theo phân vùng tài khoản độc lập trên Supabase PostgreSQL & bộ nhớ thiết bị.
+            Hệ thống tự động lưu trữ dữ liệu lịch sử đo đạc vào cơ sở dữ liệu Supabase PostgreSQL Cloud. Firebase chỉ dùng nhận diện camera & hiện diện thiết bị.
           </p>
         </div>
 
         {/* Action Controls Bar */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Real-time Auto-save Indicator (Replaces manual save button as requested) */}
+          {/* Supabase Auto-save Indicator */}
           <div 
-            title="Dữ liệu cảm biến & camera IoT được tự động lưu lên Firebase Cloud liên tục"
+            title="Dữ liệu lịch sử đo đạc & công thái học được tự động đồng bộ và lưu trữ trực tiếp trên Supabase PostgreSQL Cloud"
             className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold whitespace-nowrap shadow-2xs"
           >
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <Cloud className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>Tự động lưu Firebase Cloud</span>
+            <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Lưu trữ Supabase Cloud</span>
           </div>
 
           {/* Supabase SQL Button */}
@@ -296,7 +301,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <button
               onClick={onRefreshHistory}
               disabled={isSyncing}
-              title="Đồng bộ 2 chiều với Firebase Firestore"
+              title="Đồng bộ lại dữ liệu chuẩn xác từ Supabase PostgreSQL"
               className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -308,7 +313,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           {onSaveSnapshot && (
             <button
               onClick={onSaveSnapshot}
-              title="Lưu ngay lập tức mốc dữ liệu hiện tại vào Firestore & lịch sử"
+              title="Lưu ngay lập tức mốc dữ liệu hiện tại vào Supabase & lịch sử"
               className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition whitespace-nowrap cursor-pointer shadow-2xs"
             >
               <BookmarkPlus className="w-3.5 h-3.5 text-sky-600" />
@@ -553,7 +558,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                             <Calendar className="w-3 h-3 text-sky-600 shrink-0" />
                             <div className="flex flex-col">
                               <span className="font-mono text-slate-900 font-bold">
-                                {item.dateFormatted || '--/--/----'}
+                                {normalizeDateFormatted(item.dateFormatted || item.timestamp) || '--/--/----'}
                               </span>
                               <div className="flex items-center gap-1">
                                 <span className="font-mono text-[11px] text-slate-500">
@@ -652,7 +657,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 font-mono text-xs min-w-0">
                         <Calendar className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                        <span className="font-bold text-slate-900">{item.dateFormatted || '--/--/----'}</span>
+                        <span className="font-bold text-slate-900">{normalizeDateFormatted(item.dateFormatted || item.timestamp) || '--/--/----'}</span>
                         <span className="text-slate-400">•</span>
                         <span className="text-slate-600">{item.timeFormatted}</span>
                         {(item.userName || item.userEmail) && (

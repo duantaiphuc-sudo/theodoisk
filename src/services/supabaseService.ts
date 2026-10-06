@@ -173,6 +173,44 @@ export async function insertTelemetryToSupabase(
 }
 
 /**
+ * Chuẩn hóa ngày tháng về dạng chuẩn duy nhất DD/MM/YYYY (ví dụ: 06/10/2026)
+ * Giúp triệt tiêu lỗi bị chia tách thành 2 ngày khác nhau (6/10/2026 vs 06/10/2026)
+ */
+export function normalizeDateFormatted(input?: string | Date | null): string {
+  if (!input) return '';
+  try {
+    if (typeof input === 'string') {
+      const trimmed = input.trim();
+      // Xử lý dạng D/M/YYYY hoặc DD/MM/YYYY
+      if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
+        if (parts.length === 3) {
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
+          const year = parts[2];
+          return `${day}/${month}/${year}`;
+        }
+      }
+      // Xử lý dạng YYYY-MM-DD
+      if (trimmed.includes('-') && !trimmed.includes('T') && trimmed.length >= 10) {
+        const parts = trimmed.split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+        }
+      }
+    }
+    const d = typeof input === 'string' ? new Date(input) : input;
+    if (d instanceof Date && !isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  } catch {}
+  return String(input || '');
+}
+
+/**
  * Xóa toàn bộ lịch sử hoặc lịch sử theo tài khoản trên Supabase
  */
 export async function clearSupabaseHistory(targetUserId?: string): Promise<boolean> {
@@ -185,8 +223,8 @@ export async function clearSupabaseHistory(targetUserId?: string): Promise<boole
     if (targetUserId && targetUserId !== 'all') {
       query = query.eq('user_id', targetUserId);
     } else {
-      // PostgREST yêu cầu điều kiện WHERE khi delete
-      query = query.gte('id', 0);
+      // PostgREST yêu cầu điều kiện WHERE khi delete: chọn id khác -1 để xóa toàn bộ
+      query = query.neq('id', -1);
     }
     const { error } = await query;
     if (error) {
@@ -313,12 +351,14 @@ export async function fetchSupabaseHistory(
     // Chuẩn hóa bản ghi trả về cho Dashboard
     const formatted: TelemetryLog[] = data.map((row: any) => {
       const dateObj = new Date(row.created_at || Date.now());
+      const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const dateFormatted = normalizeDateFormatted(dateObj);
       return {
         id: String(row.id),
         timestamp: row.created_at,
-        timeFormatted: dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        dateFormatted: dateObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        dateTimeFormatted: dateObj.toLocaleString('vi-VN'),
+        timeFormatted,
+        dateFormatted,
+        dateTimeFormatted: `${dateFormatted} ${timeFormatted}`,
         bpm: Number(row.bpm) || 0,
         spo2: Number(row.spo2) || 0,
         postureStatus: Number(row.posture_status ?? -1),
@@ -386,13 +426,14 @@ export async function fetchSupabaseHistory(
 
 /**
  * Lắng nghe dữ liệu trực tiếp theo thời gian thực (Supabase Realtime)
- * Mỗi khi có bản ghi mới được INSERT vào bảng telemetry_logs, ứng dụng sẽ cập nhật ngay lập tức.
+ * Mỗi khi có bản ghi mới INSERT hoặc DELETE trong bảng telemetry_logs, ứng dụng sẽ cập nhật ngay lập tức.
  */
 export function subscribeToSupabaseRealtime(
   onData?: (data: HealthTelemetry) => void,
   onLog?: (log: TelemetryLog) => void,
   targetUserId?: string,
-  targetUserEmail?: string
+  targetUserEmail?: string,
+  onDeleteLog?: (deletedId: string) => void
 ): () => void {
   const config = getSavedSupabaseConfig();
   const client = getSupabaseClient(config);
@@ -424,12 +465,16 @@ export function subscribeToSupabaseRealtime(
             }
           }
 
+          const dateObj = new Date(row.created_at || Date.now());
+          const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const dateFormatted = normalizeDateFormatted(dateObj);
+
           const logEntry: TelemetryLog = {
             id: String(row.id || Date.now()),
             timestamp: row.created_at || new Date().toISOString(),
-            timeFormatted: new Date(row.created_at || Date.now()).toLocaleTimeString('vi-VN'),
-            dateFormatted: new Date(row.created_at || Date.now()).toLocaleDateString('vi-VN'),
-            dateTimeFormatted: new Date(row.created_at || Date.now()).toLocaleString('vi-VN'),
+            timeFormatted,
+            dateFormatted,
+            dateTimeFormatted: `${dateFormatted} ${timeFormatted}`,
             bpm: Number(row.bpm) || 0,
             spo2: Number(row.spo2) || 0,
             postureStatus: Number(row.posture_status ?? -1),
@@ -469,9 +514,25 @@ export function subscribeToSupabaseRealtime(
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: tableName,
+        },
+        (payload: any) => {
+          if (onDeleteLog && payload.old) {
+            const delId = String(payload.old.id || '');
+            if (delId) {
+              onDeleteLog(delId);
+            }
+          }
+        }
+      )
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
-          console.log(`[Supabase Realtime] Đã kết nối kênh lắng nghe trực tiếp bảng ${tableName}`);
+          console.log(`[Supabase Realtime] Đã kết nối kênh lắng nghe trực tiếp bảng ${tableName} (INSERT + DELETE)`);
         }
       });
 
@@ -527,6 +588,11 @@ DROP POLICY IF EXISTS "Cho phép ghi log từ Dashboard hoặc Raspberry Pi" ON 
 CREATE POLICY "Cho phép ghi log từ Dashboard hoặc Raspberry Pi"
     ON public.telemetry_logs FOR INSERT
     WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Cho phép xóa dữ liệu từ Dashboard" ON public.telemetry_logs;
+CREATE POLICY "Cho phép xóa dữ liệu từ Dashboard"
+    ON public.telemetry_logs FOR DELETE
+    USING (true);
 
 -- 4. BẬT TÍNH NĂNG SUPABASE REALTIME ĐỂ ĐỒNG BỘ TỨC THÌ (WEBSOCKET)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.telemetry_logs;

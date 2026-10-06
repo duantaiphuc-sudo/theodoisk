@@ -474,20 +474,7 @@ export async function pushMockTelemetryToFirebase(config: FirebaseConnectionConf
       await setDoc(docRef, payload);
     }
 
-    // Also push to history collection
-    const histEntry: TelemetryLog = {
-      id: `test-${Date.now()}`,
-      timestamp: nowIso,
-      timeFormatted: new Date().toLocaleTimeString('vi-VN'),
-      bpm: payload.bpm,
-      spo2: payload.spo2,
-      postureStatus: payload.posture_status,
-      postureLabel: payload.posture_status === 0 ? 'Tư thế ĐÚNG' : payload.posture_status === 1 ? 'Tư thế SAI' : 'VẮNG MẶT',
-      trackingActive: payload.tracking_active,
-      hasAlert: payload.posture_status === 1 || payload.posture_status === 3 || payload.bpm > 110,
-      alertType: payload.posture_status === 1 ? 'Sai tư thế' : undefined,
-    };
-    saveTelemetryHistoryToFirebase(config, histEntry).catch(() => {});
+    // Không ghi vào Firestore history nữa vì hệ thống chuyển sang lưu Supabase PostgreSQL chính
   })();
 
   await Promise.race([writeOperation, timeoutPromise]);
@@ -1267,6 +1254,16 @@ export async function clearFirebaseHistory(
   }
 
   return { success: true, deletedCount: totalDeleted };
+}
+
+/**
+ * Xóa sạch hoàn toàn mọi collection và document lịch sử còn sót lại trên Firebase Firestore
+ * Dành cho người dùng khi đã chuyển sang Supabase và không muốn lưu rác trên Firebase nữa.
+ */
+export async function purgeAllFirebaseHistoryCollections(
+  config: FirebaseConnectionConfig
+): Promise<{ success: boolean; deletedCount: number }> {
+  return clearFirebaseHistory(config, undefined, true);
 }
 
 /**

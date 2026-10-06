@@ -16,6 +16,7 @@ import {
   subscribeToFirebaseTelemetry,
   clearFirebaseTelemetry,
   clearFirebaseHistory,
+  purgeAllFirebaseHistoryCollections,
   deleteSingleTelemetryLogFromFirebase,
   subscribeToTaskNotifications,
   updateTaskStatusInFirebase,
@@ -46,7 +47,8 @@ import {
   subscribeToSupabaseRealtime,
   fetchSupabaseHistory,
   clearSupabaseHistory,
-  deleteSingleLogFromSupabase 
+  deleteSingleLogFromSupabase,
+  normalizeDateFormatted
 } from './services/supabaseService';
 import { UserProfileModal } from './components/UserProfileModal';
 import { UserManagementModal } from './components/UserManagementModal';
@@ -452,7 +454,7 @@ export default function App() {
     const packetDate = data.timestamp ? new Date(data.timestamp) : new Date();
     const validPacketDate = isNaN(packetDate.getTime()) ? new Date() : packetDate;
     const timeFormatted = validPacketDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const dateFormatted = validPacketDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dateFormatted = normalizeDateFormatted(validPacketDate);
     const dateTimeFormatted = `${dateFormatted} ${timeFormatted}`;
 
     const activeUser = currentUserRef.current;
@@ -597,13 +599,25 @@ export default function App() {
         // Nếu là quản trị viên: Nhận bản ghi để giám sát
         if (matchesUser || !isEmployee) {
           setHistory(prev => {
-            if (prev.some(l => l.id === newLog.id || l.timestamp === newLog.timestamp)) return prev;
-            return [newLog, ...prev.slice(0, 299)];
+            if (prev.some(l => l.id === newLog.id || (l.id && l.id === newLog.id))) return prev;
+            return [newLog, ...prev.filter(l => l.id !== newLog.id).slice(0, 299)];
           });
         }
       },
       currentUser?.id,
-      currentUser?.email
+      currentUser?.email,
+      (deletedId) => {
+        // Khi một bản ghi bị xóa trên Supabase Table Editor -> xóa ngay tức thì trên Web!
+        setHistory(prev => {
+          const updated = prev.filter(l => l.id !== deletedId);
+          if (currentUser?.id) {
+            try {
+              localStorage.setItem(`theodoisk_history_${currentUser.id}`, JSON.stringify(updated));
+            } catch {}
+          }
+          return updated;
+        });
+      }
     );
 
     return () => {
@@ -612,7 +626,7 @@ export default function App() {
   }, [isSimulating, currentUser?.id, currentUser?.email]);
 
   // Fetch lịch sử từ Supabase PostgreSQL khi đăng nhập / khi user thay đổi
-  // (Supabase Realtime listener ở trên sẽ bổ sung thêm bản ghi mới real-time)
+  // Supabase PostgreSQL là nguồn dữ liệu chuẩn duy nhất (Single Source of Truth)
   useEffect(() => {
     if (!currentUser) return;
 
@@ -620,48 +634,25 @@ export default function App() {
     const curId = currentUser.id;
     const curEmail = (currentUser.email || '').toLowerCase().trim();
 
-    fetchSupabaseHistory('week', curId, currentUser.email)
+    fetchSupabaseHistory('all', curId, currentUser.email)
       .then(result => {
-        if (result.data && result.data.length > 0) {
-          setHistory(prev => {
-            const map = new Map<string, TelemetryLog>();
+        if (result.data) {
+          // Lấy đúng danh sách bản ghi từ Supabase PostgreSQL
+          const userOnly = result.data.filter(l =>
+            !curId || !l.userId || l.userId === curId ||
+            (l.userEmail && l.userEmail.toLowerCase() === curEmail)
+          );
 
-            // Ưu tiên bản ghi từ Supabase (nguồn chính)
-            result.data
-              .filter(l =>
-                !l.userId ||
-                l.userId === curId ||
-                (l.userEmail && l.userEmail.toLowerCase() === curEmail)
-              )
-              .forEach(l => {
-                const key = l.id || l.timestamp;
-                map.set(key, l);
-              });
+          setHistory(userOnly);
+          syncHistoricalLogs(userOnly);
 
-            // Giữ lại bản ghi local chưa có trên Supabase (offline cache)
-            prev
-              .filter(l =>
-                !l.userId ||
-                l.userId === curId ||
-                (l.userEmail && l.userEmail.toLowerCase() === curEmail)
-              )
-              .forEach(l => {
-                const key = l.id || l.timestamp;
-                if (!map.has(key)) map.set(key, l);
-              });
-
-            const merged = Array.from(map.values())
-              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-              .slice(0, 300);
-
-            syncHistoricalLogs(merged);
-
-            try {
-              localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(merged));
-            } catch {}
-
-            return merged;
-          });
+          try {
+            if (userOnly.length > 0) {
+              localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(userOnly));
+            } else {
+              localStorage.removeItem(`theodoisk_history_${curId}`);
+            }
+          } catch {}
         }
         if (result.error) {
           console.warn('[Supabase] Lỗi tải lịch sử:', result.error);
@@ -917,8 +908,10 @@ export default function App() {
   const handleRefreshHistory = async () => {
     setIsSyncingHistory(true);
     try {
+      const curId = currentUser?.id;
+      const curEmail = (currentUser?.email || '').toLowerCase();
       // Tải lịch sử mới nhất từ Supabase PostgreSQL (nguồn chính)
-      const result = await fetchSupabaseHistory('week', currentUser?.id, currentUser?.email);
+      const result = await fetchSupabaseHistory('all', curId, currentUser?.email);
 
       if (result.error) {
         setClearNotice(`Lỗi tải lịch sử từ Supabase: ${result.error}`);
@@ -926,47 +919,32 @@ export default function App() {
         return;
       }
 
-      if (result.data && result.data.length > 0) {
-        const remoteLogs = result.data;
-        setHistory(prev => {
-          const map = new Map<string, TelemetryLog>();
-          const curId = currentUser?.id;
-          const curEmail = (currentUser?.email || '').toLowerCase();
+      if (result.data) {
+        // Lấy đúng danh sách bản ghi chuẩn từ Supabase PostgreSQL
+        const userOnly = result.data.filter(l =>
+          !curId || !l.userId || l.userId === curId ||
+          (l.userEmail && l.userEmail.toLowerCase() === curEmail)
+        );
 
-          // Supabase records trước (nguồn chính)
-          remoteLogs
-            .filter(l => !curId || !l.userId || l.userId === curId || (l.userEmail && l.userEmail.toLowerCase() === curEmail))
-            .forEach(l => {
-              const key = l.id || l.timestamp;
-              map.set(key, l);
-            });
+        setHistory(userOnly);
+        syncHistoricalLogs(userOnly);
 
-          // Giữ lại local records chưa có trên Supabase
-          prev
-            .filter(l => !curId || !l.userId || l.userId === curId || (l.userEmail && l.userEmail.toLowerCase() === curEmail))
-            .forEach(l => {
-              const key = l.id || l.timestamp;
-              if (!map.has(key)) map.set(key, l);
-            });
-
-          const merged = Array.from(map.values())
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, 300);
-          syncHistoricalLogs(merged);
-
+        if (curId) {
           try {
-            if (currentUser?.id) {
-              localStorage.setItem(`theodoisk_history_${currentUser.id}`, JSON.stringify(merged));
+            if (userOnly.length > 0) {
+              localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(userOnly));
+            } else {
+              localStorage.removeItem(`theodoisk_history_${curId}`);
             }
           } catch {}
+        }
 
-          return merged;
-        });
-        setClearNotice(`Đã tải thành công ${result.data.length} bản ghi từ Supabase PostgreSQL! (TB: ${result.stats.avgBpm} BPM • ${result.stats.avgSpo2}% SpO₂)`);
+        if (userOnly.length > 0) {
+          setClearNotice(`Đã đồng bộ thành công ${userOnly.length} bản ghi từ Supabase PostgreSQL! (TB: ${result.stats.avgBpm} BPM • ${result.stats.avgSpo2}% SpO₂)`);
+        } else {
+          setClearNotice('Đã đồng bộ với Supabase: Bảng dữ liệu hiện đang trống (0 bản ghi).');
+        }
         setTimeout(() => setClearNotice(null), 4500);
-      } else {
-        setClearNotice('Chưa có bản ghi lịch sử nào trên Supabase trong 7 ngày qua.');
-        setTimeout(() => setClearNotice(null), 3000);
       }
     } catch (err: any) {
       console.warn('Lỗi tải lịch sử Supabase:', err);
@@ -1095,11 +1073,11 @@ export default function App() {
     // 3. Delete synchronously from both Firebase AND Supabase!
     try {
       const [firebaseRes] = await Promise.allSettled([
-        clearFirebaseHistory(firebaseConfig, targetUserId, isClearingAll),
+        purgeAllFirebaseHistoryCollections(firebaseConfig),
         clearSupabaseHistory(targetUserId)
       ]);
       const deletedCount = firebaseRes.status === 'fulfilled' ? firebaseRes.value.deletedCount : 0;
-      setClearNotice(`Đã dọn sạch hoàn toàn lịch sử trên cả Supabase PostgreSQL, Firebase & thiết bị!`);
+      setClearNotice(`Đã dọn sạch hoàn toàn lịch sử trên Supabase PostgreSQL, quét sạch các mục history trên Firebase & bộ nhớ thiết bị!`);
       setTimeout(() => setClearNotice(null), 4500);
     } catch (err: any) {
       console.warn('Lỗi xóa lịch sử:', err);
