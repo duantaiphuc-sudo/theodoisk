@@ -93,7 +93,7 @@ export function syncHistoricalLogs(logs: TelemetryLog[]): void {
           postureLabel: log.postureLabel,
           postureWarning: log.alertType,
           inZone: log.trackingActive,
-          note: 'Đồng bộ từ Firebase Firestore',
+          note: 'Đồng bộ từ Supabase PostgreSQL',
         });
       } catch {}
     }

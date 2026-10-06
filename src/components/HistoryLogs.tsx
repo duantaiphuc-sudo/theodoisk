@@ -256,11 +256,11 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
 
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-mono font-medium whitespace-nowrap">
               <Cloud className="w-3 h-3 text-sky-600 shrink-0" />
-              <span>Firestore: {selectedAccountFilter !== 'all' ? `/users/${selectedAccountFilter}/history` : firebaseHistoryCollection}</span>
+              <span>Supabase: {selectedAccountFilter !== 'all' ? `telemetry_logs?user=${selectedAccountFilter}` : firebaseHistoryCollection}</span>
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Hệ thống tự động lưu dữ liệu thời gian thực theo phân vùng tài khoản độc lập trên Firebase Cloud & bộ nhớ thiết bị.
+            Hệ thống tự động lưu dữ liệu thời gian thực theo phân vùng tài khoản độc lập trên Supabase PostgreSQL & bộ nhớ thiết bị.
           </p>
         </div>
 

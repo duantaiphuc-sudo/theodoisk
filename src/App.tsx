@@ -15,12 +15,7 @@ import {
   saveFirebaseConfig, 
   subscribeToFirebaseTelemetry,
   clearFirebaseTelemetry,
-  fetchFirebaseHistory,
-  subscribeToFirebaseHistory,
-  saveTelemetryHistoryToFirebase,
-  batchSaveTelemetryHistoryToFirebase,
   clearFirebaseHistory,
-  getHistoryCollectionName,
   deleteSingleTelemetryLogFromFirebase,
   subscribeToTaskNotifications,
   updateTaskStatusInFirebase,
@@ -49,6 +44,7 @@ import { AlertSettingsModal } from './components/AlertSettingsModal';
 import { 
   insertTelemetryToSupabase, 
   subscribeToSupabaseRealtime,
+  fetchSupabaseHistory,
   clearSupabaseHistory,
   deleteSingleLogFromSupabase 
 } from './services/supabaseService';
@@ -535,14 +531,10 @@ export default function App() {
       }).catch(() => {});
     }
 
-    // Save to Firebase Firestore / RTDB history collection:
-    // CRITICAL: Prevents exhausting the Firebase daily write quota ("Quota limits exceeded"):
-    // 1. NEVER auto-save simulated telemetry to remote Firestore history!
-    // 2. NEVER auto-save stale cached packets re-fired by Firestore listeners!
-    // 3. For live hardware data, save ONLY when:
-    //    - Posture status changes (e.g. from Good to Bad, or Sitting to Standing)
-    //    - OR a health alert occurs (e.g. abnormal HR or SpO2)
-    //    - OR an intentional periodic checkpoint after at least 5 minutes (300,000ms), NOT 3 seconds!
+    // === SUPABASE-FIRST STORAGE STRATEGY ===
+    // Lưu lịch sử telemetry vào Supabase PostgreSQL là nguồn chính.
+    // Firebase chỉ dùng để đồng bộ trạng thái présence (online/offline) ở trên.
+    // KHÔNG ghi lịch sử đo đạc lên Firestore để tối ưu hóa hạn mức 50k read/write/ngày.
     const isSimulated = isSimulatingRef.current || data.source?.includes('Giả Lập') || data.source?.includes('Simulated');
     const isStale = Boolean(data.isStale);
 
@@ -552,23 +544,17 @@ export default function App() {
     lastPostureStatusRef.current = data.postureStatus;
 
     const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus !== undefined && data.postureStatus >= 0);
-    const shouldSaveRemote = !isSimulated && !isStale && hasValidMetrics &&
-      (hasAlert || postureChanged || timeSinceLastRemote > 300000);
 
-    if (shouldSaveRemote && activeUser && firebaseConfig.autoConnect) {
-      lastFirebaseHistorySaveRef.current = nowTime;
-      saveTelemetryHistoryToFirebase(firebaseConfig, newEntry).catch(err => {
-        console.warn('Ghi log lịch sử Firebase thất bại:', err);
-      });
-    }
-
-    // Tự động ghi vào Supabase PostgreSQL (Hỗ trợ cả chế độ Mô phỏng để kiểm tra kết nối ngay)
+    // Ghi vào Supabase PostgreSQL:
+    // - Dữ liệu thật: Khi có cảnh báo, tư thế thay đổi, hoặc mỗi 60 giây
+    // - Dữ liệu giả lập: Khi có cảnh báo, tư thế thay đổi, hoặc mỗi 8 giây (để test)
     const shouldSaveSupabase = activeUser && hasValidMetrics && (
-      (!isSimulated && (hasAlert || postureChanged || timeSinceLastRemote > 60000)) ||
+      (!isSimulated && !isStale && (hasAlert || postureChanged || timeSinceLastRemote > 60000)) ||
       (isSimulated && (postureChanged || hasAlert || timeSinceLastRemote > 8000))
     );
 
     if (shouldSaveSupabase) {
+      lastFirebaseHistorySaveRef.current = nowTime;
       insertTelemetryToSupabase(newEntry, activeUser).catch(() => {});
     }
   }, [firebaseConfig]);
@@ -625,124 +611,66 @@ export default function App() {
     };
   }, [isSimulating, currentUser?.id, currentUser?.email]);
 
-  // Fetch & Subscribe to Firebase History Collection (Per-account for every user, always synced across PC & Mobile)
+  // Fetch lịch sử từ Supabase PostgreSQL khi đăng nhập / khi user thay đổi
+  // (Supabase Realtime listener ở trên sẽ bổ sung thêm bản ghi mới real-time)
   useEffect(() => {
-    let unsubHistory: (() => void) | null = null;
+    if (!currentUser) return;
 
-    if (firebaseConfig.autoConnect && currentUser) {
-      setIsSyncingHistory(true);
-      // Always load the current account's private subcollection users/{userId}/history
-      const activeUserId = currentUser.id;
+    setIsSyncingHistory(true);
+    const curId = currentUser.id;
+    const curEmail = (currentUser.email || '').toLowerCase().trim();
 
-      fetchFirebaseHistory(firebaseConfig, 100, activeUserId, currentUser.email)
-        .then(remoteLogs => {
-          if (remoteLogs && remoteLogs.length > 0) {
-            setHistory(prev => {
-              const map = new Map<string, TelemetryLog>();
-              const curEmail = (currentUser.email || '').toLowerCase().trim();
-              const curId = currentUser.id;
+    fetchSupabaseHistory('week', curId, currentUser.email)
+      .then(result => {
+        if (result.data && result.data.length > 0) {
+          setHistory(prev => {
+            const map = new Map<string, TelemetryLog>();
 
-              // Strictly isolate only logs belonging to currentUser
-              remoteLogs
-                .filter(l => 
-                  !l.userId || 
-                  l.userId === curId || 
-                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
-                  (l.userId && l.userId.toLowerCase() === curEmail)
-                )
-                .forEach(l => {
-                  const key = l.id || l.timestamp;
-                  map.set(key, l);
-                });
+            // Ưu tiên bản ghi từ Supabase (nguồn chính)
+            result.data
+              .filter(l =>
+                !l.userId ||
+                l.userId === curId ||
+                (l.userEmail && l.userEmail.toLowerCase() === curEmail)
+              )
+              .forEach(l => {
+                const key = l.id || l.timestamp;
+                map.set(key, l);
+              });
 
-              prev
-                .filter(l => 
-                  !l.userId || 
-                  l.userId === curId || 
-                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
-                  (l.userId && l.userId.toLowerCase() === curEmail)
-                )
-                .forEach(l => {
-                  const key = l.id || l.timestamp;
-                  if (!map.has(key)) map.set(key, l);
-                });
+            // Giữ lại bản ghi local chưa có trên Supabase (offline cache)
+            prev
+              .filter(l =>
+                !l.userId ||
+                l.userId === curId ||
+                (l.userEmail && l.userEmail.toLowerCase() === curEmail)
+              )
+              .forEach(l => {
+                const key = l.id || l.timestamp;
+                if (!map.has(key)) map.set(key, l);
+              });
 
-              const merged = Array.from(map.values())
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .slice(0, 300);
-              syncHistoricalLogs(merged);
+            const merged = Array.from(map.values())
+              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+              .slice(0, 300);
 
-              // Cache to local storage scoped to user
-              try {
-                localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(merged));
-              } catch {}
+            syncHistoricalLogs(merged);
 
-              return merged;
-            });
-          }
-        })
-        .finally(() => {
-          setIsSyncingHistory(false);
-        });
+            try {
+              localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(merged));
+            } catch {}
 
-      unsubHistory = subscribeToFirebaseHistory(
-        firebaseConfig,
-        remoteLogs => {
-          if (remoteLogs && remoteLogs.length > 0) {
-            setHistory(prev => {
-              const map = new Map<string, TelemetryLog>();
-              const curEmail = (currentUser.email || '').toLowerCase().trim();
-              const curId = currentUser.id;
-
-              remoteLogs
-                .filter(l => 
-                  !l.userId || 
-                  l.userId === curId || 
-                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
-                  (l.userId && l.userId.toLowerCase() === curEmail)
-                )
-                .forEach(l => {
-                  const key = l.id || l.timestamp;
-                  map.set(key, l);
-                });
-
-              prev
-                .filter(l => 
-                  !l.userId || 
-                  l.userId === curId || 
-                  (l.userEmail && l.userEmail.toLowerCase() === curEmail) ||
-                  (l.userId && l.userId.toLowerCase() === curEmail)
-                )
-                .forEach(l => {
-                  const key = l.id || l.timestamp;
-                  if (!map.has(key)) map.set(key, l);
-                });
-
-              const merged = Array.from(map.values())
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .slice(0, 300);
-              syncHistoricalLogs(merged);
-
-              try {
-                localStorage.setItem(`theodoisk_history_${curId}`, JSON.stringify(merged));
-              } catch {}
-
-              return merged;
-            });
-          }
-        },
-        err => {
-          console.warn('Thông báo lắng nghe lịch sử Firebase:', err);
-        },
-        activeUserId,
-        currentUser.email
-      );
-    }
-
-    return () => {
-      if (unsubHistory) unsubHistory();
-    };
-  }, [firebaseConfig, currentUser?.id]);
+            return merged;
+          });
+        }
+        if (result.error) {
+          console.warn('[Supabase] Lỗi tải lịch sử:', result.error);
+        }
+      })
+      .finally(() => {
+        setIsSyncingHistory(false);
+      });
+  }, [currentUser?.id]);
 
   // Second timer loop for web-calculated activity times
   useEffect(() => {
@@ -989,73 +917,87 @@ export default function App() {
   const handleRefreshHistory = async () => {
     setIsSyncingHistory(true);
     try {
-      // 1. If there are local records, upload them to Firebase Firestore
-      let uploadedCount = 0;
-      if (history.length > 0) {
-        const upRes = await batchSaveTelemetryHistoryToFirebase(firebaseConfig, history);
-        if (upRes.success) {
-          uploadedCount = upRes.count;
-        }
+      // Tải lịch sử mới nhất từ Supabase PostgreSQL (nguồn chính)
+      const result = await fetchSupabaseHistory('week', currentUser?.id, currentUser?.email);
+
+      if (result.error) {
+        setClearNotice(`Lỗi tải lịch sử từ Supabase: ${result.error}`);
+        setTimeout(() => setClearNotice(null), 4000);
+        return;
       }
 
-      // 2. Fetch all latest records from Firebase Firestore (scoped to currentUser)
-      const remoteLogs = await fetchFirebaseHistory(firebaseConfig, 100, currentUser?.id);
-      if (remoteLogs && remoteLogs.length > 0) {
+      if (result.data && result.data.length > 0) {
+        const remoteLogs = result.data;
         setHistory(prev => {
           const map = new Map<string, TelemetryLog>();
+          const curId = currentUser?.id;
+          const curEmail = (currentUser?.email || '').toLowerCase();
+
+          // Supabase records trước (nguồn chính)
           remoteLogs
-            .filter(l => !currentUser || !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+            .filter(l => !curId || !l.userId || l.userId === curId || (l.userEmail && l.userEmail.toLowerCase() === curEmail))
             .forEach(l => {
               const key = l.id || l.timestamp;
               map.set(key, l);
             });
+
+          // Giữ lại local records chưa có trên Supabase
           prev
-            .filter(l => !currentUser || !l.userId || l.userId === currentUser.id || (l.userEmail && l.userEmail.toLowerCase() === currentUser.email.toLowerCase()))
+            .filter(l => !curId || !l.userId || l.userId === curId || (l.userEmail && l.userEmail.toLowerCase() === curEmail))
             .forEach(l => {
               const key = l.id || l.timestamp;
               if (!map.has(key)) map.set(key, l);
             });
+
           const merged = Array.from(map.values())
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .slice(0, 300);
           syncHistoricalLogs(merged);
+
+          try {
+            if (currentUser?.id) {
+              localStorage.setItem(`theodoisk_history_${currentUser.id}`, JSON.stringify(merged));
+            }
+          } catch {}
+
           return merged;
         });
-        setClearNotice(`Đã đồng bộ thành công! Đẩy lên ${uploadedCount} bản ghi và tải về ${remoteLogs.length} bản ghi từ Firebase Firestore.`);
+        setClearNotice(`Đã tải thành công ${result.data.length} bản ghi từ Supabase PostgreSQL! (TB: ${result.stats.avgBpm} BPM • ${result.stats.avgSpo2}% SpO₂)`);
         setTimeout(() => setClearNotice(null), 4500);
-      } else if (uploadedCount > 0) {
-        setClearNotice(`Đã lưu thành công ${uploadedCount} bản ghi lên Firebase Firestore (bộ sưu tập theodoisk_history)!`);
-        setTimeout(() => setClearNotice(null), 4000);
       } else {
-        setClearNotice('Chưa có bản ghi lịch sử nào trên Firebase Firestore.');
+        setClearNotice('Chưa có bản ghi lịch sử nào trên Supabase trong 7 ngày qua.');
         setTimeout(() => setClearNotice(null), 3000);
       }
     } catch (err: any) {
-      console.warn('Lỗi đồng bộ lịch sử:', err);
-      setClearNotice(`Lỗi đồng bộ lịch sử: ${err.message || 'Kiểm tra kết nối Firebase'}`);
+      console.warn('Lỗi tải lịch sử Supabase:', err);
+      setClearNotice(`Lỗi tải lịch sử: ${err.message || 'Kiểm tra kết nối Supabase'}`);
       setTimeout(() => setClearNotice(null), 4000);
     } finally {
       setIsSyncingHistory(false);
     }
   };
 
-  const handleBatchUploadAllToFirebase = async () => {
+  const handleBatchUploadAllToSupabase = async () => {
     if (history.length === 0) {
-      setClearNotice('Chưa có dữ liệu nào trong lịch sử để lưu lên Firebase!');
+      setClearNotice('Chưa có dữ liệu nào trong lịch sử để lưu lên Supabase!');
       setTimeout(() => setClearNotice(null), 3000);
       return;
     }
     setIsSyncingHistory(true);
     try {
-      const res = await batchSaveTelemetryHistoryToFirebase(firebaseConfig, history);
-      if (res.success) {
-        setClearNotice(`Đã lưu thành công ${res.count} bản ghi lên Firebase Firestore (bộ sưu tập theodoisk_history & ${getHistoryCollectionName(firebaseConfig)})!`);
-      } else {
-        setClearNotice(`Lỗi lưu lên Firebase: ${res.error || 'Vui lòng kiểm tra quyền ghi Firestore'}`);
-      }
+      const activeUser = currentUserRef.current;
+      let successCount = 0;
+      // Gửi tuần tự để tránh rate limit, giới hạn 50 bản ghi mỗi lần batch
+      const batch = history.slice(0, 50);
+      await Promise.allSettled(
+        batch.map(entry =>
+          insertTelemetryToSupabase(entry, activeUser).then(ok => { if (ok) successCount++; })
+        )
+      );
+      setClearNotice(`Đã đẩy thành công ${successCount}/${batch.length} bản ghi lên Supabase PostgreSQL!`);
       setTimeout(() => setClearNotice(null), 5000);
     } catch (err: any) {
-      setClearNotice(`Lỗi đẩy dữ liệu: ${err?.message || 'Kiểm tra mạng'}`);
+      setClearNotice(`Lỗi đẩy dữ liệu lên Supabase: ${err?.message || 'Kiểm tra mạng'}`);
       setTimeout(() => setClearNotice(null), 4000);
     } finally {
       setIsSyncingHistory(false);
@@ -1088,9 +1030,9 @@ export default function App() {
     };
 
     setHistory(prev => [snapEntry, ...prev.slice(0, 199)]);
-    saveTelemetryHistoryToFirebase(firebaseConfig, snapEntry).catch(() => {});
+    // Lưu snapshot vào Supabase PostgreSQL (nguồn chính)
     insertTelemetryToSupabase(snapEntry, activeUser).catch(() => {});
-    setClearNotice('Đã lưu mốc dữ liệu vào Supabase PostgreSQL và Firebase!');
+    setClearNotice('Đã lưu mốc dữ liệu vào Supabase PostgreSQL!');
     setTimeout(() => setClearNotice(null), 4000);
   };
 
@@ -1589,7 +1531,7 @@ export default function App() {
                 onRefreshHistory={handleRefreshHistory}
                 onSaveSnapshot={handleSaveSnapshot}
                 isSyncing={isSyncingHistory}
-                firebaseHistoryCollection={getHistoryCollectionName(firebaseConfig)}
+                firebaseHistoryCollection="Supabase: telemetry_logs"
                 isManager={isManager}
                 onOpenSupabase={() => setIsSupabaseModalOpen(true)}
               />
