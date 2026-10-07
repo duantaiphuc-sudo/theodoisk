@@ -219,17 +219,22 @@ export async function clearSupabaseHistory(targetUserId?: string): Promise<boole
   if (!client) return false;
 
   try {
-    let query = client.from(config.tableName || 'telemetry_logs').delete();
+    const table = config.tableName || 'telemetry_logs';
+    let query = client.from(table).delete();
     if (targetUserId && targetUserId !== 'all') {
       query = query.eq('user_id', targetUserId);
     } else {
-      // PostgREST yêu cầu điều kiện WHERE khi delete: chọn id khác -1 để xóa toàn bộ
-      query = query.neq('id', -1);
+      // PostgREST yêu cầu điều kiện WHERE khi delete: chọn id >= 0 hoặc id != -1
+      query = query.gte('id', 0);
     }
     const { error } = await query;
     if (error) {
-      console.warn('Lỗi xóa lịch sử trên Supabase:', error.message);
-      return false;
+      // Fallback
+      const fallback = await client.from(table).delete().neq('id', -1);
+      if (fallback.error) {
+        console.warn('Lỗi xóa lịch sử trên Supabase:', fallback.error.message);
+        return false;
+      }
     }
     return true;
   } catch (err) {
@@ -248,13 +253,15 @@ export async function deleteSingleLogFromSupabase(id: string): Promise<boolean> 
 
   try {
     const numId = Number(id);
-    let query = client.from(config.tableName || 'telemetry_logs').delete();
-    if (!isNaN(numId)) {
-      query = query.eq('id', numId);
-    } else {
-      query = query.eq('id', id);
+    if (isNaN(numId)) {
+      // ID chuỗi tạm thời (chưa có ID số nguyên từ Supabase PostgreSQL)
+      return true;
     }
-    const { error } = await query;
+    const { error } = await client
+      .from(config.tableName || 'telemetry_logs')
+      .delete()
+      .eq('id', numId);
+
     if (error) {
       console.warn('Lỗi xóa bản ghi đơn lẻ trên Supabase:', error.message);
       return false;

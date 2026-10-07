@@ -134,17 +134,14 @@ try:
             "fps": 30
         }
 
-        # Ghi đè vào document 'live' để hiển thị trực tiếp thời gian thực
+        # Ghi đè vào document 'live' để hiển thị trực tiếp thời gian thực trên Web Dashboard
         doc_ref = db.collection("theodoisk").document("live")
         doc_ref.set(payload)
 
-        current_time = time.time()
-        if posture_status in [1, 3] or int(bpm) > 100 or (current_time - last_history_save > 30):
-            db.collection("theodoisk_history").document(f"rec_{int(current_time*1000)}").set(payload)
-            last_history_save = current_time
-            print(f"   💾 Đã lưu 1 bản ghi vào lịch sử Firestore 'theodoisk_history'!")
+        # Lịch sử đo đạc & công thái học được Web Dashboard tự động đồng bộ và lưu trữ vào Supabase PostgreSQL Cloud.
+        # Không ghi vào Firestore history để tránh quá hạn ngạch 50,000 lượt đọc/ghi/ngày của Firestore.
 
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Đã gửi: BPM={bpm}, SpO2={spo2}%, Posture={posture_status}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Đã gửi trực tiếp: BPM={bpm}, SpO2={spo2}%, Posture={posture_status}")
         time.sleep(1.5)
 
 except KeyboardInterrupt:

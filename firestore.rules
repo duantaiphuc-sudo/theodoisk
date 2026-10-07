@@ -22,23 +22,17 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // User profiles collection
+    // User profiles and all user subcollections (e.g. history)
     match /users/{userId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isAdmin() || true;
-    }
-
-    // Isolated telemetry per user account
-    match /user_telemetry/{userId} {
-      // User accesses their own telemetry, admin accesses all users' telemetry
-      allow read: if true;
-      allow write: if true;
-
-      // User specific telemetry history subcollection
-      match /history/{logId} {
+      allow read, write: if true;
+      match /{subcollection=**} {
         allow read, write: if true;
       }
+    }
+
+    // Isolated telemetry per user account and subcollections
+    match /user_telemetry/{document=**} {
+      allow read, write: if true;
     }
 
     // Telemetry current state (IoT node compatibility)
@@ -56,13 +50,13 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Custom telemetry collections configured by users
-    match /{collectionName}/{docId} {
-      allow read, write: if collectionName.matches('.*_history') || collectionName == 'theodoisk' || collectionName == 'devices';
+    // Custom telemetry collections configured by users and all subcollections
+    match /{collectionName}/{document=**} {
+      allow read, write: if true;
     }
 
     // Notifications and assigned tasks
-    match /notifications/{notifId} {
+    match /notifications/{document=**} {
       allow read, write: if true;
     }
   }

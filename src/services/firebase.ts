@@ -1115,6 +1115,8 @@ export async function clearFirebaseHistory(
     'devices_history',
     histColName,
     `${config.collectionName}_history`,
+    'telemetry_history',
+    'telemetry_logs'
   ]));
 
   let totalDeleted = 0;
@@ -1125,6 +1127,7 @@ export async function clearFirebaseHistory(
       const rtdb = getDatabase(app);
       if (userId && !clearAllUsers) {
         await remove(ref(rtdb, `users/${userId}/history`)).catch(() => {});
+        await remove(ref(rtdb, `user_telemetry/${userId}/history`)).catch(() => {});
       } else {
         for (const col of targetCollections) {
           await remove(ref(rtdb, col)).catch(() => {});
@@ -1136,6 +1139,7 @@ export async function clearFirebaseHistory(
             const val = usersSnap.val();
             for (const uKey of Object.keys(val)) {
               await remove(ref(rtdb, `users/${uKey}/history`)).catch(() => {});
+              await remove(ref(rtdb, `user_telemetry/${uKey}/history`)).catch(() => {});
             }
           }
         } catch {}
@@ -1145,112 +1149,107 @@ export async function clearFirebaseHistory(
     }
   }
 
-  // 2. Delete all records from Firestore collections in safe chunks
+  // 2. Delete all records from Firestore collections in safe chunks with per-doc fallback
   try {
     const db = getFirestore(app);
 
-    // Case A: Clear specific user's private history
-    if (userId && !clearAllUsers) {
-      // 1. Wipe out /users/{userId}/history
-      const userHistColl = collection(db, 'users', userId, 'history');
+    const safeBatchDelete = async (q: any): Promise<number> => {
+      let count = 0;
       let keepDeleting = true;
       let loopCount = 0;
       while (keepDeleting && loopCount < 50) {
         loopCount++;
-        const snap = await getDocs(query(userHistColl, limit(350)));
-        if (snap.empty) {
-          keepDeleting = false;
+        let snap;
+        try {
+          snap = await getDocs(q);
+        } catch (e) {
           break;
         }
-
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => {
-          batch.delete(d.ref);
-        });
-        await batch.commit();
-        totalDeleted += snap.docs.length;
-
+        if (!snap || snap.empty) {
+          break;
+        }
+        try {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          count += snap.docs.length;
+        } catch (batchErr) {
+          // Fallback doc-by-doc
+          for (const d of snap.docs) {
+            try {
+              await deleteDoc(d.ref);
+              count++;
+            } catch {}
+          }
+        }
         if (snap.docs.length < 350) {
-          keepDeleting = false;
+          break;
         }
       }
+      return count;
+    };
+
+    // Case A: Clear specific user's private history
+    if (userId && !clearAllUsers) {
+      // 1. Wipe out /users/{userId}/history and /user_telemetry/{userId}/history
+      try {
+        const uHistColl = collection(db, 'users', userId, 'history');
+        totalDeleted += await safeBatchDelete(query(uHistColl, limit(350)));
+      } catch {}
+
+      try {
+        const utHistColl = collection(db, 'user_telemetry', userId, 'history');
+        totalDeleted += await safeBatchDelete(query(utHistColl, limit(350)));
+      } catch {}
 
       // 2. Also wipe user's records in the root history collections
       for (const col of targetCollections) {
         try {
           const q1 = query(collection(db, col), where('user_id', '==', userId), limit(350));
-          const snap1 = await getDocs(q1);
-          if (!snap1.empty) {
-            const batch = writeBatch(db);
-            snap1.docs.forEach(d => batch.delete(d.ref));
-            await batch.commit();
-            totalDeleted += snap1.docs.length;
-          }
+          totalDeleted += await safeBatchDelete(q1);
         } catch {}
 
         try {
           const q2 = query(collection(db, col), where('userId', '==', userId), limit(350));
-          const snap2 = await getDocs(q2);
-          if (!snap2.empty) {
-            const batch = writeBatch(db);
-            snap2.docs.forEach(d => batch.delete(d.ref));
-            await batch.commit();
-            totalDeleted += snap2.docs.length;
-          }
+          totalDeleted += await safeBatchDelete(q2);
         } catch {}
       }
     } else {
-      // Case B: Clear all history across all users & collections
+      // Case B: Clear all history across all users & collections (Full Purge)
       for (const col of targetCollections) {
-        let keepDeleting = true;
-        let loopCount = 0;
-        while (keepDeleting && loopCount < 50) {
-          loopCount++;
+        try {
           const q = query(collection(db, col), limit(350));
-          const snap = await getDocs(q);
-          if (snap.empty) {
-            keepDeleting = false;
-            break;
-          }
-
-          const batch = writeBatch(db);
-          snap.docs.forEach(d => {
-            batch.delete(d.ref);
-          });
-          await batch.commit();
-          totalDeleted += snap.docs.length;
-
-          if (snap.docs.length < 350) {
-            keepDeleting = false;
-          }
+          totalDeleted += await safeBatchDelete(q);
+        } catch (colErr) {
+          console.warn(`Lỗi khi dọn collection ${col}:`, colErr);
         }
       }
 
-      // Also clean up subcollection /users/{uid}/history for all users
+      // Also clean up subcollection /users/{uid}/history and /user_telemetry/{uid}/history
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
         for (const uDoc of usersSnap.docs) {
-          const userHistColl = collection(db, 'users', uDoc.id, 'history');
-          let keepSubDeleting = true;
-          let subLoop = 0;
-          while (keepSubDeleting && subLoop < 20) {
-            subLoop++;
-            const snap = await getDocs(query(userHistColl, limit(350)));
-            if (snap.empty) break;
-            const batch = writeBatch(db);
-            snap.docs.forEach(d => batch.delete(d.ref));
-            await batch.commit();
-            totalDeleted += snap.docs.length;
-            if (snap.docs.length < 350) break;
-          }
+          try {
+            const userHistColl = collection(db, 'users', uDoc.id, 'history');
+            totalDeleted += await safeBatchDelete(query(userHistColl, limit(350)));
+          } catch {}
         }
       } catch (errUsers) {
-        console.warn('Lỗi khi xóa subcollections users/*/history:', errUsers);
+        console.warn('Lỗi khi quét subcollections users/*/history:', errUsers);
       }
+
+      try {
+        const utSnap = await getDocs(collection(db, 'user_telemetry'));
+        for (const utDoc of utSnap.docs) {
+          try {
+            const utHistColl = collection(db, 'user_telemetry', utDoc.id, 'history');
+            totalDeleted += await safeBatchDelete(query(utHistColl, limit(350)));
+          } catch {}
+        }
+      } catch {}
     }
   } catch (err) {
     console.error('Lỗi khi xóa tài liệu Firestore history:', err);
-    throw err;
   }
 
   return { success: true, deletedCount: totalDeleted };
@@ -1282,6 +1281,8 @@ export async function deleteSingleTelemetryLogFromFirebase(
       'devices_history',
       histColName,
       `${config.collectionName}_history`,
+      'telemetry_history',
+      'telemetry_logs'
     ]));
 
     // 1. Firestore deletion
@@ -1291,11 +1292,18 @@ export async function deleteSingleTelemetryLogFromFirebase(
     }
     if (userId) {
       await deleteDoc(doc(db, 'users', userId, 'history', logId)).catch(() => {});
+      await deleteDoc(doc(db, 'user_telemetry', userId, 'history', logId)).catch(() => {});
     } else {
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
         for (const uDoc of usersSnap.docs) {
           await deleteDoc(doc(db, 'users', uDoc.id, 'history', logId)).catch(() => {});
+        }
+      } catch {}
+      try {
+        const utSnap = await getDocs(collection(db, 'user_telemetry'));
+        for (const utDoc of utSnap.docs) {
+          await deleteDoc(doc(db, 'user_telemetry', utDoc.id, 'history', logId)).catch(() => {});
         }
       } catch {}
     }
@@ -1308,6 +1316,7 @@ export async function deleteSingleTelemetryLogFromFirebase(
       }
       if (userId) {
         await remove(ref(rtdb, `users/${userId}/history/${logId}`)).catch(() => {});
+        await remove(ref(rtdb, `user_telemetry/${userId}/history/${logId}`)).catch(() => {});
       }
     }
   } catch (err) {

@@ -6,7 +6,6 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Cloud, 
-  BookmarkPlus, 
   Trash2, 
   Calendar, 
   Clock, 
@@ -27,9 +26,7 @@ interface HistoryLogsProps {
   onClearHistory?: (targetAccount?: string) => void;
   onDeleteSingleLog?: (id: string) => void;
   onRefreshHistory?: () => void;
-  onSaveSnapshot?: () => void;
   isSyncing?: boolean;
-  firebaseHistoryCollection?: string;
   isManager: boolean;
   onOpenSupabase?: () => void;
 }
@@ -40,9 +37,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   onClearHistory, 
   onDeleteSingleLog,
   onRefreshHistory,
-  onSaveSnapshot,
   isSyncing = false,
-  firebaseHistoryCollection = 'theodoisk_history',
   isManager,
   onOpenSupabase
 }) => {
@@ -301,23 +296,11 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <button
               onClick={onRefreshHistory}
               disabled={isSyncing}
-              title="Đồng bộ lại dữ liệu chuẩn xác từ Supabase PostgreSQL"
+              title="Đồng bộ lại dữ liệu chuẩn xác từ Supabase PostgreSQL Cloud"
               className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ'}</span>
-            </button>
-          )}
-
-          {/* Save Snapshot Button */}
-          {onSaveSnapshot && (
-            <button
-              onClick={onSaveSnapshot}
-              title="Lưu ngay lập tức mốc dữ liệu hiện tại vào Supabase & lịch sử"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition whitespace-nowrap cursor-pointer shadow-2xs"
-            >
-              <BookmarkPlus className="w-3.5 h-3.5 text-sky-600" />
-              <span>Lưu mốc hiện tại</span>
             </button>
           )}
 
@@ -335,7 +318,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           <button
             onClick={handleExportPDF}
             disabled={history.length === 0}
-            title="Xuất dữ liệu lịch sử đo đạc từ Firebase sang tệp báo cáo PDF để in hoặc lưu trữ"
+            title="Xuất dữ liệu lịch sử đo đạc từ Supabase PostgreSQL Cloud sang tệp báo cáo PDF để in hoặc lưu trữ"
             className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
           >
             <FileText className="w-3.5 h-3.5 text-indigo-600" />
@@ -365,7 +348,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 <button
                   onClick={() => setShowConfirmClear(true)}
                   disabled={history.length === 0}
-                  title="Xóa toàn bộ lịch sử trên máy và Firebase Firestore"
+                  title="Xóa toàn bộ lịch sử trên Supabase Cloud, Firebase và bộ nhớ máy"
                   className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 transition disabled:opacity-40 whitespace-nowrap cursor-pointer shadow-2xs"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-600" />

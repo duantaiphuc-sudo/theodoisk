@@ -982,38 +982,6 @@ export default function App() {
     }
   };
 
-  const handleSaveSnapshot = () => {
-    if (telemetry.bpm === 0 && telemetry.spo2 === 0 && telemetry.postureStatus === -1) {
-      setClearNotice('Chưa có số liệu đang hoạt động để lưu mốc!');
-      setTimeout(() => setClearNotice(null), 3000);
-      return;
-    }
-
-    const activeUser = currentUserRef.current;
-    const snapEntry: TelemetryLog = {
-      id: `snap-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      timeFormatted: new Date().toLocaleTimeString('vi-VN'),
-      bpm: telemetry.bpm,
-      spo2: telemetry.spo2,
-      postureStatus: telemetry.postureStatus,
-      postureLabel: telemetry.postureLabel,
-      trackingActive: telemetry.trackingActive,
-      hasAlert: telemetry.postureStatus === 1 || telemetry.postureStatus === 3 || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax)),
-      alertType: telemetry.postureStatus === 1 ? 'Sai tư thế' : undefined,
-      userId: activeUser?.id,
-      userEmail: activeUser?.email,
-      userName: activeUser?.fullName || activeUser?.username,
-      device: firebaseConfig.documentId || 'pi4_node_1'
-    };
-
-    setHistory(prev => [snapEntry, ...prev.slice(0, 199)]);
-    // Lưu snapshot vào Supabase PostgreSQL (nguồn chính)
-    insertTelemetryToSupabase(snapEntry, activeUser).catch(() => {});
-    setClearNotice('Đã lưu mốc dữ liệu vào Supabase PostgreSQL!');
-    setTimeout(() => setClearNotice(null), 4000);
-  };
-
   const handleDeleteSingleLog = async (logId: string) => {
     setHistory(prev => {
       const updated = prev.filter(item => item.id !== logId);
@@ -1507,9 +1475,7 @@ export default function App() {
                 onClearHistory={handleClearHistory}
                 onDeleteSingleLog={handleDeleteSingleLog}
                 onRefreshHistory={handleRefreshHistory}
-                onSaveSnapshot={handleSaveSnapshot}
                 isSyncing={isSyncingHistory}
-                firebaseHistoryCollection="Supabase: telemetry_logs"
                 isManager={isManager}
                 onOpenSupabase={() => setIsSupabaseModalOpen(true)}
               />
