@@ -17,6 +17,7 @@ import {
   fetchSupabaseHistory,
   TimeRangeFilter
 } from '../services/supabaseService';
+import { isUserAdmin } from '../services/authService';
 
 interface SupabaseModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   onConfigSaved,
   currentUser,
 }) => {
+  const isManager = Boolean(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || isUserAdmin(currentUser)));
   const [config, setConfig] = useState<SupabaseConnectionConfig>(() => getSavedSupabaseConfig());
   const [showKey, setShowKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -54,9 +56,11 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
       setConfig(saved);
       setTestResult(null);
       setQueryResult(null);
-      setAccountScope('all');
+      // Quản trị viên được xem toàn bộ, nhân viên BẮT BUỘC chỉ xem tài khoản của chính mình
+      setAccountScope(isManager ? 'all' : (currentUser?.id || ''));
+      setActiveTab(isManager ? 'config' : 'query');
     }
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser, isManager]);
 
   if (!isOpen) return null;
 
@@ -76,8 +80,13 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
   const handleRunTestQuery = async () => {
     setIsQuerying(true);
-    const targetUserId = accountScope === 'all' ? undefined : accountScope;
-    const res = await fetchSupabaseHistory(queryRange, targetUserId);
+    // Bảo mật phân quyền: Nhân viên chỉ có thể truy vấn chính tài khoản của mình
+    const targetUserId = isManager 
+      ? (accountScope === 'all' ? undefined : accountScope) 
+      : (currentUser?.id || 'none');
+    const targetUserEmail = !isManager ? (currentUser?.email || undefined) : undefined;
+
+    const res = await fetchSupabaseHistory(queryRange, targetUserId, targetUserEmail);
     setIsQuerying(false);
     setQueryResult(res);
   };
@@ -111,32 +120,34 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
           </button>
         </div>
 
-        {/* Tab selection */}
-        <div className="flex items-center px-4 sm:px-5 border-b border-slate-200 bg-slate-50/60 text-xs font-semibold text-slate-600">
-          <button
-            onClick={() => setActiveTab('config')}
-            className={`py-3 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'config'
-                ? 'border-emerald-600 text-emerald-800 font-bold bg-white'
-                : 'border-transparent hover:text-slate-900'
-            }`}
-          >
-            <Key className="w-3.5 h-3.5" />
-            <span>Cấu Hình Kết Nối</span>
-          </button>
+        {/* Tab selection (Chỉ quản trị viên mới có quyền cấu hình kết nối Supabase) */}
+        {isManager && (
+          <div className="flex items-center px-4 sm:px-5 border-b border-slate-200 bg-slate-50/60 text-xs font-semibold text-slate-600">
+            <button
+              onClick={() => setActiveTab('config')}
+              className={`py-3 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'config'
+                  ? 'border-emerald-600 text-emerald-800 font-bold bg-white'
+                  : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>Cấu Hình Kết Nối</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('query')}
-            className={`py-3 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'query'
-                ? 'border-emerald-600 text-emerald-800 font-bold bg-white'
-                : 'border-transparent hover:text-slate-900'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Truy Vấn Lịch Sử</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveTab('query')}
+              className={`py-3 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'query'
+                  ? 'border-emerald-600 text-emerald-800 font-bold bg-white'
+                  : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Truy Vấn Lịch Sử</span>
+            </button>
+          </div>
+        )}
 
         {/* Body content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
@@ -279,14 +290,21 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                 <h4 className="font-bold text-slate-900">Truy xuất lịch sử lưu trữ</h4>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={accountScope}
-                    onChange={(e) => setAccountScope(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 font-semibold text-xs focus:outline-none cursor-pointer"
-                  >
-                    <option value="all">Tất cả tài khoản</option>
-                    {currentUser && <option value={currentUser.id}>Tài khoản hiện tại ({currentUser.fullName || currentUser.username})</option>}
-                  </select>
+                  {isManager ? (
+                    <select
+                      value={accountScope}
+                      onChange={(e) => setAccountScope(e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 font-semibold text-xs focus:outline-none cursor-pointer"
+                    >
+                      <option value="all">Tất cả tài khoản</option>
+                      {currentUser && <option value={currentUser.id}>Tài khoản hiện tại ({currentUser.fullName || currentUser.username})</option>}
+                    </select>
+                  ) : (
+                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 select-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      <span>Chỉ dữ liệu cá nhân ({currentUser?.fullName || currentUser?.username || 'Nhân viên'})</span>
+                    </div>
+                  )}
 
                   <select
                     value={queryRange}
@@ -400,18 +418,20 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200 text-xs font-semibold transition cursor-pointer"
+              className="px-3.5 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200 text-xs font-semibold transition cursor-pointer"
             >
-              Hủy
+              {isManager && activeTab === 'config' ? 'Hủy' : 'Đóng'}
             </button>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
-            >
-              Lưu cấu hình
-            </button>
+            {isManager && activeTab === 'config' && (
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+              >
+                Lưu cấu hình
+              </button>
+            )}
           </div>
         </div>
       </div>

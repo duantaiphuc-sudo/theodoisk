@@ -252,37 +252,18 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-mono font-medium whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
               <span>
-                {selectedAccountFilter === 'all' 
-                  ? 'Tất cả tài khoản' 
-                  : (selectedAccountFilter === currentUser?.id ? `Dữ liệu riêng: ${currentUser?.fullName || currentUser?.username}` : `Dữ liệu: ${distinctAccounts.find(a => a.id === selectedAccountFilter)?.name || selectedAccountFilter}`)}
+                {!isManager 
+                  ? `Dữ liệu cá nhân: ${currentUser?.fullName || currentUser?.username}`
+                  : (selectedAccountFilter === 'all' 
+                      ? 'Tất cả tài khoản' 
+                      : (selectedAccountFilter === currentUser?.id ? `Dữ liệu riêng: ${currentUser?.fullName || currentUser?.username}` : `Dữ liệu: ${distinctAccounts.find(a => a.id === selectedAccountFilter)?.name || selectedAccountFilter}`))}
               </span>
             </span>
-
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-mono font-medium whitespace-nowrap">
-              <Database className="w-3 h-3 text-sky-600 shrink-0" />
-              <span>Supabase: telemetry_logs {selectedAccountFilter !== 'all' ? `(User: ${selectedAccountFilter})` : '(Toàn bộ)'}</span>
-            </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Hệ thống tự động lưu trữ dữ liệu lịch sử đo đạc vào cơ sở dữ liệu Supabase PostgreSQL Cloud. Firebase chỉ dùng nhận diện camera & hiện diện thiết bị.
-          </p>
         </div>
 
         {/* Action Controls Bar */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Supabase Auto-save Indicator */}
-          <div 
-            title="Dữ liệu lịch sử đo đạc & công thái học được tự động đồng bộ và lưu trữ trực tiếp trên Supabase PostgreSQL Cloud"
-            className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold whitespace-nowrap shadow-2xs"
-          >
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>Lưu trữ Supabase Cloud</span>
-          </div>
-
           {/* Supabase SQL Button */}
           {onOpenSupabase && (
             <button

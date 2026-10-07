@@ -76,7 +76,11 @@ export default function App() {
   // 0. Authentication State
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
   const isManager = Boolean(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || isUserAdmin(currentUser)));
-  const [selectedHistoryAccount, setSelectedHistoryAccount] = useState<string>('all');
+  const [selectedHistoryAccount, setSelectedHistoryAccount] = useState<string>(() => {
+    const user = getCurrentUser();
+    const isMgr = Boolean(user && (user.role === 'admin' || user.role === 'manager' || isUserAdmin(user)));
+    return isMgr ? 'all' : (user?.id || 'all');
+  });
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
@@ -88,9 +92,17 @@ export default function App() {
   const [simPostureMode, setSimPostureMode] = useState<SimPostureScenario>('auto');
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (currentUser && !isManager && selectedHistoryAccount !== currentUser.id) {
+      setSelectedHistoryAccount(currentUser.id);
+    }
+  }, [currentUser, isManager, selectedHistoryAccount]);
+
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     saveCurrentUser(user);
+    const isMgr = Boolean(user.role === 'admin' || user.role === 'manager' || isUserAdmin(user));
+    setSelectedHistoryAccount(isMgr ? 'all' : user.id);
     if (firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, user.id, {
         isOnline: true,
