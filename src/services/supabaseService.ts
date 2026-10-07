@@ -107,7 +107,7 @@ export async function testSupabaseConnection(config?: SupabaseConnectionConfig):
         return {
           success: true,
           tableExists: false,
-          message: `Xác thực API Key thành công 100%! Bước cuối cùng: Hãy tạo bảng "${effectiveConfig.tableName}" trong Supabase SQL Editor bằng mã SQL bên dưới.`,
+          message: `Kết nối API thành công. Bảng "${effectiveConfig.tableName}" chưa có dữ liệu hoặc chưa được tạo.`,
         };
       }
       return {
@@ -119,7 +119,7 @@ export async function testSupabaseConnection(config?: SupabaseConnectionConfig):
     return {
       success: true,
       tableExists: true,
-      message: `Kết nối Supabase & bảng "${effectiveConfig.tableName}" thành công! Sẵn sàng ghi và truy xuất dữ liệu.`,
+      message: `Kết nối Supabase & bảng "${effectiveConfig.tableName}" thành công!`,
     };
   } catch (err: any) {
     return {

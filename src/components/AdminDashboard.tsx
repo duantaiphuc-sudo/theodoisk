@@ -4,7 +4,8 @@ import {
   FirebaseConnectionConfig, 
   UserTelemetryLive,
   HealthTelemetry,
-  TelemetryLog 
+  TelemetryLog,
+  TelemetryHistoryItem
 } from '../types';
 import { 
   Shield, 
@@ -56,10 +57,11 @@ interface AdminDashboardProps {
   firebaseConfig: FirebaseConnectionConfig;
   currentTelemetry?: HealthTelemetry;
   isSimulating?: boolean;
+  history?: TelemetryHistoryItem[];
   onOpenUserManagementModal: () => void;
   onOpenTaskModalWithUser?: (user: AuthUser) => void;
-  onSwitchUser?: (user: AuthUser) => void;
   onWipeAllData?: () => Promise<void>;
+  onViewUserHistory?: (user: AuthUser) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -67,10 +69,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   firebaseConfig,
   currentTelemetry,
   isSimulating,
+  history,
   onOpenUserManagementModal,
   onOpenTaskModalWithUser,
-  onSwitchUser,
-  onWipeAllData
+  onWipeAllData,
+  onViewUserHistory,
 }) => {
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [telemetryMap, setTelemetryMap] = useState<Record<string, UserTelemetryLive>>({});
@@ -81,6 +84,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'alerts' | 'bad_posture' | 'absent'>('all');
   const [selectedUserForDetail, setSelectedUserForDetail] = useState<AuthUser | null>(null);
   const [detailTelemetry, setDetailTelemetry] = useState<HealthTelemetry | null>(null);
+  const [detailUserLogs, setDetailUserLogs] = useState<TelemetryHistoryItem[]>([]);
+  const [isLoadingDetailLogs, setIsLoadingDetailLogs] = useState(false);
+  const [detailActiveTab, setDetailActiveTab] = useState<'metrics' | 'history'>('metrics');
+  const [detailHistoryFilter, setDetailHistoryFilter] = useState<'all' | 'bad_posture' | 'alerts'>('all');
 
   // Sub-tab: Giám sát Trực tuyến vs Truy vấn Lịch sử Supabase SQL
   const [activeAdminTab, setActiveAdminTab] = useState<'live' | 'supabase_query'>('live');
@@ -316,6 +323,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
     return () => unsub();
   }, [selectedUserForDetail, firebaseConfig]);
+
+  // Load history logs for selected user
+  useEffect(() => {
+    if (!selectedUserForDetail) {
+      setDetailUserLogs([]);
+      return;
+    }
+    setIsLoadingDetailLogs(true);
+    fetchSupabaseHistory('all', selectedUserForDetail.id, selectedUserForDetail.email)
+      .then(res => {
+        if (res && res.data && res.data.length > 0) {
+          setDetailUserLogs(res.data as any);
+        } else if (history && history.length > 0) {
+          const matched = history.filter(h => 
+            h.userId === selectedUserForDetail.id || 
+            (h.userEmail && selectedUserForDetail.email && h.userEmail.toLowerCase() === selectedUserForDetail.email.toLowerCase())
+          );
+          setDetailUserLogs(matched);
+        } else {
+          setDetailUserLogs([]);
+        }
+      })
+      .catch(() => {
+        if (history && history.length > 0) {
+          const matched = history.filter(h => 
+            h.userId === selectedUserForDetail.id || 
+            (h.userEmail && selectedUserForDetail.email && h.userEmail.toLowerCase() === selectedUserForDetail.email.toLowerCase())
+          );
+          setDetailUserLogs(matched);
+        } else {
+          setDetailUserLogs([]);
+        }
+      })
+      .finally(() => {
+        setIsLoadingDetailLogs(false);
+      });
+  }, [selectedUserForDetail, history]);
 
   // Compute live overview metrics
   const now = Date.now();
@@ -761,27 +805,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
 
-              {/* Card Footer: Quick Actions */}
-              <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+              {/* Card Footer: Balanced Uniform Actions */}
+              <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedUserForDetail(user)}
-                  className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs transition cursor-pointer active:scale-95"
-                  title="Xem chi tiết các chỉ số sinh trắc học và lịch sử của tài khoản này"
+                  className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs transition cursor-pointer active:scale-95"
+                  title={`Xem chi tiết sinh trắc học và lịch sử đo của ${user.fullName}`}
                 >
-                  <Eye className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Xem Chi Tiết</span>
+                  <Eye className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="truncate">Xem Chi Tiết</span>
                 </button>
 
                 {onOpenTaskModalWithUser && (
                   <button
                     type="button"
                     onClick={() => onOpenTaskModalWithUser(user)}
-                    className="flex items-center justify-center gap-1 h-8 px-2.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer active:scale-95"
-                    title={`Giao nhiệm vụ hoặc gửi nhắc nhở sức khỏe cho ${user.fullName}`}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer active:scale-95"
+                    title={`Giao việc cho ${user.fullName}`}
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Giao việc</span>
+                    <Send className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span className="truncate">Giao Việc</span>
                   </button>
                 )}
 
@@ -792,26 +836,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setActiveAdminTab('supabase_query');
                     handleRunSupabaseQuery(user.id);
                   }}
-                  className="flex items-center justify-center gap-1 h-8 px-2.5 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer active:scale-95"
-                  title={`Truy vấn lịch sử đo đạc của ${user.fullName} trên Supabase SQL`}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer active:scale-95"
+                  title={`Truy vấn lịch sử của ${user.fullName}`}
                 >
-                  <Database className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden sm:inline">Truy Vấn SQL</span>
+                  <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Truy Vấn</span>
                 </button>
-
-                {onSwitchUser && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      saveCurrentUser(user);
-                      onSwitchUser(user);
-                    }}
-                    className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/90 flex items-center justify-center transition cursor-pointer"
-                    title={`Đăng nhập thử tài khoản của ${user.fullName}`}
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
-                )}
 
                 {user.id !== currentUser.id && (
                   <button
@@ -822,7 +852,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setUsers(prev => prev.filter(u => u.id !== user.id));
                       }
                     }}
-                    className="w-8 h-8 rounded-lg bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200/90 hover:border-rose-200 flex items-center justify-center transition cursor-pointer"
+                    className="w-8.5 h-8.5 shrink-0 rounded-lg bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200/90 hover:border-rose-200 flex items-center justify-center transition cursor-pointer active:scale-95"
                     title={`Xóa tài khoản ${user.fullName}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1335,18 +1365,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <h3 className="text-base font-bold text-slate-900 leading-tight">
                       {selectedUserForDetail.fullName}
                     </h3>
-                    {isUserAdmin(selectedUserForDetail) ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
-                        Admin Duy Nhất
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                        Nhân viên
-                      </span>
-                    )}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                      {selectedUserForDetail.department || 'Văn Phòng'}
+                    </span>
                   </div>
                   <p className="text-xs font-mono text-slate-500 mt-0.5">
-                    {selectedUserForDetail.email} • {selectedUserForDetail.department || 'Văn Phòng IoT'}
+                    {selectedUserForDetail.email}
                   </p>
                 </div>
               </div>
@@ -1359,99 +1383,268 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
 
+            {/* Modal Tabs */}
+            <div className="flex items-center px-4 sm:px-5 border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600">
+              <button
+                type="button"
+                onClick={() => setDetailActiveTab('metrics')}
+                className={`py-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                  detailActiveTab === 'metrics'
+                    ? 'border-indigo-600 text-indigo-700 font-bold bg-white'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Chỉ Số Thời Gian Thực</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDetailActiveTab('history')}
+                className={`py-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                  detailActiveTab === 'history'
+                    ? 'border-indigo-600 text-indigo-700 font-bold bg-white'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Lịch Sử Nhật Ký Đo ({detailUserLogs.length})</span>
+              </button>
+            </div>
+
             {/* Modal Body */}
-            <div className="p-5 overflow-y-auto space-y-4">
-              {/* Live Metric Cards for this User */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Nhịp tim</span>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-extrabold font-mono text-slate-900">
-                      {detailTelemetry?.bpm ?? telemetryMap[selectedUserForDetail.id]?.bpm ?? 0}
-                    </span>
-                    <span className="text-[10px] font-semibold text-slate-500">BPM</span>
-                  </div>
-                </div>
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[60vh]">
+              {detailActiveTab === 'metrics' ? (
+                <>
+                  {/* Live Metric Cards for this User */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Nhịp tim</span>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-2xl font-extrabold font-mono text-slate-900">
+                          {detailTelemetry?.bpm ?? telemetryMap[selectedUserForDetail.id]?.bpm ?? 0}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">BPM</span>
+                      </div>
+                    </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Oxy máu</span>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-extrabold font-mono text-slate-900">
-                      {detailTelemetry?.spo2 ?? telemetryMap[selectedUserForDetail.id]?.spo2 ?? 0}
-                    </span>
-                    <span className="text-[10px] font-semibold text-slate-500">%</span>
-                  </div>
-                </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Oxy máu</span>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-2xl font-extrabold font-mono text-slate-900">
+                          {detailTelemetry?.spo2 ?? telemetryMap[selectedUserForDetail.id]?.spo2 ?? 0}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">%</span>
+                      </div>
+                    </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Góc nghiêng cổ</span>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-extrabold font-mono text-slate-900">
-                      {detailTelemetry?.angleNeck ?? telemetryMap[selectedUserForDetail.id]?.angleNeck ?? 155}°
-                    </span>
-                  </div>
-                </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Góc nghiêng cổ</span>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-2xl font-extrabold font-mono text-slate-900">
+                          {detailTelemetry?.angleNeck ?? telemetryMap[selectedUserForDetail.id]?.angleNeck ?? 155}°
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Vùng quan sát</span>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className={`text-xs font-bold ${detailTelemetry?.inZone !== false ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {detailTelemetry?.inZone !== false ? 'Trong vùng' : 'Ngoài vùng'}
-                    </span>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Vùng quan sát</span>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className={`text-xs font-bold ${detailTelemetry?.inZone !== false ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {detailTelemetry?.inZone !== false ? 'Trong vùng' : 'Ngoài vùng'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Current Posture Details */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">Trạng Thái Tư Thế Hiện Tại:</span>
-                  <span className="text-xs font-mono text-slate-400">
-                    Nguồn: {detailTelemetry?.source || telemetryMap[selectedUserForDetail.id]?.source || 'Cảm biến Raspberry Pi 4'}
-                  </span>
-                </div>
-                <div className="p-3 rounded-lg bg-white border border-slate-200 font-bold text-sm text-slate-900 flex items-center justify-between">
-                  <span>{detailTelemetry?.postureLabel || telemetryMap[selectedUserForDetail.id]?.postureLabel || 'Chưa có dữ liệu'}</span>
-                  {detailTelemetry?.postureStatus === 0 ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  ) : detailTelemetry?.postureStatus === 1 || detailTelemetry?.postureStatus === 3 ? (
-                    <AlertTriangle className="w-5 h-5 text-rose-600" />
-                  ) : null}
-                </div>
-                {detailTelemetry?.postureWarning && (
-                  <p className="text-xs text-rose-700 font-medium">
-                    ⚠️ {detailTelemetry.postureWarning}
-                  </p>
-                )}
-              </div>
+                  {/* Current Posture Details */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">Trạng Thái Tư Thế Hiện Tại:</span>
+                      <span className="text-xs font-mono text-slate-400">
+                        Nguồn: {detailTelemetry?.source || telemetryMap[selectedUserForDetail.id]?.source || 'Cảm biến Raspberry Pi 4'}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white border border-slate-200 font-bold text-sm text-slate-900 flex items-center justify-between">
+                      <span>{detailTelemetry?.postureLabel || telemetryMap[selectedUserForDetail.id]?.postureLabel || 'Chưa có dữ liệu'}</span>
+                      {detailTelemetry?.postureStatus === 0 ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      ) : detailTelemetry?.postureStatus === 1 || detailTelemetry?.postureStatus === 3 ? (
+                        <AlertTriangle className="w-5 h-5 text-rose-600" />
+                      ) : null}
+                    </div>
+                    {detailTelemetry?.postureWarning && (
+                      <p className="text-xs text-rose-700 font-medium">
+                        ⚠️ {detailTelemetry.postureWarning}
+                      </p>
+                    )}
+                  </div>
 
-              {/* User Health Profile */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <span className="text-xs font-bold text-slate-700 block">Thông Tin Hồ Sơ Cá Nhân:</span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Tuổi</span>
-                    <span className="font-bold text-slate-800">{selectedUserForDetail.age || 28} tuổi</span>
+                  {/* User Health Profile */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <span className="text-xs font-bold text-slate-700 block">Thông Tin Hồ Sơ Cá Nhân:</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase">Tuổi</span>
+                        <span className="font-bold text-slate-800">{selectedUserForDetail.age || 28} tuổi</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase">Giới tính</span>
+                        <span className="font-bold text-slate-800">{selectedUserForDetail.gender === 'female' ? 'Nữ' : 'Nam'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase">Thể trạng</span>
+                        <span className="font-bold text-slate-800">{selectedUserForDetail.height || 170}cm / {selectedUserForDetail.weight || 65}kg</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase">Ngồi tối đa</span>
+                        <span className="font-bold text-slate-800">{selectedUserForDetail.maxSittingHours || 6} tiếng/ngày</span>
+                      </div>
+                    </div>
+                    {selectedUserForDetail.healthNotes && (
+                      <p className="text-xs text-slate-600 mt-2 bg-white p-2.5 rounded-lg border border-slate-200">
+                        <b>Ghi chú y tế:</b> {selectedUserForDetail.healthNotes}
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Giới tính</span>
-                    <span className="font-bold text-slate-800">{selectedUserForDetail.gender === 'female' ? 'Nữ' : 'Nam'}</span>
+                </>
+              ) : (
+                /* History Logs Tab for this specific user */
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setDetailHistoryFilter('all')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                          detailHistoryFilter === 'all'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Tất cả ({detailUserLogs.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailHistoryFilter('bad_posture')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                          detailHistoryFilter === 'bad_posture'
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Sai tư thế ({detailUserLogs.filter(l => l.postureStatus === 1 || l.postureStatus === 3).length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailHistoryFilter('alerts')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                          detailHistoryFilter === 'alerts'
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Có cảnh báo ({detailUserLogs.filter(l => !!l.hasAlert || !!l.alertType).length})
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLoadingDetailLogs(true);
+                        fetchSupabaseHistory('all', selectedUserForDetail.id, selectedUserForDetail.email)
+                          .then(res => {
+                            if (res && res.data) setDetailUserLogs(res.data as any);
+                          })
+                          .finally(() => setIsLoadingDetailLogs(false));
+                      }}
+                      disabled={isLoadingDetailLogs}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isLoadingDetailLogs ? 'animate-spin' : ''}`} />
+                      <span>{isLoadingDetailLogs ? 'Đang tải...' : 'Làm mới'}</span>
+                    </button>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Thể trạng</span>
-                    <span className="font-bold text-slate-800">{selectedUserForDetail.height || 170}cm / {selectedUserForDetail.weight || 65}kg</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Ngồi tối đa</span>
-                    <span className="font-bold text-slate-800">{selectedUserForDetail.maxSittingHours || 6} tiếng/ngày</span>
+
+                  {/* History Logs Table */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                    <div className="max-h-[300px] overflow-y-auto">
+                      <table className="w-full text-[11px] text-left">
+                        <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
+                          <tr>
+                            <th className="p-2.5">Thời gian</th>
+                            <th className="p-2.5 text-center">BPM</th>
+                            <th className="p-2.5 text-center">SpO₂</th>
+                            <th className="p-2.5">Tư thế</th>
+                            <th className="p-2.5 text-center">Cảnh báo</th>
+                            <th className="p-2.5 text-center">Vùng</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {detailUserLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="p-6 text-center text-slate-400">
+                                {isLoadingDetailLogs ? 'Đang tải lịch sử...' : 'Chưa có bản ghi lịch sử đo đạc nào cho tài khoản này.'}
+                              </td>
+                            </tr>
+                          ) : (
+                            detailUserLogs
+                              .filter(log => {
+                                if (detailHistoryFilter === 'bad_posture') {
+                                  return log.postureStatus === 1 || log.postureStatus === 3;
+                                }
+                                if (detailHistoryFilter === 'alerts') {
+                                  return !!log.hasAlert || !!log.alertType;
+                                }
+                                return true;
+                              })
+                              .slice(0, 50)
+                              .map((item, idx) => (
+                                <tr key={item.id || idx} className="hover:bg-slate-50 transition">
+                                  <td className="p-2.5 font-mono text-slate-600 whitespace-nowrap">
+                                    <span className="font-bold text-slate-900">{item.timeFormatted || '--:--'}</span>
+                                    <span className="text-[10px] text-slate-400 block">{item.dateFormatted || ''}</span>
+                                  </td>
+                                  <td className="p-2.5 font-mono text-center font-bold text-rose-600">
+                                    {item.bpm || 0}
+                                  </td>
+                                  <td className="p-2.5 font-mono text-center font-bold text-sky-600">
+                                    {item.spo2 ? `${item.spo2}%` : '--'}
+                                  </td>
+                                  <td className="p-2.5">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold inline-block ${
+                                      item.postureStatus === 0 
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : item.postureStatus === 1 || item.postureStatus === 3
+                                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                    }`}>
+                                      {item.postureLabel || 'Bình thường'}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    {item.hasAlert || item.alertType ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                        {item.alertType || 'Cảnh báo'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-300">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <span className={`text-[10px] font-semibold ${item.inZone !== false ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                      {item.inZone !== false ? 'Trong' : 'Ngoài'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-                {selectedUserForDetail.healthNotes && (
-                  <p className="text-xs text-slate-600 mt-2 bg-white p-2.5 rounded-lg border border-slate-200">
-                    <b>Ghi chú y tế:</b> {selectedUserForDetail.healthNotes}
-                  </p>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -1459,12 +1652,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedUserForDetail(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer transition"
               >
                 Đóng
               </button>
 
               <div className="flex items-center gap-2">
+                {onViewUserHistory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onViewUserHistory(selectedUserForDetail);
+                      setSelectedUserForDetail(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs transition cursor-pointer active:scale-95"
+                    title={`Mở toàn bộ nhật ký lịch sử của ${selectedUserForDetail.fullName}`}
+                  >
+                    <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Xem Trong Nhật Ký Hệ Thống</span>
+                  </button>
+                )}
+
                 {onOpenTaskModalWithUser && (
                   <button
                     type="button"

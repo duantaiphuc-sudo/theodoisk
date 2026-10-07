@@ -23,22 +23,26 @@ import { normalizeDateFormatted } from '../services/supabaseService';
 interface HistoryLogsProps {
   history: TelemetryLog[];
   currentUser?: AuthUser | null;
+  selectedAccountFilter?: string;
+  onSelectAccountFilter?: (acc: string) => void;
   onClearHistory?: (targetAccount?: string) => void;
   onDeleteSingleLog?: (id: string) => void;
   onRefreshHistory?: () => void;
   isSyncing?: boolean;
-  isManager: boolean;
+  isManager?: boolean;
   onOpenSupabase?: () => void;
 }
 
 export const HistoryLogs: React.FC<HistoryLogsProps> = ({ 
   history, 
   currentUser,
+  selectedAccountFilter: propAccountFilter,
+  onSelectAccountFilter,
   onClearHistory, 
   onDeleteSingleLog,
   onRefreshHistory,
   isSyncing = false,
-  isManager,
+  isManager = false,
   onOpenSupabase
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,24 +81,24 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
     return Array.from(map.values());
   }, [history, currentUser]);
 
-  // Account filter:
-  // For employees: strictly locked to their own account records!
-  // For admin/manager: defaults to their own account, can switch between employees or view all
-  const [selectedAccountFilter, setSelectedAccountFilter] = useState<string>(() => {
-    return currentUser ? currentUser.id : 'all';
-  });
+  const [internalAccountFilter, setInternalAccountFilter] = useState<string>('all');
+  const selectedAccountFilter = propAccountFilter !== undefined ? propAccountFilter : internalAccountFilter;
+  const setSelectedAccountFilter = (acc: string) => {
+    setInternalAccountFilter(acc);
+    onSelectAccountFilter?.(acc);
+  };
 
   // Base history filtered by user account isolation
   const userFilteredHistory = useMemo(() => {
-    // If not a manager, STRICTLY only allow currentUser's records (zero leakage)
+    // Nếu là tài khoản nhân viên (không phải quản trị viên): chỉ xem dữ liệu đo đạc của chính mình
     if (!isManager && currentUser) {
-      return history.filter(item => 
-        (item.userId && item.userId === currentUser.id) || 
-        (item.userEmail && currentUser.email && item.userEmail.toLowerCase() === currentUser.email.toLowerCase())
-      );
+      return history.filter(item => {
+        const matchId = item.userId === currentUser.id;
+        const matchEmail = item.userEmail && item.userEmail.toLowerCase() === currentUser.email.toLowerCase();
+        return matchId || matchEmail;
+      });
     }
 
-    // If manager, check selectedAccountFilter
     if (selectedAccountFilter === 'all') {
       return history;
     }
@@ -106,7 +110,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         (item.userId === currentUser.id || (item.userEmail && item.userEmail.toLowerCase() === currentUser.email.toLowerCase()));
       return matchId || matchEmail || matchCurrent;
     });
-  }, [history, selectedAccountFilter, isManager, currentUser]);
+  }, [history, selectedAccountFilter, currentUser, isManager]);
 
   // Extract unique available dates from user-filtered logs (chuẩn hóa về định dạng duy nhất DD/MM/YYYY)
   const availableDates = useMemo(() => {
@@ -360,7 +364,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         </div>
       </div>
 
-      {/* Account Selector Bar (Separates data clearly per account) */}
+      {/* Account Selector Bar (Only show for manager to choose accounts; employees only see their own) */}
       {isManager && distinctAccounts.length > 1 && (
         <div className="mb-3 p-2 sm:p-2.5 bg-slate-50/90 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 whitespace-nowrap">

@@ -579,12 +579,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   </div>
                 </button>
               </div>
-
-              {/* Demo Account Tip */}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
-                <span>Tài khoản thử nghiệm:</span>
-                <span className="font-mono text-slate-700 font-semibold">admin / 123456</span>
-              </div>
             </div>
           </div>
         )}
@@ -1380,8 +1374,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   <HelpCircle className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Hướng Dẫn Đăng Nhập & Phân Quyền</h3>
-                  <p className="text-xs text-slate-500">Thông tin tài khoản hệ thống và vai trò</p>
+                  <h3 className="text-base font-bold text-slate-900">Giới Thiệu Hệ Thống Giám Sát Sức Khỏe IoT</h3>
+                  <p className="text-xs text-slate-500">Nền tảng theo dõi công thái học & sinh trắc học thời gian thực</p>
                 </div>
               </div>
               <button
@@ -1394,33 +1388,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
             <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
               <div className="space-y-3">
-                <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-indigo-900 flex items-center gap-1.5">
-                      <Shield className="w-4 h-4 text-indigo-600" />
-                      Tài khoản Quản lý (Admin)
-                    </span>
-                    <span className="font-mono px-2 py-0.5 rounded bg-white text-indigo-700 text-[11px] font-bold border border-indigo-200">
-                      admin / admin123
-                    </span>
-                  </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Shield className="w-4 h-4 text-emerald-600" />
+                    Theo Dõi Tư Thế Công Thái Học & Sinh Trắc Học
+                  </span>
                   <p className="text-slate-600 text-[11px]">
-                    <b>Quyền hạn:</b> Cấu hình ngưỡng cảnh báo nhịp tim/SpO2/thời gian ngồi, thay đổi dự án Firebase Firestore, lấy mã nguồn Python cho Raspberry Pi 4, xóa bộ nhớ cache và xuất báo cáo CSV.
+                    Hệ thống tự động phân tích tư thế ngồi (chuẩn, cúi đầu, gù lưng, nghiêng), đo nhịp tim (BPM) và nồng độ oxy trong máu (SpO₂) từ cảm biến Raspberry Pi 4.
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sky-900 flex items-center gap-1.5">
-                      <User className="w-4 h-4 text-sky-600" />
-                      Tài khoản Nhân viên (User)
-                    </span>
-                    <span className="font-mono px-2 py-0.5 rounded bg-white text-sky-700 text-[11px] font-bold border border-sky-200">
-                      user / user123
-                    </span>
-                  </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-sky-600" />
+                    Đồng Bộ & Lưu Trữ Lịch Sử
+                  </span>
                   <p className="text-slate-600 text-[11px]">
-                    <b>Quyền hạn:</b> Theo dõi trực tiếp các chỉ số sinh hiệu cá nhân, nhận cảnh báo âm thanh khi ngồi sai tư thế, kiểm tra thời gian làm việc và xem lịch sử các lần đo gần nhất.
+                    Dữ liệu thời gian thực được kết nối trực tiếp, các bản ghi lịch sử đo đạc được lưu trữ tập trung trên cơ sở dữ liệu Supabase PostgreSQL Cloud để tra cứu bất kỳ lúc nào.
                   </p>
                 </div>
               </div>

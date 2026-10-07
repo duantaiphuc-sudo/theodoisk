@@ -246,7 +246,7 @@ export const MonitorZoneCard: React.FC<MonitorZoneCardProps> = ({
             </div>
           ) : (
             <p className="text-[11px] text-slate-500 italic">
-              💡 Chuyển sang vai trò "Quản lý" ở góc trên để kéo chỉnh toạ độ vùng quan sát.
+              💡 Tính năng tinh chỉnh toạ độ vùng quan sát yêu cầu tài khoản Quản trị viên (Admin).
             </p>
           )}
         </div>

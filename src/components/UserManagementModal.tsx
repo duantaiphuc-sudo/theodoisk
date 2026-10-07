@@ -52,7 +52,6 @@ interface UserManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: AuthUser;
-  onSwitchUser?: (user: AuthUser) => void;
   firebaseConfig?: FirebaseConnectionConfig;
 }
 
@@ -60,7 +59,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   isOpen,
   onClose,
   currentUser,
-  onSwitchUser,
   firebaseConfig,
 }) => {
   const config = firebaseConfig || getSavedFirebaseConfig();
@@ -144,23 +142,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     return true;
   });
 
-  const handleToggleRole = async (user: AuthUser) => {
-    const isCurrentlyAdmin = user.role === 'admin' || isUserAdmin(user);
-    if ((user.email || '').toLowerCase() === 'duantaiphuc@gmail.com') {
-      setNotice('Tài khoản duantaiphuc@gmail.com là Quản Trị Viên hệ thống.');
-      setTimeout(() => setNotice(null), 3000);
-      return;
-    }
-    const newRole = isCurrentlyAdmin ? 'employee' : 'admin';
-    const updated: AuthUser = { ...user, role: newRole };
-    const ok = await adminUpdateUser(updated);
-    if (ok) {
-      setUsers(prev => prev.map(u => (u.id === user.id ? updated : u)));
-      setNotice(`Đã chuyển vai trò của ${user.fullName} thành: ${newRole === 'admin' ? 'Quản Trị Viên (Admin)' : 'Nhân Viên'}`);
-      setTimeout(() => setNotice(null), 3500);
-    }
-  };
-
   const handleDeleteUser = async (userId: string) => {
     if (userId === currentUser.id) {
       alert('Không thể tự xóa tài khoản đang đăng nhập hiện tại!');
@@ -228,14 +209,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       setNotice(`Đã tạo mới thành công tài khoản ${user.fullName}`);
       setTimeout(() => setNotice(null), 3500);
     }
-  };
-
-  const handleQuickLoginAs = (user: AuthUser) => {
-    saveCurrentUser(user);
-    if (onSwitchUser) {
-      onSwitchUser(user);
-    }
-    onClose();
   };
 
   const handleAssignTaskShortcut = (user: AuthUser) => {
@@ -476,28 +449,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               </div>
                             </td>
 
-                            {/* Role display */}
+                            {/* Role display (Static badge, no arbitrary role toggle) */}
                             <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               {isAdmin ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleRole(u)}
-                                  title="Bấm để chuyển đổi vai trò người dùng"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs hover:bg-indigo-100 transition cursor-pointer active:scale-95"
-                                >
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs select-none">
                                   <Shield className="w-3.5 h-3.5 text-indigo-600" />
                                   <span>Admin</span>
-                                </button>
+                                </span>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleRole(u)}
-                                  title="Bấm để nâng cấp thành Quản Trị Viên (Admin)"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 transition cursor-pointer active:scale-95"
-                                >
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-slate-100 text-slate-700 border-slate-200 select-none">
                                   <User className="w-3.5 h-3.5 text-slate-500" />
                                   <span>Nhân viên</span>
-                                </button>
+                                </span>
                               )}
                             </td>
 
@@ -538,18 +501,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   <Send className="w-3.5 h-3.5 text-sky-600" />
                                   <span>Giao việc</span>
                                 </button>
-
-                                {/* Quick switch login if not current */}
-                                {!isCurrent && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQuickLoginAs(u)}
-                                    title="Đăng nhập thử với tư cách người dùng này"
-                                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition cursor-pointer active:scale-95"
-                                  >
-                                    <LogIn className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
 
                                 {/* Edit Button */}
                                 <button

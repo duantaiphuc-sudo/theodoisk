@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { X, Database, Check, AlertCircle, Send, Layers, ClipboardPaste, Trash2 } from 'lucide-react';
+import { X, Database, Send, Layers, ClipboardPaste, Trash2 } from 'lucide-react';
 import { FirebaseConnectionConfig } from '../types';
-import { pushMockTelemetryToFirebase, clearFirebaseTelemetry, purgeAllFirebaseHistoryCollections } from '../services/firebase';
+import { pushMockTelemetryToFirebase, clearFirebaseTelemetry } from '../services/firebase';
 
 interface FirebaseConfigModalProps {
   isOpen: boolean;
@@ -44,7 +44,6 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
   const handleParseRawConfig = () => {
     if (!rawConfigText.trim()) return;
     try {
-      // Extract apiKey
       const apiKeyMatch = rawConfigText.match(/apiKey:\s*["']([^"']+)["']/);
       const projectIdMatch = rawConfigText.match(/projectId:\s*["']([^"']+)["']/);
       const databaseURLMatch = rawConfigText.match(/databaseURL:\s*["']([^"']+)["']/);
@@ -61,10 +60,10 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
       }
 
       setFormData(updated);
-      setParseNotice(`✅ Đã tự động nhận diện: ProjectID="${updated.projectId}", API Key="${updated.apiKey ? updated.apiKey.substring(0, 10) + '...' : 'Chưa có'}"`);
-      setTimeout(() => setParseNotice(null), 4000);
-    } catch (err: any) {
-      setParseNotice('❌ Không phân tích được đoạn mã. Vui lòng điền trực tiếp vào các ô bên dưới.');
+      setParseNotice(`Đã nhận diện: ProjectID="${updated.projectId}"`);
+      setTimeout(() => setParseNotice(null), 3000);
+    } catch {
+      setParseNotice('Không phân tích được đoạn mã. Vui lòng nhập trực tiếp bên dưới.');
     }
   };
 
@@ -79,9 +78,9 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
         trackingActive: true,
         inZone: true,
       });
-      setTestStatus('✅ Đã gửi thành công! Dữ liệu sẽ xuất hiện trên màn hình ngay lập tức.');
+      setTestStatus('Đã gửi thành công gói tin mẫu.');
     } catch (err: any) {
-      setTestStatus(`❌ Lỗi gửi: ${err.message || 'Kiểm tra lại quyền ghi Firestore Rules hoặc API Key'}`);
+      setTestStatus(`Lỗi gửi: ${err?.message || 'Kiểm tra lại quyền truy cập hoặc API Key'}`);
     } finally {
       setIsTesting(false);
     }
@@ -89,32 +88,19 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
 
   const handleClearData = async () => {
     setIsClearing(true);
-    setTestStatus('Đang xóa dữ liệu cũ trên Firebase về trạng thái chờ...');
+    setTestStatus('Đang xóa dữ liệu live trên Firebase...');
     try {
       await clearFirebaseTelemetry(formData);
-      setTestStatus('✅ Đã xóa dữ liệu cũ trên Firebase! Màn hình theo dõi đã quay về trạng thái rỗng chờ kết nối mới.');
+      setTestStatus('Đã xóa dữ liệu live thành công.');
     } catch (err: any) {
-      setTestStatus(`❌ Lỗi xóa: ${err.message || 'Kiểm tra quyền ghi Firestore Rules'}`);
-    } finally {
-      setIsClearing(false);
-    }
-  };
-
-  const handlePurgeFirestoreHistory = async () => {
-    setIsClearing(true);
-    setTestStatus('Đang quét và xóa sạch 2 mục devices_history & theodoisk_history trên Firestore...');
-    try {
-      const res = await purgeAllFirebaseHistoryCollections(formData);
-      setTestStatus(`✅ Đã xóa sạch ${res.deletedCount} bản ghi khỏi devices_history & theodoisk_history trên Firebase Console!`);
-    } catch (err: any) {
-      setTestStatus(`❌ Lỗi dọn dẹp Firestore: ${err.message || 'Kiểm tra Firestore Rules'}`);
+      setTestStatus(`Lỗi xóa: ${err?.message || 'Kiểm tra quyền truy cập'}`);
     } finally {
       setIsClearing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
       <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xl text-slate-800 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -149,7 +135,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
               <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-600 animate-ping' : 'bg-amber-600'}`}></span>
               <div>
                 <span className="font-bold">Trạng thái: </span>
-                <span>{isConnected ? `Đã đồng bộ trực tiếp với Firebase "${formData.projectId}"` : `Đang lắng nghe gói tin từ Firebase "${formData.projectId}"`}</span>
+                <span>{isConnected ? `Đã kết nối với "${formData.projectId}"` : `Chờ dữ liệu từ "${formData.projectId}"`}</span>
               </div>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
@@ -157,24 +143,12 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
             </span>
           </div>
 
-          {/* Detection Banner */}
-          <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-slate-700">
-            <div className="font-bold text-emerald-800 mb-1 flex items-center gap-1.5">
-              <Check className="w-4 h-4 text-emerald-600" />
-              Đã nhận diện vị trí dữ liệu thực tế từ Raspberry Pi 4 của bạn:
-            </div>
-            <p className="text-[11px] leading-relaxed text-slate-600">
-              Dữ liệu lưu trong Collection: <code className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-amber-800 font-mono font-bold">devices</code> và Document: <code className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-sky-800 font-mono font-bold">pi4_node_1</code>. 
-              Các trường <b className="text-slate-900">heart_rate: 80</b>, <b className="text-slate-900">spo2: 97.9</b>, <b className="text-slate-900">angle_neck: 125</b>, <b className="text-rose-700">posture_status: "TU THE SAI"</b> đã được tự động kết nối.
-            </p>
-          </div>
-
           {/* Quick Paste config from Firebase Web App */}
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
               <label className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px]">
                 <ClipboardPaste className="w-3.5 h-3.5 text-sky-600" />
-                Dán nhanh đoạn mã cấu hình Web App (từ Firebase Console):
+                Dán nhanh đoạn mã cấu hình Firebase:
               </label>
               <button
                 type="button"
@@ -188,7 +162,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
               rows={2}
               value={rawConfigText}
               onChange={e => setRawConfigText(e.target.value)}
-              placeholder='Dán đoạn const firebaseConfig = { apiKey: "AIzaSy...", projectId: "theodoisk-66ddb", ... }; vào đây'
+              placeholder='const firebaseConfig = { apiKey: "AIzaSy...", projectId: "theodoisk-66ddb", ... };'
               className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-[10px] focus:outline-none focus:border-sky-500"
             />
             {parseNotice && (
@@ -200,7 +174,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
           <div>
             <label className="block text-slate-700 font-semibold mb-1.5 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-sky-600" />
-              Loại Cơ Sở Dữ Liệu Firebase bạn dùng trên Pi 4:
+              Loại Cơ Sở Dữ Liệu Firebase:
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -212,8 +186,8 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <div className="font-bold">Cloud Firestore (Khuyên dùng)</div>
-                <div className="text-[10px] text-slate-500 font-normal">Đã có nút tắt Firestore trên menu trái của bạn</div>
+                <div className="font-bold">Cloud Firestore</div>
+                <div className="text-[10px] text-slate-500 font-normal">Collection & Document</div>
               </button>
 
               <button
@@ -226,7 +200,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                 }`}
               >
                 <div className="font-bold">Realtime Database</div>
-                <div className="text-[10px] text-slate-500 font-normal">JSON REST API qua lệnh requests.put</div>
+                <div className="text-[10px] text-slate-500 font-normal">REST API endpoint</div>
               </button>
             </div>
           </div>
@@ -292,7 +266,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
           {/* Web API Key (Optional) */}
           <div>
             <label className="block text-slate-700 font-semibold mb-1">
-              Web API Key (Lấy từ "+ Add app" trên Firebase Console):
+              Web API Key:
             </label>
             <input
               type="text"
@@ -301,25 +275,6 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
               placeholder="AIzaSy..."
               className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
             />
-          </div>
-
-          {/* Troubleshooting Checklist */}
-          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 space-y-2 text-slate-700">
-            <div className="font-bold text-amber-800 flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 text-amber-600" />
-              Tại sao gửi thử chưa thấy dữ liệu trên Firebase Console?
-            </div>
-            <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-600">
-              <li>
-                <b>Chưa bấm "Create database":</b> Trên Firebase Console, ở menu trái bấm vào <span className="text-slate-900 font-semibold">Firestore</span> → Bấm nút <span className="text-emerald-700 font-semibold">"Create database"</span>.
-              </li>
-              <li>
-                <b>Chưa mở quyền ghi (Rules):</b> Vào tab <span className="text-slate-900 font-semibold">Rules</span> của Firestore → Sửa thành <code className="bg-white border border-amber-200 px-1 py-0.5 rounded text-amber-800 font-mono">allow read, write: if true;</code> rồi bấm <b>Publish</b>.
-              </li>
-              <li>
-                <b>Cần tải lại trang Firestore:</b> Sau khi bấm gửi thử, bấm nút <i>F5 / Refresh</i> trên tab Firestore Console để thấy collection <code className="text-sky-700 font-mono font-bold">theodoisk</code> và document <code className="text-sky-700 font-mono font-bold">live</code> xuất hiện!
-              </li>
-            </ol>
           </div>
 
           {/* Test and Reset buttons */}
@@ -341,19 +296,9 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                 className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isClearing ? 'Đang xóa...' : 'Xóa dữ liệu live trên Firebase'}</span>
+                <span>{isClearing ? 'Đang xóa...' : 'Xóa dữ liệu live'}</span>
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handlePurgeFirestoreHistory}
-              disabled={isTesting || isClearing}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer"
-              title="Xóa triệt để toàn bộ document trong 2 collection devices_history và theodoisk_history trên Firestore"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-amber-600" />
-              <span>Dọn sạch 2 mục History cũ trên Firebase Console (devices_history & theodoisk_history)</span>
-            </button>
             {testStatus && (
               <p className="text-[11px] text-center mt-1.5 font-mono text-slate-600 font-semibold">
                 {testStatus}

@@ -152,14 +152,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Firebase Connection Pill */}
           <button
-            onClick={() => {
-              if (isManager) {
-                onOpenFirebaseModal();
-              } else {
-                setShowConnectionInfoModal(true);
-              }
-            }}
-            title={isManager ? "Nhấp để cấu hình Firebase Firestore" : "Nhấp để xem chi tiết kết nối"}
+            onClick={onOpenFirebaseModal}
+            title="Nhấp để cấu hình kết nối Firebase"
             className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               isConnected
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
@@ -810,12 +804,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="font-mono text-sky-700 font-bold">{firebaseConfig.collectionName}/{firebaseConfig.documentId}</span>
                 </div>
               </div>
-
-              {!isManager && (
-                <p className="text-[11px] text-slate-500 italic text-center">
-                  💡 Chỉ tài khoản Quản lý mới có quyền chỉnh sửa cấu hình kết nối Firebase.
-                </p>
-              )}
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-white flex justify-end">

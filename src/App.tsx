@@ -24,7 +24,7 @@ import {
   checkIsQuotaExceeded,
   onQuotaExceededChange,
 } from './services/firebase';
-import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers } from './services/authService';
+import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers, isUserAdmin } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { notificationManager } from './services/notificationService';
@@ -75,7 +75,8 @@ import {
 export default function App() {
   // 0. Authentication State
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
-  const isManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const isManager = Boolean(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || isUserAdmin(currentUser)));
+  const [selectedHistoryAccount, setSelectedHistoryAccount] = useState<string>('all');
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
@@ -1472,6 +1473,8 @@ export default function App() {
               <HistoryLogs
                 history={history}
                 currentUser={currentUser}
+                selectedAccountFilter={selectedHistoryAccount}
+                onSelectAccountFilter={setSelectedHistoryAccount}
                 onClearHistory={handleClearHistory}
                 onDeleteSingleLog={handleDeleteSingleLog}
                 onRefreshHistory={handleRefreshHistory}
@@ -1622,12 +1625,14 @@ export default function App() {
                 firebaseConfig={firebaseConfig}
                 currentTelemetry={telemetry}
                 isSimulating={isSimulating}
+                history={history as any}
                 onOpenUserManagementModal={() => setIsUserManagementOpen(true)}
                 onOpenTaskModalWithUser={(_user) => {
                   setIsUserManagementOpen(true);
                 }}
-                onSwitchUser={(user) => {
-                  handleLoginSuccess(user);
+                onViewUserHistory={(user) => {
+                  setSelectedHistoryAccount(user.id);
+                  setMainNavTab('logs');
                 }}
                 onWipeAllData={async () => {
                   await clearFirebaseTelemetry(firebaseConfig);
@@ -1635,15 +1640,22 @@ export default function App() {
                 }}
               />
             ) : (
-              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs">
-                <Shield className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-slate-900">Yêu cầu quyền Quản trị viên</h3>
-                <p className="text-xs text-slate-500 mt-1">Vui lòng đăng nhập bằng tài khoản Quản trị viên (Admin) để truy cập mục này.</p>
+              <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center">
+                  <Shield className="w-7 h-7 text-amber-600" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-bold text-slate-900">Khu Vực Dành Riêng Cho Quản Trị Viên</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Tài khoản của bạn ({currentUser.fullName}) có vai trò <b>Nhân viên</b> nên không có quyền truy cập Danh mục quản trị hệ thống.
+                  </p>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setMainNavTab('overview')}
-                  className="mt-4 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm cursor-pointer"
                 >
-                  Quay lại Trang chủ
+                  Quay Lại Trang Chủ
                 </button>
               </div>
             )
@@ -1729,10 +1741,6 @@ export default function App() {
           onClose={() => setIsUserManagementOpen(false)}
           currentUser={currentUser}
           firebaseConfig={firebaseConfig}
-          onSwitchUser={(newUser) => {
-            setCurrentUser(newUser);
-            saveCurrentUser(newUser);
-          }}
         />
       )}
 

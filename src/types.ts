@@ -135,6 +135,8 @@ export interface TelemetryLog {
   device?: string;
 }
 
+export type TelemetryHistoryItem = TelemetryLog;
+
 export interface FirebaseConnectionConfig {
   projectId: string;
   apiKey: string;
