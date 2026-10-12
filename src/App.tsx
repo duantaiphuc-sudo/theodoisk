@@ -289,6 +289,7 @@ export default function App() {
   const lastVitalVoiceRef = useRef<number>(0);
   const lastInZoneStatusRef = useRef<boolean>(true);
   const lastFirebaseHistorySaveRef = useRef<number>(0);
+  const lastSavedMetricsRef = useRef<{ bpm: number; spo2: number }>({ bpm: 0, spo2: 0 });
   const lastPostureStatusRef = useRef<number>(-1);
   const telemetryRef = useRef(telemetry);
   telemetryRef.current = telemetry;
@@ -558,18 +559,24 @@ export default function App() {
     const postureChanged = lastPostureStatusRef.current !== -1 && lastPostureStatusRef.current !== data.postureStatus;
     lastPostureStatusRef.current = data.postureStatus;
 
+    const metricsChanged = 
+      Math.abs(data.bpm - lastSavedMetricsRef.current.bpm) >= 2 ||
+      Math.abs(data.spo2 - lastSavedMetricsRef.current.spo2) >= 1;
+
     const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus !== undefined && data.postureStatus >= 0);
 
     // Ghi vào Supabase PostgreSQL:
-    // - Dữ liệu thật: Khi có cảnh báo, tư thế thay đổi, hoặc mỗi 60 giây
-    // - Dữ liệu giả lập: Khi có cảnh báo, tư thế thay đổi, hoặc mỗi 8 giây (để test)
-    const shouldSaveSupabase = activeUser && hasValidMetrics && (
-      (!isSimulated && !isStale && (hasAlert || postureChanged || timeSinceLastRemote > 60000)) ||
-      (isSimulated && (postureChanged || hasAlert || timeSinceLastRemote > 8000))
+    // - Tự động đồng bộ liên tục: Khi có cảnh báo, tư thế đổi, nhịp tim/SpO2 biến thiên, hoặc mỗi 5 giây
+    const shouldSaveSupabase = activeUser && hasValidMetrics && !isStale && (
+      hasAlert || 
+      postureChanged || 
+      metricsChanged || 
+      timeSinceLastRemote >= (isSimulated ? 6000 : 5000)
     );
 
     if (shouldSaveSupabase) {
       lastFirebaseHistorySaveRef.current = nowTime;
+      lastSavedMetricsRef.current = { bpm: data.bpm, spo2: data.spo2 };
       insertTelemetryToSupabase(newEntry, activeUser).catch(() => {});
     }
   }, [firebaseConfig]);
