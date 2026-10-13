@@ -1001,18 +1001,32 @@ export default function App() {
   };
 
   const handleDeleteSingleLog = async (logId: string) => {
+    const targetLog = history.find(item => item.id === logId);
+    const logOwnerId = targetLog?.userId || (targetLog as any)?.user_id || currentUser?.id;
+
     setHistory(prev => {
       const updated = prev.filter(item => item.id !== logId);
-      if (currentUser) {
+      if (logOwnerId) {
         try {
-          localStorage.setItem(`theodoisk_history_${currentUser.id}`, JSON.stringify(updated));
+          localStorage.setItem(
+            `theodoisk_history_${logOwnerId}`,
+            JSON.stringify(updated.filter(i => (i.userId || (i as any).user_id) === logOwnerId))
+          );
+        } catch {}
+      }
+      if (currentUser && currentUser.id !== logOwnerId) {
+        try {
+          localStorage.setItem(
+            `theodoisk_history_${currentUser.id}`,
+            JSON.stringify(updated.filter(i => (i.userId || (i as any).user_id) === currentUser.id))
+          );
         } catch {}
       }
       return updated;
     });
     try {
       await Promise.allSettled([
-        deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId, currentUser?.id),
+        deleteSingleTelemetryLogFromFirebase(firebaseConfig, logId, logOwnerId),
         deleteSingleLogFromSupabase(logId)
       ]);
       setClearNotice('Đã xóa bản ghi thành công khỏi thiết bị, Firebase và Supabase.');
@@ -1026,18 +1040,26 @@ export default function App() {
 
   const handleClearHistory = async (targetAccount?: string) => {
     setIsClearingFirebase(true);
-    const isClearingAll = !targetAccount || targetAccount === 'all';
-    const targetUserId = isClearingAll ? undefined : (targetAccount || currentUser?.id);
-    const targetUserObj = targetUserId ? allUsers.find(u => u.id === targetUserId) : undefined;
-    const targetEmail = targetUserObj?.email || (targetUserId === currentUser?.id ? currentUser?.email : undefined);
+    // BẢO VỆ TUYỆT ĐỐI: Chỉ khi targetAccount === 'all' mới là xóa tất cả!
+    // Mặc định nếu không truyền hoặc undefined thì CHỈ xóa cho tài khoản cá nhân hiện tại (currentUser.id)
+    const isClearingAll = targetAccount === 'all';
+    const rawTarget = isClearingAll ? undefined : (targetAccount || currentUser?.id);
+
+    const targetUserObj = rawTarget
+      ? allUsers.find(u => u.id === rawTarget || u.email?.toLowerCase() === rawTarget.toLowerCase())
+      : undefined;
+    const targetUserId = targetUserObj?.id || (rawTarget && !rawTarget.includes('@') ? rawTarget : currentUser?.id);
+    const targetEmail = targetUserObj?.email || (rawTarget && rawTarget.includes('@') ? rawTarget : currentUser?.email);
 
     if (isClearingAll) {
       setHistory([]);
-    } else if (targetUserId) {
+    } else if (targetUserId || targetEmail) {
       setHistory(prev => prev.filter(item => {
-        if (item.userId && item.userId === targetUserId) return false;
-        if (targetEmail && item.userEmail && item.userEmail.toLowerCase() === targetEmail.toLowerCase()) return false;
-        return true;
+        const uId = item.userId || (item as any).user_id;
+        const uEmail = (item.userEmail || '').toLowerCase();
+        const matchId = targetUserId && uId === targetUserId;
+        const matchEmail = targetEmail && uEmail && uEmail === targetEmail.toLowerCase();
+        return !(matchId || matchEmail);
       }));
     }
 
@@ -1051,9 +1073,12 @@ export default function App() {
           }
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
-        clearLocalHistoricalRecords();
-      } else if (targetUserId) {
-        clearLocalHistoricalRecords(targetUserId);
+        clearLocalHistoricalRecords('all');
+      } else if (targetUserId || targetEmail) {
+        if (targetUserId) {
+          localStorage.removeItem(`theodoisk_history_${targetUserId}`);
+        }
+        clearLocalHistoricalRecords(targetUserId, targetEmail);
       }
     } catch (e) {
       console.warn('Lỗi dọn dẹp localStorage:', e);
@@ -1066,12 +1091,12 @@ export default function App() {
           clearSupabaseHistory('all')
         ]);
         setClearNotice('Đã dọn sạch hoàn toàn lịch sử của tất cả tài khoản.');
-      } else if (targetUserId) {
+      } else if (targetUserId || targetEmail) {
         await Promise.allSettled([
-          clearFirebaseHistory(firebaseConfig, targetUserId, false),
+          clearFirebaseHistory(firebaseConfig, targetUserId, false, targetEmail),
           clearSupabaseHistory(targetUserId, targetEmail)
         ]);
-        setClearNotice('Đã xóa sạch lịch sử của tài khoản được chọn.');
+        setClearNotice(`Đã xóa sạch lịch sử của tài khoản ${targetUserObj?.fullName || targetEmail || targetUserId || 'được chọn'}.`);
       }
       setTimeout(() => setClearNotice(null), 4500);
     } catch (err: any) {
@@ -1618,7 +1643,16 @@ export default function App() {
                 }}
                 onWipeAllData={async () => {
                   await clearFirebaseTelemetry(firebaseConfig);
-                  await clearFirebaseHistory(firebaseConfig);
+                  if (currentUser) {
+                    await clearFirebaseHistory(firebaseConfig, currentUser.id, false, currentUser.email);
+                    await clearSupabaseHistory(currentUser.id, currentUser.email);
+                    clearLocalHistoricalRecords(currentUser.id, currentUser.email);
+                    setHistory(prev => prev.filter(i => {
+                      const uId = i.userId || (i as any).user_id;
+                      const uEmail = (i.userEmail || '').toLowerCase();
+                      return uId !== currentUser.id && uEmail !== (currentUser.email || '').toLowerCase();
+                    }));
+                  }
                 }}
               />
             ) : (

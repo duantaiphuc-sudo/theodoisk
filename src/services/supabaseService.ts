@@ -218,35 +218,37 @@ export async function clearSupabaseHistory(targetUserId?: string, targetUserEmai
   const client = getSupabaseClient(config);
   if (!client) return false;
 
+  // BẢO VỆ TUYỆT ĐỐI: Không bao giờ xóa toàn bộ trừ khi có cờ 'all' rõ ràng!
+  if (!targetUserId && !targetUserEmail) {
+    return false;
+  }
+
   try {
     const table = config.tableName || 'telemetry_logs';
-    let query = client.from(table).delete();
-    if (targetUserId && targetUserId !== 'all') {
-      if (targetUserEmail) {
-        query = query.or(`user_id.eq.${targetUserId},user_email.ilike.${targetUserEmail}`);
-      } else {
-        query = query.eq('user_id', targetUserId);
-      }
-    } else {
-      query = query.gte('id', 0);
-    }
-    const { error } = await query;
-    if (error) {
-      if (targetUserId && targetUserId !== 'all') {
-        const fallback = await client.from(table).delete().eq('user_id', targetUserId);
-        if (fallback.error) {
-          console.warn('Lỗi xóa lịch sử trên Supabase:', fallback.error.message);
-          return false;
-        }
-      } else {
+    if (targetUserId === 'all') {
+      const { error } = await client.from(table).delete().gte('id', 0);
+      if (error) {
         const fallback = await client.from(table).delete().neq('id', -1);
         if (fallback.error) {
-          console.warn('Lỗi xóa lịch sử trên Supabase:', fallback.error.message);
+          console.warn('Lỗi xóa toàn bộ lịch sử trên Supabase:', fallback.error.message);
           return false;
         }
       }
+      return true;
     }
-    return true;
+
+    // Xóa theo cá nhân được chỉ định:
+    let hasSuccess = false;
+    if (targetUserId) {
+      const resId = await client.from(table).delete().eq('user_id', targetUserId);
+      if (!resId.error) hasSuccess = true;
+    }
+    if (targetUserEmail) {
+      const resEmail = await client.from(table).delete().ilike('user_email', targetUserEmail);
+      if (!resEmail.error) hasSuccess = true;
+    }
+
+    return hasSuccess;
   } catch (err) {
     console.warn('Lỗi kết nối khi xóa Supabase:', err);
     return false;

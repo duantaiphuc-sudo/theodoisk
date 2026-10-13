@@ -48,7 +48,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPosture, setFilterPosture] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('all');
-  const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [showConfirmClear, setShowConfirmClear] = useState<false | 'current' | 'all'>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Distinct accounts found in history
@@ -218,12 +218,26 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
     });
   };
 
-  const handleConfirmClear = () => {
+  const currentTargetAccountObj = useMemo(() => {
+    if (!isManager || selectedAccountFilter === currentUser?.id) {
+      return { id: currentUser?.id, name: currentUser?.fullName || currentUser?.username || 'Cá nhân' };
+    }
+    if (selectedAccountFilter === 'all') {
+      return { id: 'all', name: 'Tất cả tài khoản' };
+    }
+    const found = distinctAccounts.find(a => a.id === selectedAccountFilter);
+    return { id: selectedAccountFilter, name: found?.name || selectedAccountFilter };
+  }, [isManager, selectedAccountFilter, currentUser, distinctAccounts]);
+
+  const handleConfirmClear = (scope: 'current' | 'all') => {
     if (onClearHistory) {
-      if (isManager) {
-        onClearHistory(selectedAccountFilter);
+      if (scope === 'all') {
+        onClearHistory('all');
       } else {
-        onClearHistory(currentUser?.id || 'all');
+        const targetId = (!isManager || selectedAccountFilter === 'all')
+          ? (currentUser?.id || '')
+          : selectedAccountFilter;
+        onClearHistory(targetId);
       }
     }
     setShowConfirmClear(false);
@@ -310,17 +324,21 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <span>Xuất Báo Cáo PDF</span>
           </button>
 
-          {/* RESTORED CLEAR HISTORY BUTTON - ALWAYS VISIBLE & CLEAR */}
+          {/* RESTORED CLEAR HISTORY BUTTON - SAFELY ISOLATED PER USER */}
           {onClearHistory && (
             <>
               {showConfirmClear ? (
                 <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 h-9 px-2.5 rounded-xl animate-fadeIn">
-                  <span className="text-xs text-rose-800 whitespace-nowrap font-medium">Xác nhận xóa hết?</span>
+                  <span className="text-xs text-rose-800 whitespace-nowrap font-medium">
+                    {showConfirmClear === 'all'
+                      ? 'Xác nhận xóa TẤT CẢ tài khoản?'
+                      : `Xác nhận xóa lịch sử của ${currentTargetAccountObj.id === 'all' ? (currentUser?.fullName || 'bạn') : currentTargetAccountObj.name}?`}
+                  </span>
                   <button
-                    onClick={handleConfirmClear}
+                    onClick={() => handleConfirmClear(showConfirmClear)}
                     className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 cursor-pointer whitespace-nowrap shadow-2xs"
                   >
-                    Xóa hết
+                    Xác nhận xóa
                   </button>
                   <button
                     onClick={() => setShowConfirmClear(false)}
@@ -330,15 +348,33 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => setShowConfirmClear(true)}
-                  disabled={history.length === 0}
-                  title="Xóa toàn bộ lịch sử trên Supabase Cloud, Firebase và bộ nhớ máy"
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 transition disabled:opacity-40 whitespace-nowrap cursor-pointer shadow-2xs"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Xóa lịch sử</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setShowConfirmClear('current')}
+                    disabled={userFilteredHistory.length === 0}
+                    title={selectedAccountFilter === 'all'
+                      ? "Chỉ xóa dữ liệu lịch sử của riêng bạn (Admin), không ảnh hưởng bất kỳ tài khoản khác"
+                      : `Chỉ xóa dữ liệu của ${currentTargetAccountObj.name}`}
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 transition disabled:opacity-40 whitespace-nowrap cursor-pointer shadow-2xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>
+                      {selectedAccountFilter === 'all'
+                        ? 'Xóa lịch sử cá nhân (Admin)'
+                        : `Xóa lịch sử (${currentTargetAccountObj.name})`}
+                    </span>
+                  </button>
+
+                  {isManager && selectedAccountFilter === 'all' && history.length > 0 && (
+                    <button
+                      onClick={() => setShowConfirmClear('all')}
+                      title="Cảnh báo: Xóa sạch toàn bộ lịch sử của tất cả các tài khoản trên hệ thống"
+                      className="flex items-center gap-1 h-9 px-2.5 rounded-xl text-[11px] font-bold bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 transition whitespace-nowrap cursor-pointer"
+                    >
+                      <span>Xóa toàn bộ hệ thống</span>
+                    </button>
+                  )}
+                </div>
               )}
             </>
           )}

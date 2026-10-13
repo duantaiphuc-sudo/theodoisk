@@ -123,16 +123,30 @@ export function syncHistoricalLogs(logs: TelemetryLog[]): void {
   saveHistoricalRecords(merged);
 }
 
-export function clearLocalHistoricalRecords(targetUserId?: string): void {
+export function clearLocalHistoricalRecords(targetUserId?: string, targetEmail?: string): void {
   try {
-    if (!targetUserId || targetUserId === 'all') {
+    if (targetUserId === 'all') {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('theodoisk_telemetry_history_v2');
       return;
     }
-    localStorage.removeItem(`theodoisk_history_${targetUserId}`);
+    if (!targetUserId && !targetEmail) {
+      return;
+    }
+
+    if (targetUserId) {
+      localStorage.removeItem(`theodoisk_history_${targetUserId}`);
+    }
+
+    const lowerEmail = (targetEmail || '').trim().toLowerCase();
     const existing = getHistoricalRecords();
-    const filtered = existing.filter(r => (r as any).userId !== targetUserId);
+    const filtered = existing.filter(r => {
+      const uId = (r as any).userId || (r as any).user_id;
+      const uEmail = ((r as any).userEmail || (r as any).email || '').trim().toLowerCase();
+      if (targetUserId && uId === targetUserId) return false;
+      if (lowerEmail && uEmail === lowerEmail) return false;
+      return true;
+    });
     saveHistoricalRecords(filtered);
 
     const rawShared = localStorage.getItem('theodoisk_telemetry_history_v2');
@@ -140,7 +154,13 @@ export function clearLocalHistoricalRecords(targetUserId?: string): void {
       try {
         const parsed = JSON.parse(rawShared);
         if (Array.isArray(parsed)) {
-          const updatedShared = parsed.filter((item: any) => item.userId !== targetUserId);
+          const updatedShared = parsed.filter((item: any) => {
+            const uId = item.userId || item.user_id;
+            const uEmail = (item.userEmail || item.email || '').trim().toLowerCase();
+            if (targetUserId && uId === targetUserId) return false;
+            if (lowerEmail && uEmail === lowerEmail) return false;
+            return true;
+          });
           localStorage.setItem('theodoisk_telemetry_history_v2', JSON.stringify(updatedShared));
         }
       } catch {}
@@ -512,8 +532,14 @@ export function subscribeToFirebaseHistory(
 export async function clearFirebaseHistory(
   config: FirebaseConnectionConfig,
   userId?: string,
-  clearAllUsers?: boolean
+  clearAllUsers?: boolean,
+  userEmail?: string
 ): Promise<{ success: boolean; deletedCount: number }> {
+  // BẢO VỆ TUYỆT ĐỐI: Tuyệt đối không xóa toàn bộ trừ khi có cờ clearAllUsers === true rõ ràng!
+  if (!clearAllUsers && !userId && !userEmail) {
+    return { success: false, deletedCount: 0 };
+  }
+
   const app = initializeFirebaseApp(config);
   const histColName = getHistoryCollectionName(config);
   const targetCollections = Array.from(new Set<string>([
@@ -530,13 +556,13 @@ export async function clearFirebaseHistory(
   if (config.useRealtimeDb && config.databaseURL) {
     try {
       const rtdb = getDatabase(app);
-      if (userId && !clearAllUsers) {
-        await remove(ref(rtdb, `users/${userId}/history`)).catch(() => {});
-        await remove(ref(rtdb, `user_telemetry/${userId}/history`)).catch(() => {});
-      } else {
+      if (clearAllUsers === true) {
         for (const col of targetCollections) {
           await remove(ref(rtdb, col)).catch(() => {});
         }
+      } else if (userId) {
+        await remove(ref(rtdb, `users/${userId}/history`)).catch(() => {});
+        await remove(ref(rtdb, `user_telemetry/${userId}/history`)).catch(() => {});
       }
     } catch {}
   }
@@ -574,29 +600,48 @@ export async function clearFirebaseHistory(
       return count;
     };
 
-    if (userId && !clearAllUsers) {
-      try {
-        const uHistColl = collection(db, 'users', userId, 'history');
-        totalDeleted += await safeBatchDelete(query(uHistColl, limit(200)));
-      } catch {}
-
-      try {
-        const utHistColl = collection(db, 'user_telemetry', userId, 'history');
-        totalDeleted += await safeBatchDelete(query(utHistColl, limit(200)));
-      } catch {}
-
-      for (const col of targetCollections) {
-        try {
-          const q1 = query(collection(db, col), where('userId', '==', userId), limit(200));
-          totalDeleted += await safeBatchDelete(q1);
-        } catch {}
-      }
-    } else {
+    if (clearAllUsers === true) {
       for (const col of targetCollections) {
         try {
           const q = query(collection(db, col), limit(200));
           totalDeleted += await safeBatchDelete(q);
         } catch {}
+      }
+    } else {
+      // Chỉ xóa duy nhất dữ liệu của cá nhân được chỉ định
+      if (userId) {
+        try {
+          const uHistColl = collection(db, 'users', userId, 'history');
+          totalDeleted += await safeBatchDelete(query(uHistColl, limit(200)));
+        } catch {}
+
+        try {
+          const utHistColl = collection(db, 'user_telemetry', userId, 'history');
+          totalDeleted += await safeBatchDelete(query(utHistColl, limit(200)));
+        } catch {}
+      }
+
+      for (const col of targetCollections) {
+        if (userId) {
+          try {
+            const q1 = query(collection(db, col), where('userId', '==', userId), limit(200));
+            totalDeleted += await safeBatchDelete(q1);
+          } catch {}
+          try {
+            const q2 = query(collection(db, col), where('user_id', '==', userId), limit(200));
+            totalDeleted += await safeBatchDelete(q2);
+          } catch {}
+        }
+        if (userEmail) {
+          try {
+            const q3 = query(collection(db, col), where('userEmail', '==', userEmail), limit(200));
+            totalDeleted += await safeBatchDelete(q3);
+          } catch {}
+          try {
+            const q4 = query(collection(db, col), where('email', '==', userEmail), limit(200));
+            totalDeleted += await safeBatchDelete(q4);
+          } catch {}
+        }
       }
     }
   } catch (err) {
