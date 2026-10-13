@@ -354,12 +354,18 @@ export function subscribeToUsers(
     const unsub = onSnapshot(usersColl, (snap) => {
       if (!snap.empty) {
         const now = Date.now();
-        const firestoreUsers: AuthUser[] = snap.docs.map(d => {
-          const data = d.data();
-          const isPresetAdmin = d.id === 'usr-admin-01' || (data.email && data.email.toLowerCase().includes('usr-admin-01'));
-          const email = data.email || (isPresetAdmin ? 'admin@theodoisk.com' : `${d.id}@theodoisk.com`);
-          const username = data.username || (isPresetAdmin ? 'admin' : (data.email ? data.email.split('@')[0] : d.id));
-          const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
+        const firestoreUsers: AuthUser[] = snap.docs
+          .filter(d => {
+            if (d.id === 'usr-admin-01' || d.id === 'usr-employee-01') return false;
+            const data = d.data();
+            const email = data.email ? String(data.email).trim() : '';
+            return Boolean(email && email.includes('@') && !email.endsWith('@theodoisk.com'));
+          })
+          .map(d => {
+            const data = d.data();
+            const email = String(data.email).trim();
+            const username = data.username || email.split('@')[0] || d.id;
+            const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase().includes('duan');
 
           const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
           const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < 15 * 60 * 1000) : false;
@@ -385,9 +391,9 @@ export function subscribeToUsers(
             } else if (data.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
               posture = 'incorrect';
               postureText = '⚠ Sai';
-            } else if (data.currentPosture === 'absent' || rawPostureText.includes('Vắng')) {
+            } else if (data.currentPosture === 'absent' || rawPostureText.includes('Vắng') || rawPostureText.includes('Ngoài vùng')) {
               posture = 'absent';
-              postureText = '– Vắng';
+              postureText = '– Ngoài vùng';
             } else {
               posture = 'correct';
               postureText = '✓ Đúng';
@@ -398,9 +404,9 @@ export function subscribeToUsers(
             id: d.id,
             username,
             email,
-            fullName: data.fullName || (isPresetAdmin ? 'Nguyễn Văn Quản Lý (Admin)' : 'Người Dùng Hệ Thống'),
+            fullName: data.fullName || (isAdmin ? 'Quản Trị Viên' : 'Thành Viên'),
             role: isAdmin ? 'admin' : 'employee',
-            department: data.department || (isPresetAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
+            department: data.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
             avatar: data.avatar || '',
             phoneNumber: data.phoneNumber || '',
             age: Number(data.age) || 28,

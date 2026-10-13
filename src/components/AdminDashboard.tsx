@@ -340,7 +340,6 @@ export interface EmployeeListItem {
   isRecent: boolean;
   hasAlert: boolean;
   isBadPosture: boolean;
-  isAbsent: boolean;
 }
 
 export interface EmployeeListProps {
@@ -349,13 +348,13 @@ export interface EmployeeListProps {
   isSimulating?: boolean;
   search: string;
   onSearchChange: (value: string) => void;
-  statusFilter: 'all' | 'online' | 'alerts' | 'bad_posture' | 'absent';
-  onStatusFilterChange: (filter: 'all' | 'online' | 'alerts' | 'bad_posture' | 'absent') => void;
+  statusFilter: 'all' | 'online' | 'offline' | 'alerts' | 'bad_posture';
+  onStatusFilterChange: (filter: 'all' | 'online' | 'offline' | 'alerts' | 'bad_posture') => void;
   totalUsersCount: number;
   onlineCount: number;
+  offlineCount: number;
   alertCount: number;
   badPostureCount: number;
-  absentCount: number;
   onSelectUserForDetail: (user: AuthUser) => void;
   onOpenTaskModalWithUser?: (user: AuthUser) => void;
   onQueryUserHistory: (userId: string) => void;
@@ -372,9 +371,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
   onStatusFilterChange,
   totalUsersCount,
   onlineCount,
+  offlineCount,
   alertCount,
   badPostureCount,
-  absentCount,
   onSelectUserForDetail,
   onOpenTaskModalWithUser,
   onQueryUserHistory,
@@ -398,9 +397,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
           {[
             { id: 'all', label: `Tất cả (${totalUsersCount})` },
             { id: 'online', label: `Trực tuyến (${onlineCount})` },
+            { id: 'offline', label: `Ngoại tuyến (${offlineCount})` },
             { id: 'alerts', label: `Có cảnh báo (${alertCount})` },
             { id: 'bad_posture', label: `Sai tư thế (${badPostureCount})` },
-            { id: 'absent', label: `Vắng mặt (${absentCount})` },
           ].map(tab => (
             <button
               key={tab.id}
@@ -419,7 +418,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <AnimatePresence mode="popLayout">
-          {items.map(({ user, live, isOnline, hasAlert, isAbsent }) => {
+          {items.map(({ user, live, isOnline, hasAlert }) => {
             const isAdmin = isUserAdmin(user);
             const hM = (user.height || 170) / 100;
             const bmiVal = ((user.weight || 65) / (hM * hM)).toFixed(1);
@@ -432,7 +431,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
 
             return (
               <motion.div
-                key={user.id}
+                key={`${user.id}_${user.email}`}
                 layout
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -481,14 +480,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Trực tuyến
                       </span>
-                    ) : isAbsent && (live?.postureStatus === 2 || live?.inZone === false) ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
-                        <WifiOff className="w-3 h-3 text-amber-600" />
-                        Vắng mặt
-                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
-                        <WifiOff className="w-3 h-3" />
+                        <WifiOff className="w-3 h-3 text-slate-400" />
                         Ngoại tuyến
                       </span>
                     )}
@@ -577,7 +571,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <span className="truncate">Truy Vấn</span>
                   </button>
 
-                  {user.id !== currentUser.id && (
+                  {(user.id !== currentUser.id && (!user.email || !currentUser.email || user.email.toLowerCase() !== currentUser.email.toLowerCase())) && (
                     <button
                       type="button"
                       onClick={() => onDeleteUser(user)}
@@ -634,7 +628,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isWiping, setIsWiping] = useState(false);
   const [wipeNotice, setWipeNotice] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'alerts' | 'bad_posture' | 'absent'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline' | 'alerts' | 'bad_posture'>('all');
   const [selectedUserForDetail, setSelectedUserForDetail] = useState<AuthUser | null>(null);
   const [detailTelemetry, setDetailTelemetry] = useState<HealthTelemetry | null>(null);
   const [detailUserLogs, setDetailUserLogs] = useState<TelemetryHistoryItem[]>([]);
@@ -661,7 +655,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     error?: string;
   } | null>(null);
   const [querySearch, setQuerySearch] = useState('');
-  const [queryStatusFilter, setQueryStatusFilter] = useState<'all' | 'good' | 'bad' | 'alerts' | 'absent'>('all');
+  const [queryStatusFilter, setQueryStatusFilter] = useState<'all' | 'good' | 'bad' | 'alerts'>('all');
 
   const memberGroupStats = useMemo(() => {
     if (!supabaseQueryResult?.data) return [];
@@ -727,7 +721,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (queryStatusFilter === 'good' && log.postureStatus !== 0) return false;
       if (queryStatusFilter === 'bad' && log.postureStatus !== 1 && log.postureStatus !== 3) return false;
       if (queryStatusFilter === 'alerts' && !log.hasAlert) return false;
-      if (queryStatusFilter === 'absent' && log.postureStatus !== 2) return false;
 
       if (!querySearch.trim()) return true;
       const q = querySearch.toLowerCase();
@@ -965,7 +958,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const isRecent = isHeartbeatValid;
       const hasAlert = isOnline && Boolean(live?.hasAlert || (live && (live.postureStatus === 1 || live.postureStatus === 3)));
       const isBadPosture = isOnline && (live?.postureStatus === 1 || live?.postureStatus === 3);
-      const isAbsent = !isOnline || (live?.postureStatus === 2 || live?.inZone === false);
 
       return {
         user: u,
@@ -973,17 +965,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isOnline,
         isRecent,
         hasAlert,
-        isBadPosture,
-        isAbsent
+        isBadPosture
       };
     });
   }, [users, currentUser, telemetryMap, currentTelemetry, currentTime, isSimulating]);
 
   const onlineCount = useMemo(() => usersWithTelemetry.filter(item => item.isOnline).length, [usersWithTelemetry]);
+  const offlineCount = useMemo(() => usersWithTelemetry.filter(item => !item.isOnline).length, [usersWithTelemetry]);
   const alertCount = useMemo(() => usersWithTelemetry.filter(item => item.hasAlert).length, [usersWithTelemetry]);
   const badPostureCount = useMemo(() => usersWithTelemetry.filter(item => item.isBadPosture).length, [usersWithTelemetry]);
-  const absentCount = useMemo(() => usersWithTelemetry.filter(item => item.isAbsent).length, [usersWithTelemetry]);
-  const goodPostureCount = useMemo(() => usersWithTelemetry.filter(item => item.isOnline && !item.isBadPosture && !item.isAbsent).length, [usersWithTelemetry]);
+  const goodPostureCount = useMemo(() => usersWithTelemetry.filter(item => item.isOnline && !item.isBadPosture).length, [usersWithTelemetry]);
   const goodPostureRatio = onlineCount > 0 ? Math.round((goodPostureCount / onlineCount) * 100) : 100;
 
   const activeAlerts: AlertData[] = useMemo(() => {
@@ -1033,9 +1024,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (!matchQuery) return false;
 
       if (statusFilter === 'online') return item.isOnline;
+      if (statusFilter === 'offline') return !item.isOnline;
       if (statusFilter === 'alerts') return item.hasAlert;
       if (statusFilter === 'bad_posture') return item.isBadPosture;
-      if (statusFilter === 'absent') return item.isAbsent;
       return true;
     });
   }, [usersWithTelemetry, search, statusFilter]);
@@ -1253,9 +1244,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onStatusFilterChange={setStatusFilter}
             totalUsersCount={totalUsersCount}
             onlineCount={onlineCount}
+            offlineCount={offlineCount}
             alertCount={alertCount}
             badPostureCount={badPostureCount}
-            absentCount={absentCount}
             onSelectUserForDetail={setSelectedUserForDetail}
             onOpenTaskModalWithUser={onOpenTaskModalWithUser}
             onQueryUserHistory={handleQueryUserHistory}
@@ -1599,7 +1590,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   { id: 'good', label: 'Đúng tư thế' },
                   { id: 'bad', label: 'Sai tư thế' },
                   { id: 'alerts', label: 'Có cảnh báo' },
-                  { id: 'absent', label: 'Vắng mặt' },
                 ].map(s => (
                   <button
                     key={s.id}
@@ -1647,7 +1637,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       const isGood = row.postureStatus === 0;
                       const isBad = row.postureStatus === 1 || row.postureStatus === 3;
                       const isStanding = row.postureStatus === 5;
-                      const isAbsent = row.postureStatus === 2;
 
                       return (
                         <tr key={row.id || idx} className="hover:bg-slate-50/80 transition">
@@ -1668,8 +1657,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                 : isStanding
                                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                : isAbsent
-                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
                                 : 'bg-slate-100 text-slate-700 border border-slate-200'
                             }`}>
                               {row.postureLabel || 'Chưa xác định'}

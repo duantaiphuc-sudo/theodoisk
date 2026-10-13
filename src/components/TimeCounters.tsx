@@ -114,7 +114,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
               <span className="flex items-center gap-1.5 font-semibold text-[11px] sm:text-xs truncate">
                 <UserMinus className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="truncate">Thời Gian Vắng Mặt</span>
+                <span className="truncate">Thời Gian Rời Ghế</span>
               </span>
             </div>
             <div className="text-lg sm:text-xl lg:text-2xl font-bold font-mono text-slate-700">

@@ -21,90 +21,7 @@ export const PRESET_ACCOUNTS: Array<{
   password: string;
   description: string;
   permissions: string[];
-}> = [
-  {
-    user: {
-      id: 'usr-admin-01',
-      username: 'admin',
-      email: 'admin@theodoisk.com',
-      fullName: 'Nguyễn Văn Quản Lý (Admin)',
-      role: 'admin',
-      department: 'Ban Điều Hành & An Toàn Lao Động',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-      age: 32,
-      gender: 'male',
-      height: 175,
-      weight: 68,
-      maxSittingHours: 6,
-      healthNotes: 'Thể trạng tốt, theo dõi đau mỏi vai gáy định kỳ.',
-      status: 'active',
-    },
-    password: 'admin123',
-    description: 'Quyền Quản Trị Viên: Cấu hình hệ thống, sửa ngưỡng cảnh báo, hiệu chỉnh vùng camera, quản lý và xóa dữ liệu, xuất file báo cáo, quản lý toàn bộ tài khoản.',
-    permissions: [
-      'Toàn quyền cấu hình Firebase & thiết bị IoT',
-      'Tùy chỉnh ngưỡng nhịp tim (BPM) & nồng độ oxy (SpO₂)',
-      'Hiệu chỉnh vùng phát hiện (Monitor Zone) của Camera AI',
-      'Quản lý tất cả tài khoản người dùng & phân quyền hệ thống',
-      'Xem & xuất toàn bộ lịch sử nhân viên ra CSV / Excel',
-      'Quyền xóa và dọn dẹp bộ nhớ lịch sử đo',
-    ],
-  },
-  {
-    user: {
-      id: '6BpcDl3EJZd1fg6aOtl0ji9Ezst1',
-      username: 'tai',
-      email: 'thanhtaihtc@gmail.com',
-      fullName: 'Tài Thành',
-      role: 'employee',
-      department: 'Phòng Phát Triển & Vận Hành IoT',
-      avatar: 'https://lh3.googleusercontent.com/a/ACg8ocK2eIksljJ-UFB6rDik7bTbHxYOLiToCehxNxXzYbaoS1XC2R3r=s96-c',
-      age: 28,
-      gender: 'male',
-      height: 170,
-      weight: 65,
-      maxSittingHours: 6,
-      healthNotes: 'Cần duy trì tư thế ngồi thẳng và giải lao đều đặn.',
-      status: 'active',
-      device: 'pi4_node_2'
-    },
-    password: 'user123',
-    description: 'Quyền Nhân Viên (Tài Thành): Theo dõi sức khỏe, nhịp tim và tư thế công thái học qua IoT.',
-    permissions: [
-      'Theo dõi trực tiếp nhịp tim, SpO₂ và tư thế cá nhân',
-      'Nhận cảnh báo âm thanh khi ngồi sai tư thế hoặc làm việc quá lâu',
-      'Cập nhật thông tin sức khỏe cá nhân (tuổi, chiều cao, cân nặng, BMI)',
-      'Nhận hướng dẫn bài tập công thái học tại bàn làm việc',
-    ],
-  },
-  {
-    user: {
-      id: 'usr-employee-01',
-      username: 'user',
-      email: 'user@theodoisk.com',
-      fullName: 'Trần Thị Nhân Viên (User)',
-      role: 'employee',
-      department: 'Phòng Phát Triển Sản Phẩm (R&D)',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-      age: 26,
-      gender: 'female',
-      height: 162,
-      weight: 52,
-      maxSittingHours: 5,
-      healthNotes: 'Cần nhắc nhở đứng dậy vươn vai sau mỗi 45 phút ngồi liên tục.',
-      status: 'active',
-    },
-    password: 'user123',
-    description: 'Quyền Người Dùng / Nhân Viên: Theo dõi sức khỏe cá nhân, tư thế ngồi trực quan, nhận nhắc nhở giải lao, trò chuyện tra cứu với Trợ lý AI.',
-    permissions: [
-      'Theo dõi trực tiếp nhịp tim, SpO₂ và tư thế cá nhân',
-      'Nhận cảnh báo âm thanh khi ngồi sai tư thế hoặc làm việc quá lâu',
-      'Cập nhật thông tin sức khỏe cá nhân (tuổi, chiều cao, cân nặng, BMI)',
-      'Tra cứu lịch sử sức khỏe cá nhân với Trợ Lý AI',
-      'Nhận hướng dẫn bài tập công thái học tại bàn làm việc',
-    ],
-  }
-];
+}> = [];
 
 export function isSystemAdmin(email?: string, username?: string): boolean {
   const e = (email || '').toLowerCase().trim();
@@ -112,10 +29,7 @@ export function isSystemAdmin(email?: string, username?: string): boolean {
   return (
     e === 'duantaiphuc@gmail.com' ||
     e.startsWith('duantaiphuc') ||
-    u === 'duantaiphuc' ||
-    u === 'admin' ||
-    e === 'admin@theodoisk.com' ||
-    e === 'admin@gmail.com'
+    u === 'duantaiphuc'
   );
 }
 
@@ -128,7 +42,7 @@ export function enforceStrictRole(user: AuthUser): AuthUser {
   const isAdmin = isSystemAdmin(user.email, user.username);
   return {
     ...user,
-    role: isAdmin ? 'admin' : 'employee',
+    role: isAdmin ? 'admin' : (user.role === 'admin' ? 'admin' : 'employee'),
   };
 }
 
@@ -138,26 +52,35 @@ function getLocalUsersCache(): AuthUser[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const emailMap = new Map<string, AuthUser>();
+        const idMap = new Map<string, AuthUser>();
         parsed.forEach(u => {
-          const key = (u.email || u.username || u.id).trim().toLowerCase();
-          emailMap.set(key, enforceStrictRole(u));
+          if (!u || !u.id) return;
+          if (u.id === 'usr-admin-01' || u.id === 'usr-employee-01' || u.username === 'admin' || u.username === 'user') return;
+          // Loại bỏ hoàn toàn các tài khoản ảo/mặc định tự sinh không có email thật
+          if (!u.email || !u.email.includes('@') || u.email.endsWith('@theodoisk.com')) return;
+          if (u.fullName === 'Nhân Viên' && u.email.endsWith('@theodoisk.com')) return;
+
+          const strict = enforceStrictRole(u);
+          idMap.set(strict.id, strict);
         });
-        return Array.from(emailMap.values());
+        return Array.from(idMap.values());
       }
     }
   } catch {}
-  return PRESET_ACCOUNTS.map(p => enforceStrictRole(p.user));
+  return [];
 }
 
 function saveLocalUsersCache(users: AuthUser[]): void {
   try {
-    const emailMap = new Map<string, AuthUser>();
+    const idMap = new Map<string, AuthUser>();
     users.forEach(u => {
-      const key = (u.email || u.username || u.id).trim().toLowerCase();
-      emailMap.set(key, enforceStrictRole(u));
+      if (!u || !u.id) return;
+      if (u.id === 'usr-admin-01' || u.id === 'usr-employee-01' || u.username === 'admin' || u.username === 'user') return;
+      if (!u.email || !u.email.includes('@') || u.email.endsWith('@theodoisk.com')) return;
+      if (u.fullName === 'Nhân Viên' && u.email.endsWith('@theodoisk.com')) return;
+      idMap.set(u.id, enforceStrictRole(u));
     });
-    const strictUsers = Array.from(emailMap.values());
+    const strictUsers = Array.from(idMap.values());
     localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(strictUsers));
   } catch {}
 }
@@ -247,6 +170,61 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
 
 export async function fetchAllUsers(): Promise<AuthUser[]> {
   const localList = getLocalUsersCache();
+  const current = getCurrentUser();
+  const userMap = new Map<string, AuthUser>();
+
+  const addOrMerge = (user: AuthUser) => {
+    if (!user || !user.id) return;
+    if (user.id === 'usr-admin-01' || user.id === 'usr-employee-01' || user.username === 'admin' || user.username === 'user') return;
+    // Bỏ qua tài khoản giả định / mẫu không có email thật
+    if (!user.email || !user.email.includes('@') || user.email.endsWith('@theodoisk.com')) return;
+    if (user.fullName === 'Nhân Viên' && user.email.endsWith('@theodoisk.com')) return;
+
+    const strict = enforceStrictRole(user);
+    // Tìm kiếm xem user đã tồn tại theo ID hoặc theo email chưa
+    let existingKey: string | null = null;
+    if (userMap.has(strict.id)) {
+      existingKey = strict.id;
+    } else {
+      for (const [k, u] of userMap.entries()) {
+        if (u.email.toLowerCase().trim() === strict.email.toLowerCase().trim()) {
+          existingKey = k;
+          break;
+        }
+      }
+    }
+
+    if (existingKey) {
+      const existing = userMap.get(existingKey)!;
+      const isPlaceholderName = (name: string) => !name || name === 'Nhân Viên' || name === 'Người Dùng Hệ Thống';
+      const betterFullName = isPlaceholderName(strict.fullName) ? existing.fullName : strict.fullName;
+      const betterEmail = strict.email.endsWith('@theodoisk.com') ? existing.email : strict.email;
+
+      userMap.set(existingKey, enforceStrictRole({
+        ...existing,
+        ...strict,
+        id: existing.id || strict.id,
+        fullName: betterFullName,
+        email: betterEmail,
+        isOnline: Boolean(existing.isOnline || strict.isOnline),
+        currentPresence: (existing.currentPresence === 'Present' || strict.currentPresence === 'Present') ? 'Present' : 'Away',
+        currentPosture: strict.currentPosture || existing.currentPosture || 'waiting',
+        currentPostureText: strict.currentPostureText || existing.currentPostureText || '– Chờ kết nối',
+        role: (existing.role === 'admin' || strict.role === 'admin') ? 'admin' : 'employee'
+      }));
+    } else {
+      userMap.set(strict.id, strict);
+    }
+  };
+
+  // Nạp user hiện tại trước để giữ định danh chuẩn
+  if (current && current.email && !current.email.endsWith('@theodoisk.com')) {
+    addOrMerge(current);
+  }
+
+  // Nạp danh sách đã lưu cục bộ
+  localList.forEach(u => addOrMerge(u));
+
   try {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
@@ -256,30 +234,42 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
 
     if (!snap.empty) {
       const now = Date.now();
-      const firestoreUsers: AuthUser[] = snap.docs.map(d => {
+      for (const d of snap.docs) {
+        if (d.id === 'usr-admin-01' || d.id === 'usr-employee-01') continue;
         const data = d.data();
-        const isPresetAdmin = d.id === 'usr-admin-01' || (data.email && data.email.toLowerCase().includes('usr-admin-01'));
-        const preset = PRESET_ACCOUNTS.find(p => p.user.id === d.id || (data.email && p.user.email.toLowerCase() === data.email.toLowerCase()));
-        const email = data.email || preset?.user.email || (isPresetAdmin ? 'admin@theodoisk.com' : `${d.id}@theodoisk.com`);
-        const username = data.username || preset?.user.username || (isPresetAdmin ? 'admin' : (data.email ? data.email.split('@')[0] : d.id));
-        const isAdmin = isSystemAdmin(email, username);
+        const docEmail = data.email ? String(data.email).trim() : '';
+        const docFullName = data.fullName ? String(data.fullName).trim() : '';
+
+        // Tự động đồng bộ và sửa lại doc Firestore nếu trùng UID tài khoản admin hiện tại mà thiếu info
+        if (current && d.id === current.id && (!docEmail || !docFullName)) {
+          syncUserProfileToFirestore(current).catch(() => {});
+        }
+
+        // Bỏ qua doc không có email hợp lệ hoặc email mặc định theodoisk.com
+        if (!docEmail || !docEmail.includes('@') || docEmail.endsWith('@theodoisk.com')) {
+          continue;
+        }
+
+        const username = data.username || docEmail.split('@')[0] || d.id;
+        const isAdmin = isSystemAdmin(docEmail, username) || data.role === 'admin' || data.role === 'manager';
         const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
         const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? (now - lastActiveTime) < 2 * 60 * 1000 : false);
-        return {
+
+        addOrMerge({
           id: d.id,
           username,
-          email,
-          fullName: data.fullName || preset?.user.fullName || (isAdmin ? 'Nguyễn Văn Quản Lý (Admin)' : 'Người Dùng Hệ Thống'),
+          email: docEmail,
+          fullName: docFullName || (isAdmin ? 'Quản Trị Viên' : 'Thành Viên'),
           role: isAdmin ? 'admin' : 'employee',
-          department: data.department || preset?.user.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
-          avatar: data.avatar || preset?.user.avatar || '',
+          department: data.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
+          avatar: data.avatar || '',
           phoneNumber: data.phoneNumber || '',
-          age: Number(data.age) || preset?.user.age || 28,
-          gender: data.gender || preset?.user.gender || 'male',
-          height: Number(data.height) || preset?.user.height || 170,
-          weight: Number(data.weight) || preset?.user.weight || 65,
-          maxSittingHours: Number(data.maxSittingHours) || preset?.user.maxSittingHours || 6,
-          healthNotes: data.healthNotes || preset?.user.healthNotes || '',
+          age: Number(data.age) || 28,
+          gender: data.gender || 'male',
+          height: Number(data.height) || 170,
+          weight: Number(data.weight) || 65,
+          maxSittingHours: Number(data.maxSittingHours) || 6,
+          healthNotes: data.healthNotes || '',
           status: data.status || 'active',
           lastLogin: data.lastLogin || data.updatedAt || '',
           createdAt: data.createdAt || data.updatedAt || '',
@@ -294,46 +284,16 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
           hasAlert: Boolean(data.hasAlert),
           alertReason: data.alertReason || '',
           lastActive: data.lastActive || ''
-        };
-      });
-
-      const map = new Map<string, AuthUser>();
-      const addOrMerge = (user: AuthUser) => {
-        let key = (user.email || user.username || user.id).trim().toLowerCase();
-        if (key.includes('usr-admin-01') || key.includes('admin@theodoisk.com')) {
-          key = 'admin@theodoisk.com';
-        }
-        if (map.has(key)) {
-          const existing = map.get(key)!;
-          map.set(key, enforceStrictRole({
-            ...existing,
-            ...user,
-            id: existing.id || user.id,
-            fullName: (user.fullName && user.fullName !== 'Người Dùng Hệ Thống') ? user.fullName : existing.fullName,
-            email: existing.email || user.email,
-            isOnline: Boolean(existing.isOnline || user.isOnline),
-            currentPresence: (existing.currentPresence === 'Present' || user.currentPresence === 'Present') ? 'Present' : 'Away',
-            currentPosture: user.currentPosture || existing.currentPosture || 'waiting',
-            currentPostureText: user.currentPostureText || existing.currentPostureText || '– Chờ kết nối',
-            role: (existing.role === 'admin' || user.role === 'admin') ? 'admin' : 'employee'
-          }));
-        } else {
-          map.set(key, enforceStrictRole(user));
-        }
-      };
-
-      PRESET_ACCOUNTS.forEach(p => addOrMerge(p.user));
-      localList.forEach(u => addOrMerge(u));
-      firestoreUsers.forEach(u => addOrMerge(u));
-
-      const merged = Array.from(map.values()).map(enforceStrictRole);
-      saveLocalUsersCache(merged);
-      return merged;
+        });
+      }
     }
   } catch (e) {
     console.warn('Không thể tải danh sách users từ Firestore (sử dụng bộ nhớ cục bộ):', e);
   }
-  return localList.map(enforceStrictRole);
+
+  const finalUsers = Array.from(userMap.values()).map(enforceStrictRole);
+  saveLocalUsersCache(finalUsers);
+  return finalUsers;
 }
 
 export async function adminUpdateUser(updatedUser: AuthUser): Promise<boolean> {
@@ -420,17 +380,7 @@ export async function loginWithFirebaseEmail(
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  const foundPreset = PRESET_ACCOUNTS.find(
-    acc =>
-      (acc.user.username.toLowerCase() === cleanEmail || acc.user.email.toLowerCase() === cleanEmail) &&
-      acc.password === pass
-  );
 
-  if (foundPreset) {
-    saveCurrentUser(foundPreset.user);
-    syncUserProfileToFirestore(foundPreset.user).catch(() => {});
-    return { success: true, user: foundPreset.user };
-  }
 
   try {
     const config = getSavedFirebaseConfig();
@@ -513,34 +463,17 @@ export async function registerWithFirebaseEmail(
   }
 }
 
-export function loginWithCredentials(
+export async function loginWithCredentials(
   identifier: string,
   pass: string
-): { success: boolean; user?: AuthUser; error?: string } {
-  const cleanId = identifier.trim().toLowerCase();
-  const found = PRESET_ACCOUNTS.find(
-    acc =>
-      (acc.user.username.toLowerCase() === cleanId || acc.user.email.toLowerCase() === cleanId) &&
-      acc.password === pass
-  );
-
-  if (found) {
-    saveCurrentUser(found.user);
-    syncUserProfileToFirestore(found.user).catch(() => {});
-    return { success: true, user: found.user };
-  }
-
-  return {
-    success: false,
-    error: 'Tên đăng nhập hoặc mật khẩu không chính xác.',
-  };
+): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
+  return loginWithFirebaseEmail(identifier, pass);
 }
 
-export function loginAsPreset(role: UserRole): AuthUser {
-  const preset = PRESET_ACCOUNTS.find(a => a.user.role === role) || PRESET_ACCOUNTS[0];
-  saveCurrentUser(preset.user);
-  syncUserProfileToFirestore(preset.user).catch(() => {});
-  return preset.user;
+export function loginAsPreset(_role: UserRole): AuthUser {
+  const current = getCurrentUser();
+  if (current) return current;
+  throw new Error('Chức năng tài khoản mẫu đã bị vô hiệu hóa để bảo đảm an toàn.');
 }
 
 export async function loginWithGoogle(): Promise<{ 

@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { 
-  loginWithCredentials, 
   loginWithFirebaseEmail, 
   registerWithFirebaseEmail,
   loginWithGoogle
@@ -43,15 +42,14 @@ interface LoginScreenProps {
 type HeaderModalType = 'overview' | 'sensor' | 'camera' | 'hardware' | 'guide' | null;
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  const [identifier, setIdentifier] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
-  const [canGoogleFallback, setCanGoogleFallback] = useState(false);
   const [activeModal, setActiveModal] = useState<HeaderModalType>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -146,29 +144,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleQuickLoginAs = (type: 'duantaiphuc' | 'admin' | 'tai' | 'user') => {
-    if (type === 'duantaiphuc' || type === 'admin') {
-      const res = loginWithCredentials('admin', 'admin123');
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      }
-    } else if (type === 'tai') {
-      const res = loginWithCredentials('tai', 'user123');
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      }
-    } else {
-      const res = loginWithCredentials('user', 'user123');
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      }
-    }
-  };
-
   const handleGoogleLogin = async () => {
     setGoogleError(null);
     setIsUnauthorizedDomain(false);
-    setCanGoogleFallback(false);
     setGoogleLoading(true);
     try {
       const res = await loginWithGoogle();
@@ -176,24 +154,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         onLoginSuccess(res.user);
       } else {
         setGoogleError(res.error || 'Đăng nhập Google không thành công. Vui lòng thử lại.');
-        if (res.canQuickFallback) {
-          setCanGoogleFallback(true);
-        }
         if (res.isUnauthorizedDomain) {
           setIsUnauthorizedDomain(true);
         }
       }
     } catch (err: any) {
       setGoogleError(err?.message || 'Không thể kết nối dịch vụ Google Sign-In.');
-      setCanGoogleFallback(true);
       setIsUnauthorizedDomain(true);
     } finally {
       setGoogleLoading(false);
     }
-  };
-
-  const handleQuickGoogleFallback = () => {
-    setGoogleError('Đăng nhập fallback không xác thực đã bị vô hiệu hóa để đảm bảo an toàn. Vui lòng đăng nhập bằng Google hoặc tài khoản được cấp.');
   };
 
   const handleOpenModal = (modal: HeaderModalType) => {
@@ -577,18 +547,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   {/* Identifier input */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Email hoặc Tên đăng nhập
+                      Email đăng nhập
                     </label>
                     <div className="relative">
                       <input
-                        type="text"
+                        type="email"
                         value={identifier}
                         onChange={e => { setIdentifier(e.target.value); setError(null); }}
-                        placeholder="admin, user hoặc email@example.com"
+                        placeholder="email@example.com"
                         className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
                         required
                       />
-                      <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
 
@@ -828,16 +798,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleQuickGoogleFallback}
-                    className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 transition active:scale-95 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Vào ngay với tư cách duantaiphuc@gmail.com</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               )}
 
@@ -848,16 +808,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span className="leading-snug">{googleError}</span>
                   </div>
-                  {canGoogleFallback && (
-                    <button
-                      type="button"
-                      onClick={handleQuickGoogleFallback}
-                      className="w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                    >
-                      <span>Vào ngay với tài khoản duantaiphuc@gmail.com</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -1076,7 +1026,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-900 flex items-start gap-2">
                     <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Vắng mặt (Mã 2):</span> Người dùng rời khỏi vị trí làm việc hoặc nằm ngoài vùng camera quan sát.
+                      <span className="font-bold">Ngoài vùng camera (Mã 2):</span> Người dùng rời khỏi vị trí làm việc hoặc nằm ngoài vùng camera quan sát.
                     </div>
                   </div>
                 </div>

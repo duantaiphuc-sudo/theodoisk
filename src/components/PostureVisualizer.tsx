@@ -170,7 +170,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             isSittingLong ? 'bg-amber-100 text-amber-800 border-amber-300' :
             'bg-slate-100 text-slate-600 border-slate-200'
           }`}>
-            {isAbsent ? 'VẮNG MẶT' : postureLabel}
+            {isAbsent ? 'NGOÀI VÙNG CAMERA' : postureLabel}
           </span>
         </div>
       </div>

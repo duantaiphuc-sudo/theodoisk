@@ -65,7 +65,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     [-1]: 'Chưa có dữ liệu',
     0: 'Tư thế ĐÚNG',
     1: 'Tư thế SAI (Cúi gù)',
-    2: 'VẮNG MẶT (Không có người)',
+    2: 'NGOÀI VÙNG CAMERA',
     3: 'SAI TƯ THẾ LÂU',
     4: 'NGỒI LÀM VIỆC QUÁ LÂU',
     5: 'Tư thế ĐỨNG (Làm việc)',

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   HealthTelemetry, 
   TimeCalculations, 
-  ZoneConfig, 
   AlertThresholds, 
   TelemetryLog, 
   FirebaseConnectionConfig,
@@ -181,14 +180,7 @@ export default function App() {
     };
   });
 
-  // 4. Zone Configuration State
-  const [zone, setZone] = useState<ZoneConfig>(() => {
-    try {
-      const saved = localStorage.getItem('theodoisk_zone');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return { x1: 20, y1: 10, x2: 80, y2: 90 };
-  });
+
 
   // 5. Live Telemetry State (Starts empty until device or simulation pushes data)
   const [telemetry, setTelemetry] = useState<HealthTelemetry>({
@@ -316,9 +308,6 @@ export default function App() {
     localStorage.setItem('theodoisk_thresholds', JSON.stringify(thresholds));
   }, [thresholds]);
 
-  useEffect(() => {
-    localStorage.setItem('theodoisk_zone', JSON.stringify(zone));
-  }, [zone]);
 
   // Persist history records to localStorage on every state change (strictly scoped per user)
   useEffect(() => {
@@ -527,7 +516,7 @@ export default function App() {
       : (isAbsent ? 'absent' : (isStanding ? 'standing' : (isBad ? 'incorrect' : 'correct')));
     const postureText = !hasLiveSignal
       ? '– Chờ kết nối'
-      : (isAbsent ? '– Vắng' : (isStanding ? '↑ Đứng' : (isBad ? '⚠ Sai' : '✓ Đúng')));
+      : (isAbsent ? '– Ngoài vùng' : (isStanding ? '↑ Đứng' : (isBad ? '⚠ Sai' : '✓ Đúng')));
 
     if (activeUser && firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
@@ -832,13 +821,13 @@ export default function App() {
     const isStanding = telemetry.postureStatus === 5;
     const isBad = hasLiveSignal && !isAbsent && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
-    const presence: 'Present' | 'Away' = isAbsent ? 'Away' : 'Present';
+    const presence: 'Present' | 'Away' = hasLiveSignal ? 'Present' : 'Away';
     const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = !hasLiveSignal
       ? 'waiting'
       : (isStanding ? 'correct' : isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
     const postureText = !hasLiveSignal
       ? '– Chờ kết nối'
-      : (isStanding ? '– Đứng' : isAbsent ? '– Vắng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+      : (isStanding ? '– Đứng' : isAbsent ? '– Ngoài vùng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
 
     const stateKey = `${currentUser.id}_${presence}_${posture}_${telemetry.postureStatus}_${isBad}`;
     const now = Date.now();
@@ -1046,7 +1035,7 @@ export default function App() {
     const rawTarget = isClearingAll ? undefined : (targetAccount || currentUser?.id);
 
     const targetUserObj = rawTarget
-      ? allUsers.find(u => u.id === rawTarget || u.email?.toLowerCase() === rawTarget.toLowerCase())
+      ? allRegisteredUsers.find(u => u.id === rawTarget || u.email?.toLowerCase() === rawTarget.toLowerCase())
       : undefined;
     const targetUserId = targetUserObj?.id || (rawTarget && !rawTarget.includes('@') ? rawTarget : currentUser?.id);
     const targetEmail = targetUserObj?.email || (rawTarget && rawTarget.includes('@') ? rawTarget : currentUser?.email);
@@ -1368,7 +1357,7 @@ export default function App() {
                       }`}
                       title="Giả lập không có người tại bàn làm việc (Rời khỏi ghế, nhịp tim 0, SpO2 0)"
                     >
-                      🚫 Không có người (Vắng mặt)
+                      🚫 Rời khỏi ghế (Ngoài vùng)
                     </button>
 
                     <button

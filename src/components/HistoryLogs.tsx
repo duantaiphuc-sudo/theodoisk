@@ -160,7 +160,6 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
       if (filterPosture === 'good') return item.postureStatus === 0;
       if (filterPosture === 'standing') return item.postureStatus === 5;
       if (filterPosture === 'bad') return item.postureStatus === 1 || item.postureStatus === 3;
-      if (filterPosture === 'absent') return item.postureStatus === 2;
       return true;
     });
   }, [userFilteredHistory, searchTerm, filterPosture, filterDate]);
@@ -506,16 +505,6 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           >
             Tư thế Sai / Gù
           </button>
-          <button
-            onClick={() => setFilterPosture('absent')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
-              filterPosture === 'absent' 
-                ? 'bg-amber-600 text-white shadow-2xs' 
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-            }`}
-          >
-            Vắng mặt
-          </button>
         </div>
       </div>
 
@@ -592,7 +581,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                           <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
                             item.trackingActive ? 'bg-emerald-500' : 'bg-slate-400'
                           }`}></span>
-                          <span className="text-slate-600">{item.trackingActive ? 'Trong vùng' : 'Vắng'}</span>
+                          <span className="text-slate-600">{item.trackingActive ? 'Trong vùng' : 'Ngoài vùng'}</span>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           {item.hasAlert ? (
@@ -705,7 +694,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                       <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
                         <span className="text-[10px] text-slate-500 block mb-0.5">Vùng AI</span>
                         <span className="text-[11px] font-semibold text-slate-700">
-                          {item.trackingActive ? 'Trong vùng' : 'Vắng'}
+                          {item.trackingActive ? 'Trong vùng' : 'Ngoài vùng'}
                         </span>
                       </div>
                     </div>

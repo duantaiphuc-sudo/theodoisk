@@ -251,18 +251,6 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
               </span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer select-none pl-6">
-              <input
-                type="checkbox"
-                checked={local.outOfZoneAlertEnabled}
-                onChange={e => setLocal({ ...local, outOfZoneAlertEnabled: e.target.checked })}
-                className="w-3.5 h-3.5 rounded bg-slate-100 border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer"
-              />
-              <span className="text-slate-600 text-[11px] flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-indigo-600" />
-                Nhắc nhở khi phát hiện ngồi ngoài vùng quan sát
-              </span>
-            </label>
 
             {/* Browser Notification API Toggle & Permission */}
             <div className="pt-2 border-t border-slate-100">
@@ -337,19 +325,6 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                 <Play className="w-3 h-3 text-slate-400 shrink-0" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => handleTestVoice('out_of_zone')}
-                disabled={testPlaying !== null}
-                className={`px-2.5 py-2 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
-                  testPlaying === 'out_of_zone'
-                    ? 'bg-indigo-100 border-indigo-400 text-indigo-800 animate-pulse'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <span>🗣️ "Vào vùng quan sát"</span>
-                <Play className="w-3 h-3 text-slate-400 shrink-0" />
-              </button>
 
               <button
                 type="button"

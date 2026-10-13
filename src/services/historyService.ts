@@ -332,7 +332,7 @@ export function normalizeHistoryLog(id: string, raw: any): TelemetryLog {
     [-1]: 'Chưa có dữ liệu',
     0: 'Tư thế ĐÚNG',
     1: 'Tư thế SAI (Cúi gù)',
-    2: 'VẮNG MẶT',
+    2: 'Ngoài vùng camera',
     3: 'SAI TƯ THẾ LÂU',
     4: 'NGỒI QUÁ LÂU',
     5: 'Tư thế ĐỨNG',

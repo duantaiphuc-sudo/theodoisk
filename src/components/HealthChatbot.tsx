@@ -141,7 +141,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         } else if (isStanding) {
           verdict = `🚶 Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} đang ở trạng thái **ĐỨNG / VẬN ĐỘNG**.`;
         } else if (isAbsent) {
-          verdict = `👤 Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} **VẮNG MẶT** khỏi khu vực quan sát của camera.`;
+          verdict = `👤 Vào lúc **${exactTime}**, ${isAdmin && selectedMemberName !== 'Tất cả' ? selectedMemberName : 'bạn'} **rời khỏi ghế / ngoài vùng quan sát** của camera.`;
         } else {
           verdict = `📊 Vào lúc **${exactTime}**, trạng thái ghi nhận: **${closestLog.postureLabel}**.`;
         }

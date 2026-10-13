@@ -159,10 +159,10 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
   let displayedPostureLabel = postureLabel;
 
   if (isAbsent) {
-    postureCardBg = 'bg-amber-50/50 border-amber-200';
-    postureBadgeStyle = 'bg-amber-100 text-amber-800 border-amber-300';
-    postureIcon = <UserX className="w-5 h-5 text-amber-600" />;
-    displayedPostureLabel = 'VẮNG MẶT (Ngoài vùng)';
+    postureCardBg = 'bg-slate-50 border-slate-200';
+    postureBadgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+    postureIcon = <UserX className="w-5 h-5 text-slate-500" />;
+    displayedPostureLabel = 'Ngoài vùng quan sát';
   } else {
     switch (postureStatus) {
       case 0: // Đúng
@@ -199,7 +199,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
         postureCardBg = 'bg-white border-slate-200';
         postureBadgeStyle = 'bg-slate-100 text-slate-600 border-slate-200';
         postureIcon = <UserX className="w-5 h-5 text-slate-500" />;
-        displayedPostureLabel = 'VẮNG MẶT';
+        displayedPostureLabel = 'NGOÀI VÙNG QUAN SÁT';
         break;
     }
   }
@@ -296,8 +296,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
         </div>
 
         <div className="mt-2.5 sm:mt-4 flex items-center justify-between pt-2 sm:pt-3 border-t border-slate-100 text-[10px] sm:text-xs text-slate-500">
-          <span className="truncate">{isAbsent ? 'Vắng mặt' : (telemetry.angleNeck !== undefined ? `Góc: ${telemetry.angleNeck}°` : 'AI Vision')}</span>
-          <span className={`font-mono whitespace-nowrap font-medium ${isAbsent ? 'text-amber-700' : 'text-emerald-700'}`}>
+          <span className="truncate">{isAbsent ? 'Ngoài vùng' : (telemetry.angleNeck !== undefined ? `Góc: ${telemetry.angleNeck}°` : 'AI Vision')}</span>
+          <span className={`font-mono whitespace-nowrap font-medium ${isAbsent ? 'text-slate-500' : 'text-emerald-700'}`}>
             {isAbsent ? 'Ghế trống' : `${telemetry.confidence ?? 95}%`}
           </span>
         </div>
