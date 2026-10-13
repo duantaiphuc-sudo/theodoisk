@@ -165,7 +165,7 @@ export interface ChatMessage {
 export type NotificationType = 'task' | 'health_alert' | 'general';
 export type NotificationPriority = 'normal' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'acknowledged' | 'completed';
-export type MainNavTab = 'overview' | 'zone' | 'logs' | 'tasks' | 'admin_overview';
+export type MainNavTab = 'overview' | 'logs' | 'tasks' | 'admin_overview';
 
 export interface UserTelemetryLive {
   userId: string;

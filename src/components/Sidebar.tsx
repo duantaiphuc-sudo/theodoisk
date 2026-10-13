@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard,
-  Target,
   FileText,
   Bell,
   Users,
@@ -114,12 +113,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         badgeColor: 'bg-indigo-100 text-indigo-700 font-bold'
       }
     ] : []),
-    {
-      id: 'zone' as MainNavTab,
-      label: 'Chỉnh vùng',
-      icon: Target,
-      badge: 'Cảm biến'
-    },
     {
       id: 'logs' as MainNavTab,
       label: 'Nhật ký dữ liệu',

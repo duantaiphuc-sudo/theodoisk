@@ -36,7 +36,6 @@ import { PostureVisualizer } from './components/PostureVisualizer';
 import { TrendChart } from './components/TrendChart';
 import { TimeCounters } from './components/TimeCounters';
 import { WeeklyPostureChart } from './components/WeeklyPostureChart';
-import { MonitorZoneCard } from './components/MonitorZoneCard';
 import { HistoryLogs } from './components/HistoryLogs';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { SupabaseModal } from './components/SupabaseModal';
@@ -64,7 +63,6 @@ import {
   CheckCircle2, 
   Clock, 
   Bell, 
-  Target, 
   FileText, 
   Plus, 
   Layers, 
@@ -1030,15 +1028,19 @@ export default function App() {
     setIsClearingFirebase(true);
     const isClearingAll = !targetAccount || targetAccount === 'all';
     const targetUserId = isClearingAll ? undefined : (targetAccount || currentUser?.id);
+    const targetUserObj = targetUserId ? allUsers.find(u => u.id === targetUserId) : undefined;
+    const targetEmail = targetUserObj?.email || (targetUserId === currentUser?.id ? currentUser?.email : undefined);
 
-    // 1. Update React state immediately
     if (isClearingAll) {
       setHistory([]);
     } else if (targetUserId) {
-      setHistory(prev => prev.filter(item => item.userId && item.userId !== targetUserId));
+      setHistory(prev => prev.filter(item => {
+        if (item.userId && item.userId === targetUserId) return false;
+        if (targetEmail && item.userEmail && item.userEmail.toLowerCase() === targetEmail.toLowerCase()) return false;
+        return true;
+      }));
     }
 
-    // 2. Remove from localStorage cache
     try {
       if (isClearingAll) {
         const keysToRemove: string[] = [];
@@ -1049,23 +1051,28 @@ export default function App() {
           }
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
+        clearLocalHistoricalRecords();
       } else if (targetUserId) {
-        localStorage.removeItem(`theodoisk_history_${targetUserId}`);
-        localStorage.removeItem('theodoisk_telemetry_history_v2');
+        clearLocalHistoricalRecords(targetUserId);
       }
     } catch (e) {
       console.warn('Lỗi dọn dẹp localStorage:', e);
     }
-    clearLocalHistoricalRecords();
 
-    // 3. Delete synchronously from both Firebase AND Supabase!
     try {
-      const [firebaseRes] = await Promise.allSettled([
-        purgeAllFirebaseHistoryCollections(firebaseConfig),
-        clearSupabaseHistory(targetUserId)
-      ]);
-      const deletedCount = firebaseRes.status === 'fulfilled' ? firebaseRes.value.deletedCount : 0;
-      setClearNotice(`Đã dọn sạch hoàn toàn lịch sử trên Supabase PostgreSQL, quét sạch các mục history trên Firebase & bộ nhớ thiết bị!`);
+      if (isClearingAll) {
+        await Promise.allSettled([
+          clearFirebaseHistory(firebaseConfig, undefined, true),
+          clearSupabaseHistory('all')
+        ]);
+        setClearNotice('Đã dọn sạch hoàn toàn lịch sử của tất cả tài khoản.');
+      } else if (targetUserId) {
+        await Promise.allSettled([
+          clearFirebaseHistory(firebaseConfig, targetUserId, false),
+          clearSupabaseHistory(targetUserId, targetEmail)
+        ]);
+        setClearNotice('Đã xóa sạch lịch sử của tài khoản được chọn.');
+      }
       setTimeout(() => setClearNotice(null), 4500);
     } catch (err: any) {
       console.warn('Lỗi xóa lịch sử:', err);
@@ -1413,50 +1420,6 @@ export default function App() {
                   hasData={hasReceivedData}
                 />
               </div>
-            </div>
-          )}
-
-          {/* TAB 2: MONITOR ZONE & CAMERA CALIBRATION (Chỉnh vùng) */}
-          {mainNavTab === 'zone' && (
-            <div className="space-y-4 sm:space-y-6">
-              {/* Informative Header Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
-                      <Target className="w-5 h-5 text-sky-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                        Căn Chỉnh Vùng Quan Sát Camera AI (Bounding Box)
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5 leading-relaxed">
-                        Cấu hình tọa độ phần trăm hình chữ nhật quan sát của Camera Raspberry Pi 4. Khi người dùng di chuyển ra khỏi khung hình này, hệ thống sẽ cảnh báo trạng thái &quot;Ngoài vùng quan sát&quot;.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Real-time Zone Detection Status Indicator */}
-                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
-                    <span className="text-xs font-semibold text-slate-600">Trạng thái phát hiện:</span>
-                    <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
-                      telemetry.inZone 
-                        ? 'bg-emerald-100 text-emerald-800' 
-                        : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      {telemetry.inZone ? 'Trong vùng chuẩn' : 'Ngoài vùng quan sát'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Monitor Zone Editor Card */}
-              <MonitorZoneCard
-                zone={zone}
-                setZone={setZone}
-                telemetry={telemetry}
-                isManager={isManager}
-              />
             </div>
           )}
 

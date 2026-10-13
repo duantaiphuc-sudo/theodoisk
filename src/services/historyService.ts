@@ -123,10 +123,28 @@ export function syncHistoricalLogs(logs: TelemetryLog[]): void {
   saveHistoricalRecords(merged);
 }
 
-export function clearLocalHistoricalRecords(): void {
+export function clearLocalHistoricalRecords(targetUserId?: string): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem('theodoisk_telemetry_history_v2');
+    if (!targetUserId || targetUserId === 'all') {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('theodoisk_telemetry_history_v2');
+      return;
+    }
+    localStorage.removeItem(`theodoisk_history_${targetUserId}`);
+    const existing = getHistoricalRecords();
+    const filtered = existing.filter(r => (r as any).userId !== targetUserId);
+    saveHistoricalRecords(filtered);
+
+    const rawShared = localStorage.getItem('theodoisk_telemetry_history_v2');
+    if (rawShared) {
+      try {
+        const parsed = JSON.parse(rawShared);
+        if (Array.isArray(parsed)) {
+          const updatedShared = parsed.filter((item: any) => item.userId !== targetUserId);
+          localStorage.setItem('theodoisk_telemetry_history_v2', JSON.stringify(updatedShared));
+        }
+      } catch {}
+    }
   } catch (e) {
     console.error('Error clearing local history records:', e);
   }

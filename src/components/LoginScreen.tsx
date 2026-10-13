@@ -21,7 +21,6 @@ import {
   Menu,
   Sparkles,
   Info,
-  Phone,
   Mail,
   KeyRound,
   Check,
@@ -34,11 +33,8 @@ import {
   loginWithCredentials, 
   loginWithFirebaseEmail, 
   registerWithFirebaseEmail,
-  loginWithGoogle, 
-  sendPhoneVerificationCode,
-  verifyPhoneCode
+  loginWithGoogle
 } from '../services/authService';
-import { ConfirmationResult } from 'firebase/auth';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: AuthUser) => void;
@@ -60,15 +56,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone' | 'register'>('email');
-
-  // Phone auth states
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [phoneStep, setPhoneStep] = useState<'enter_phone' | 'enter_code'>('enter_phone');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [phoneLoading, setPhoneLoading] = useState(false);
-  const [canPhoneFallback, setCanPhoneFallback] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'email' | 'register'>('email');
 
   // Register states
   const [regFullName, setRegFullName] = useState('');
@@ -147,63 +135,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleSendPhoneCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setCanPhoneFallback(false);
-    if (!phoneNumber.trim() || phoneNumber.trim().length < 8) {
-      setError('Vui lòng nhập số điện thoại hợp lệ (ví dụ: 0912345678).');
-      return;
-    }
-    setPhoneLoading(true);
-    try {
-      const res = await sendPhoneVerificationCode(phoneNumber.trim(), 'recaptcha-container');
-      if (res.success && res.confirmationResult) {
-        setConfirmationResult(res.confirmationResult);
-        setPhoneStep('enter_code');
-      } else {
-        setError(res.error || 'Không thể gửi mã SMS. Vui lòng thử lại.');
-        if (res.canFallback) {
-          setCanPhoneFallback(true);
-        }
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Lỗi khi gửi mã SMS.');
-      setCanPhoneFallback(true);
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
-  const handleVerifyPhoneCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!confirmationResult) {
-      setError('Phiên xác thực đã hết hạn. Vui lòng gửi lại mã.');
-      return;
-    }
-    if (!verificationCode.trim()) {
-      setError('Vui lòng nhập mã OTP gồm 6 chữ số gửi qua SMS.');
-      return;
-    }
-    setPhoneLoading(true);
-    try {
-      const res = await verifyPhoneCode(confirmationResult, verificationCode.trim(), phoneNumber.trim());
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      } else {
-        setError(res.error || 'Mã xác thực không đúng.');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Lỗi xác thực mã SMS.');
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
-  const handleQuickPhoneFallback = () => {
-    setError('Phương thức đăng nhập nhanh bằng số điện thoại không an toàn đã bị vô hiệu hóa.');
-  };
 
   const handleCopyDomain = () => {
     if (typeof window !== 'undefined') {
@@ -628,18 +559,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setAuthMethod('phone'); setError(null); }}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    authMethod === 'phone' 
-                      ? 'bg-white text-sky-700 font-bold shadow-xs border border-slate-200/60' 
-                      : 'hover:text-slate-900'
-                  }`}
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>Số điện thoại</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => { setAuthMethod('register'); setError(null); }}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     authMethod === 'register' 
@@ -651,9 +570,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   <span>Tạo mới</span>
                 </button>
               </div>
-
-              {/* Invisible reCAPTCHA container for Phone Auth */}
-              <div id="recaptcha-container"></div>
 
               {/* METHOD 1: EMAIL & PASSWORD LOGIN */}
               {authMethod === 'email' && (
@@ -745,115 +661,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </form>
               )}
 
-              {/* METHOD 2: PHONE AUTHENTICATION WITH SMS OTP */}
-              {authMethod === 'phone' && (
-                <div className="mt-4 space-y-3.5">
-                  {phoneStep === 'enter_phone' ? (
-                    <form onSubmit={handleSendPhoneCode} className="space-y-3.5">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Số điện thoại di động
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="tel"
-                            value={phoneNumber}
-                            onChange={e => setPhoneNumber(e.target.value)}
-                            placeholder="0912345678 hoặc +84912345678"
-                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
-                            required
-                          />
-                          <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          Firebase sẽ gửi mã xác thực SMS 6 chữ số đến số điện thoại của bạn.
-                        </p>
-                      </div>
-
-                      {/* Error banner */}
-                      {error && (
-                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                            <span className="leading-snug">{error}</span>
-                          </div>
-                          {canPhoneFallback && (
-                            <button
-                              type="button"
-                              onClick={handleQuickPhoneFallback}
-                              className="mt-1 w-full py-2 px-3 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                            >
-                              <span>Tiếp tục đăng nhập ngay với số {phoneNumber || 'này'}</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={phoneLoading}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                      >
-                        <span>{phoneLoading ? 'Đang gửi mã OTP...' : 'Gửi Mã Xác Thực SMS'}</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleVerifyPhoneCode} className="space-y-3.5">
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-xs font-bold text-slate-700">
-                            Nhập mã OTP (6 chữ số)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => { setPhoneStep('enter_phone'); setError(null); }}
-                            className="text-[11px] text-sky-600 hover:underline cursor-pointer"
-                          >
-                            Đổi số điện thoại
-                          </button>
-                        </div>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            maxLength={6}
-                            value={verificationCode}
-                            onChange={e => setVerificationCode(e.target.value)}
-                            placeholder="123456"
-                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-center text-base tracking-widest font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
-                            required
-                            autoFocus
-                          />
-                          <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          Đã gửi mã đến: <span className="font-semibold text-slate-800">{phoneNumber}</span>
-                        </p>
-                      </div>
-
-                      {/* Error banner */}
-                      {error && (
-                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                            <span className="leading-snug">{error}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={phoneLoading}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition shadow-md shadow-emerald-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>{phoneLoading ? 'Đang xác thực mã...' : 'Xác Nhận & Đăng Nhập'}</span>
-                      </button>
-                    </form>
-                  )}
-                </div>
-              )}
 
               {/* METHOD 3: REGISTER NEW ACCOUNT (EMAIL/PASSWORD) */}
               {authMethod === 'register' && (

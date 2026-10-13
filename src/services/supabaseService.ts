@@ -213,7 +213,7 @@ export function normalizeDateFormatted(input?: string | Date | null): string {
 /**
  * Xóa toàn bộ lịch sử hoặc lịch sử theo tài khoản trên Supabase
  */
-export async function clearSupabaseHistory(targetUserId?: string): Promise<boolean> {
+export async function clearSupabaseHistory(targetUserId?: string, targetUserEmail?: string): Promise<boolean> {
   const config = getSavedSupabaseConfig();
   const client = getSupabaseClient(config);
   if (!client) return false;
@@ -222,18 +222,28 @@ export async function clearSupabaseHistory(targetUserId?: string): Promise<boole
     const table = config.tableName || 'telemetry_logs';
     let query = client.from(table).delete();
     if (targetUserId && targetUserId !== 'all') {
-      query = query.eq('user_id', targetUserId);
+      if (targetUserEmail) {
+        query = query.or(`user_id.eq.${targetUserId},user_email.ilike.${targetUserEmail}`);
+      } else {
+        query = query.eq('user_id', targetUserId);
+      }
     } else {
-      // PostgREST yêu cầu điều kiện WHERE khi delete: chọn id >= 0 hoặc id != -1
       query = query.gte('id', 0);
     }
     const { error } = await query;
     if (error) {
-      // Fallback
-      const fallback = await client.from(table).delete().neq('id', -1);
-      if (fallback.error) {
-        console.warn('Lỗi xóa lịch sử trên Supabase:', fallback.error.message);
-        return false;
+      if (targetUserId && targetUserId !== 'all') {
+        const fallback = await client.from(table).delete().eq('user_id', targetUserId);
+        if (fallback.error) {
+          console.warn('Lỗi xóa lịch sử trên Supabase:', fallback.error.message);
+          return false;
+        }
+      } else {
+        const fallback = await client.from(table).delete().neq('id', -1);
+        if (fallback.error) {
+          console.warn('Lỗi xóa lịch sử trên Supabase:', fallback.error.message);
+          return false;
+        }
       }
     }
     return true;

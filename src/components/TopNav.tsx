@@ -54,10 +54,6 @@ export const TopNav: React.FC<TopNavProps> = ({
       title: 'Trang chủ',
       subtitle: 'Giám sát chỉ số sinh trắc học & tư thế thời gian thực'
     },
-    zone: {
-      title: 'Chỉnh vùng quan sát',
-      subtitle: 'Cấu hình tọa độ camera AI nhận diện tư thế người dùng'
-    },
     logs: {
       title: 'Nhật ký dữ liệu',
       subtitle: 'Lịch sử đo đạc, kiểm tra sự cố & trích xuất báo cáo CSV'
