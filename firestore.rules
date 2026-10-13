@@ -1,12 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Authorized Admins: duantaiphuc@gmail.com and admin@theodoisk.com (admin)
     function isAdmin() {
       return isAuthenticated() && (
         (request.auth.token.email != null && (
@@ -14,7 +12,9 @@ service cloud.firestore {
           request.auth.token.email.lower() == 'admin@theodoisk.com'
         )) ||
         request.auth.uid == 'usr-phuc-google' ||
-        request.auth.uid == 'usr-admin-01'
+        request.auth.uid == 'usr-admin-01' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
@@ -22,42 +22,78 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // User profiles and all user subcollections (e.g. history)
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if isAdmin() || isOwner(userId);
+      allow create: if isAdmin() || (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'employee'));
+      allow update: if isAdmin() || (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
+
       match /{subcollection=**} {
-        allow read, write: if true;
+        allow read: if isAdmin() || isOwner(userId);
+        allow create, update: if isAdmin() || isOwner(userId);
+        allow delete: if isAdmin();
       }
     }
 
-    // Isolated telemetry per user account and subcollections
-    match /user_telemetry/{document=**} {
-      allow read, write: if true;
+    match /user_telemetry/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow create, update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
+
+      match /{subcollection=**} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create, update: if isAdmin() || isOwner(userId);
+        allow delete: if isAdmin();
+      }
     }
 
-    // Telemetry current state (IoT node compatibility)
-    match /theodoisk/{document=**} {
-      allow read, write: if true;
+    match /devices/{deviceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+
+      match /{subcollection=**} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated();
+        allow delete: if false;
+      }
     }
 
-    // Telemetry history (general)
-    match /theodoisk_history/{document=**} {
-      allow read, write: if true;
+    match /theodoisk/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+
+      match /{subcollection=**} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated();
+        allow delete: if isAdmin();
+      }
     }
 
-    // Devices telemetry history
-    match /devices_history/{document=**} {
-      allow read, write: if true;
+    match /theodoisk_history/{logId} {
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid));
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // Custom telemetry collections configured by users and all subcollections
-    match /{collectionName}/{document=**} {
-      allow read, write: if true;
+    match /devices_history/{logId} {
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid));
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // Notifications and assigned tasks
-    match /notifications/{document=**} {
-      allow read, write: if true;
+    match /notifications/{notifId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.targetUserId == request.auth.uid);
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.targetUserId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -35,10 +35,8 @@ import {
   loginWithFirebaseEmail, 
   registerWithFirebaseEmail,
   loginWithGoogle, 
-  loginWithGoogleFallback,
   sendPhoneVerificationCode,
-  verifyPhoneCode,
-  loginWithPhoneFallback
+  verifyPhoneCode
 } from '../services/authService';
 import { ConfirmationResult } from 'firebase/auth';
 
@@ -204,8 +202,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   const handleQuickPhoneFallback = () => {
-    const user = loginWithPhoneFallback(phoneNumber.trim() || '0912345678');
-    onLoginSuccess(user);
+    setError('Phương thức đăng nhập nhanh bằng số điện thoại không an toàn đã bị vô hiệu hóa.');
   };
 
   const handleCopyDomain = () => {
@@ -219,10 +216,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   const handleQuickLoginAs = (type: 'duantaiphuc' | 'admin' | 'tai' | 'user') => {
-    if (type === 'duantaiphuc') {
-      const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Admin)');
-      onLoginSuccess(user);
-    } else if (type === 'admin') {
+    if (type === 'duantaiphuc' || type === 'admin') {
       const res = loginWithCredentials('admin', 'admin123');
       if (res.success && res.user) {
         onLoginSuccess(res.user);
@@ -268,8 +262,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   const handleQuickGoogleFallback = () => {
-    const user = loginWithGoogleFallback('duantaiphuc@gmail.com', 'Đoàn Tài Phúc (Admin)');
-    onLoginSuccess(user);
+    setGoogleError('Đăng nhập fallback không xác thực đã bị vô hiệu hóa để đảm bảo an toàn. Vui lòng đăng nhập bằng Google hoặc tài khoản được cấp.');
   };
 
   const handleOpenModal = (modal: HeaderModalType) => {

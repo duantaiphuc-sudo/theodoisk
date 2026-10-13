@@ -10,7 +10,7 @@ import {
   RecaptchaVerifier,
   ConfirmationResult
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 import { initializeFirebaseApp, getSavedFirebaseConfig } from './firebase';
 
 const AUTH_STORAGE_KEY = 'theodoisk_authenticated_user_v1';
@@ -106,11 +106,6 @@ export const PRESET_ACCOUNTS: Array<{
   }
 ];
 
-/**
- * Strict System Admin Check:
- * ONLY duantaiphuc@gmail.com (và các biến thể duantaiphuc) và admin (admin@theodoisk.com) là Quản trị viên.
- * Tất cả các tài khoản khác bắt buộc là Nhân viên (employee).
- */
 export function isSystemAdmin(email?: string, username?: string): boolean {
   const e = (email || '').toLowerCase().trim();
   const u = (username || '').toLowerCase().trim();
@@ -172,7 +167,6 @@ export function getCurrentUser(): AuthUser | null {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     if (raw) {
       const u: AuthUser = JSON.parse(raw);
-      // Strictly enforce role: ONLY duantaiphuc@gmail.com and admin are admins
       const strictlyRoleUser = enforceStrictRole(u);
       if (strictlyRoleUser.role !== u.role) {
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(strictlyRoleUser));
@@ -208,12 +202,8 @@ export function logout(): void {
   }
 }
 
-/**
- * Saves or updates user profile to Firestore `users/{uid}` collection & local cache
- */
 export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> {
   try {
-    // 1. Update local cache
     const currentList = getLocalUsersCache();
     const idx = currentList.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
     if (idx >= 0) {
@@ -223,7 +213,6 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
     }
     saveLocalUsersCache(currentList);
 
-    // 2. Push to Firestore
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
     const db = getFirestore(app);
@@ -243,8 +232,8 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
       maxSittingHours: Number(user.maxSittingHours) || 6,
       healthNotes: user.healthNotes || '',
       status: user.status || 'active',
-      isOnline: true,
-      currentPresence: 'Present',
+      isOnline: Boolean(user.isOnline),
+      currentPresence: user.isOnline ? 'Present' : 'Away',
       currentPosture: user.currentPosture || 'waiting',
       currentPostureText: user.currentPostureText || '– Chờ kết nối',
       lastActive: new Date().toISOString(),
@@ -256,10 +245,6 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
   }
 }
 
-/**
- * Fetch all registered users from Firestore `users` collection,
- * merged with local cache & presets.
- */
 export async function fetchAllUsers(): Promise<AuthUser[]> {
   const localList = getLocalUsersCache();
   try {
@@ -279,7 +264,7 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
         const username = data.username || preset?.user.username || (isPresetAdmin ? 'admin' : (data.email ? data.email.split('@')[0] : d.id));
         const isAdmin = isSystemAdmin(email, username);
         const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-        const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? Math.abs(now - lastActiveTime) < 15 * 60 * 1000 : false);
+        const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? (now - lastActiveTime) < 2 * 60 * 1000 : false);
         return {
           id: d.id,
           username,
@@ -312,7 +297,6 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
         };
       });
 
-      // Merge firestore with local - strictly deduplicated by email
       const map = new Map<string, AuthUser>();
       const addOrMerge = (user: AuthUser) => {
         let key = (user.email || user.username || user.id).trim().toLowerCase();
@@ -352,9 +336,6 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
   return localList.map(enforceStrictRole);
 }
 
-/**
- * Admin: Update user details in Firestore & local cache
- */
 export async function adminUpdateUser(updatedUser: AuthUser): Promise<boolean> {
   try {
     const strictlyRoleUser = enforceStrictRole(updatedUser);
@@ -367,7 +348,6 @@ export async function adminUpdateUser(updatedUser: AuthUser): Promise<boolean> {
     }
     saveLocalUsersCache(list);
 
-    // If updating current logged in user, update session as well
     const current = getCurrentUser();
     if (current && current.id === strictlyRoleUser.id) {
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(strictlyRoleUser));
@@ -392,9 +372,6 @@ export async function adminUpdateUser(updatedUser: AuthUser): Promise<boolean> {
   }
 }
 
-/**
- * Admin: Delete user from Firestore & local cache
- */
 export async function adminDeleteUser(userId: string): Promise<boolean> {
   try {
     const list = getLocalUsersCache().filter(u => u.id !== userId);
@@ -411,9 +388,6 @@ export async function adminDeleteUser(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Admin: Create a new user account
- */
 export async function adminCreateUser(newUser: AuthUser): Promise<boolean> {
   try {
     const list = getLocalUsersCache();
@@ -440,17 +414,12 @@ export async function adminCreateUser(newUser: AuthUser): Promise<boolean> {
   }
 }
 
-/**
- * Login with Email & Password via Firebase Authentication
- * If Firebase Auth is not yet populated, it seamlessly falls back to preset accounts.
- */
 export async function loginWithFirebaseEmail(
   email: string,
   pass: string
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // 1. Check preset / local accounts first for instant resilience
   const foundPreset = PRESET_ACCOUNTS.find(
     acc =>
       (acc.user.username.toLowerCase() === cleanEmail || acc.user.email.toLowerCase() === cleanEmail) &&
@@ -463,7 +432,6 @@ export async function loginWithFirebaseEmail(
     return { success: true, user: foundPreset.user };
   }
 
-  // 2. Try Firebase Email/Password Auth
   try {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
@@ -487,28 +455,23 @@ export async function loginWithFirebaseEmail(
     syncUserProfileToFirestore(authUser).catch(() => {});
     return { success: true, user: authUser };
   } catch (firebaseErr: any) {
-    console.warn('Firebase Email Auth attempt:', firebaseErr.code, firebaseErr.message);
-
     let msg = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
     if (firebaseErr.code === 'auth/user-not-found' || firebaseErr.code === 'auth/invalid-credential') {
-      msg = 'Không tìm thấy tài khoản hoặc mật khẩu không đúng. Vui lòng kiểm tra lại hoặc dùng tài khoản admin/user.';
+      msg = 'Không tìm thấy tài khoản hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.';
     } else if (firebaseErr.code === 'auth/wrong-password') {
       msg = 'Mật khẩu không chính xác. Vui lòng nhập lại.';
     } else if (firebaseErr.code === 'auth/invalid-email') {
-      msg = 'Định dạng Email không hợp lệ (ví dụ: admin@theodoisk.com hoặc dùng tài khoản nhanh bên dưới).';
+      msg = 'Định dạng Email không hợp lệ.';
     } else if (firebaseErr.code === 'auth/operation-not-allowed') {
-      msg = 'Dự án Firebase chưa bật phương thức Email/Password. Bạn có thể sử dụng nút Đăng nhập nhanh bên dưới.';
+      msg = 'Phương thức Email/Password chưa được kích hoạt trên hệ thống.';
     } else if (firebaseErr.code === 'auth/too-many-requests') {
-      msg = 'Đã thử quá nhiều lần. Vui lòng đợi trong giây lát hoặc đăng nhập nhanh với tài khoản mẫu.';
+      msg = 'Đã thử quá nhiều lần. Vui lòng đợi trong giây lát.';
     }
 
     return { success: false, error: msg };
   }
 }
 
-/**
- * Register a new user with Email & Password via Firebase Authentication
- */
 export async function registerWithFirebaseEmail(
   email: string,
   pass: string,
@@ -538,7 +501,6 @@ export async function registerWithFirebaseEmail(
     await syncUserProfileToFirestore(authUser);
     return { success: true, user: authUser };
   } catch (err: any) {
-    console.error('Lỗi đăng ký Firebase Email:', err);
     let msg = 'Đăng ký thất bại. Vui lòng thử lại.';
     if (err.code === 'auth/email-already-in-use') {
       msg = 'Email này đã được đăng ký. Bạn có thể đăng nhập ngay.';
@@ -551,9 +513,6 @@ export async function registerWithFirebaseEmail(
   }
 }
 
-/**
- * Legacy credentials adapter
- */
 export function loginWithCredentials(
   identifier: string,
   pass: string
@@ -573,7 +532,7 @@ export function loginWithCredentials(
 
   return {
     success: false,
-    error: 'Tên đăng nhập hoặc mật khẩu không chính xác. Hãy dùng tài khoản admin / admin123 hoặc user / user123.',
+    error: 'Tên đăng nhập hoặc mật khẩu không chính xác.',
   };
 }
 
@@ -584,9 +543,6 @@ export function loginAsPreset(role: UserRole): AuthUser {
   return preset.user;
 }
 
-/**
- * Login with Google via Firebase Authentication
- */
 export async function loginWithGoogle(): Promise<{ 
   success: boolean; 
   user?: AuthUser; 
@@ -614,7 +570,7 @@ export async function loginWithGoogle(): Promise<{
       id: firebaseUser.uid,
       username: email ? email.split('@')[0] : 'google_user',
       email: email || 'duantaiphuc@gmail.com',
-      fullName: firebaseUser.displayName || 'Tài khoản Google (Đoàn Tài Phúc)',
+      fullName: firebaseUser.displayName || 'Tài khoản Google',
       role: isManager ? 'admin' : 'employee',
       avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
       department: isManager ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
@@ -624,64 +580,28 @@ export async function loginWithGoogle(): Promise<{
     syncUserProfileToFirestore(googleUser).catch(() => {});
     return { success: true, user: googleUser };
   } catch (err: any) {
-    console.warn('Lỗi đăng nhập Google Auth:', err);
     let errorMessage = 'Không thể kết nối với Google. Vui lòng thử lại.';
-    let canQuickFallback = false;
     let isUnauthorizedDomain = false;
     const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
 
     if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
       errorMessage = `Tên miền hiện tại ("${currentDomain}") chưa được cấp phép trong Firebase Auth (Settings → Authorized domains).`;
-      canQuickFallback = true;
       isUnauthorizedDomain = true;
     } else if (err.code === 'auth/configuration-not-found' || err.message?.includes('configuration-not-found')) {
-      errorMessage = 'Dự án Firebase chưa bật nhà cung cấp Google trong Firebase Console (Authentication → Sign-in method → Bật Google). Bạn có thể dùng nút Đăng nhập nhanh bên dưới.';
-      canQuickFallback = true;
+      errorMessage = 'Dự án Firebase chưa bật nhà cung cấp Google trong Firebase Console.';
     } else if (err.code === 'auth/popup-blocked') {
-      errorMessage = 'Trình duyệt đã chặn cửa sổ bật lên (popup). Vui lòng cho phép popup để đăng nhập bằng Google.';
-      canQuickFallback = true;
+      errorMessage = 'Trình duyệt đã chặn cửa sổ bật lên (popup). Vui lòng cho phép popup.';
     } else if (err.code === 'auth/popup-closed-by-user') {
       errorMessage = 'Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất.';
-      canQuickFallback = true;
     } else if (err.code === 'auth/cancelled-popup-request') {
       errorMessage = 'Yêu cầu đăng nhập Google đã bị hủy.';
     } else if (err.message) {
       errorMessage = err.message;
-      canQuickFallback = true;
     }
-    return { success: false, error: errorMessage, canQuickFallback, isUnauthorizedDomain, currentDomain };
+    return { success: false, error: errorMessage, canQuickFallback: false, isUnauthorizedDomain, currentDomain };
   }
 }
 
-/**
- * Fast Google sign-in fallback
- */
-export function loginWithGoogleFallback(email = 'duantaiphuc@gmail.com', name = 'Tài khoản Google (Đoàn Tài Phúc)'): AuthUser {
-  const googleUser: AuthUser = {
-    id: 'usr-duantaiphuc',
-    username: email.split('@')[0],
-    email: email,
-    fullName: name,
-    role: 'admin', // Always elevate to Admin as requested
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-    department: 'Ban Quản Trị & Nghiên Cứu IoT',
-    age: 27,
-    gender: 'male',
-    height: 172,
-    weight: 65,
-    maxSittingHours: 6,
-    healthNotes: 'Cần duy trì tư thế ngồi thẳng và nghỉ ngơi giãn cơ đều đặn.',
-    status: 'active',
-    lastLogin: new Date().toISOString()
-  };
-  saveCurrentUser(googleUser);
-  syncUserProfileToFirestore(googleUser).catch(() => {});
-  return googleUser;
-}
-
-/**
- * Setup invisible reCAPTCHA for Phone Authentication
- */
 let recaptchaVerifier: RecaptchaVerifier | null = null;
 
 export function setupRecaptcha(containerId: string): RecaptchaVerifier {
@@ -692,9 +612,7 @@ export function setupRecaptcha(containerId: string): RecaptchaVerifier {
   if (!recaptchaVerifier) {
     recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
       size: 'invisible',
-      callback: () => {
-        // reCAPTCHA solved - allow signInWithPhoneNumber
-      },
+      callback: () => {},
       'expired-callback': () => {
         recaptchaVerifier = null;
       }
@@ -703,9 +621,6 @@ export function setupRecaptcha(containerId: string): RecaptchaVerifier {
   return recaptchaVerifier;
 }
 
-/**
- * Send SMS verification code to phone number via Firebase Authentication
- */
 export async function sendPhoneVerificationCode(
   phoneNumber: string,
   containerId = 'recaptcha-container'
@@ -715,7 +630,6 @@ export async function sendPhoneVerificationCode(
     const app = initializeFirebaseApp(config);
     const auth = getAuth(app);
 
-    // Format phone number to E.164 (e.g. +84912345678)
     let formattedPhone = phoneNumber.trim().replace(/\s+/g, '');
     if (formattedPhone.startsWith('0')) {
       formattedPhone = '+84' + formattedPhone.slice(1);
@@ -727,30 +641,20 @@ export async function sendPhoneVerificationCode(
     const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
     return { success: true, confirmationResult: confirmation };
   } catch (err: any) {
-    console.warn('Lỗi gửi mã xác thực số điện thoại:', err);
     let msg = 'Không thể gửi mã SMS. Vui lòng kiểm tra số điện thoại.';
-    let canFallback = false;
-
     if (err.code === 'auth/invalid-phone-number') {
       msg = 'Số điện thoại không đúng định dạng. Ví dụ hợp lệ: 0912345678 hoặc +84912345678';
     } else if (err.code === 'auth/operation-not-allowed') {
-      msg = 'Firebase Authentication chưa bật tính năng Xác thực qua Số điện thoại (Authentication → Sign-in method → Phone). Bạn có thể dùng mã thử nghiệm.';
-      canFallback = true;
+      msg = 'Firebase Authentication chưa bật tính năng Xác thực qua Số điện thoại.';
     } else if (err.code === 'auth/quota-exceeded') {
-      msg = 'Hạn ngạch gửi tin nhắn SMS của Firebase đã vượt mức hôm nay. Vui lòng thử cách đăng nhập khác.';
-      canFallback = true;
+      msg = 'Hạn ngạch gửi tin nhắn SMS của Firebase đã vượt mức hôm nay.';
     } else if (err.message) {
       msg = err.message;
-      canFallback = true;
     }
-
-    return { success: false, error: msg, canFallback };
+    return { success: false, error: msg, canFallback: false };
   }
 }
 
-/**
- * Verify SMS verification code from Firebase Phone Auth
- */
 export async function verifyPhoneCode(
   confirmationResult: ConfirmationResult,
   verificationCode: string,
@@ -775,7 +679,6 @@ export async function verifyPhoneCode(
     syncUserProfileToFirestore(authUser).catch(() => {});
     return { success: true, user: authUser };
   } catch (err: any) {
-    console.error('Lỗi xác thực mã SMS:', err);
     let msg = 'Mã xác thực OTP không chính xác hoặc đã hết hạn.';
     if (err.code === 'auth/invalid-verification-code') {
       msg = 'Mã xác thực OTP không đúng. Vui lòng kiểm tra tin nhắn.';
@@ -784,24 +687,4 @@ export async function verifyPhoneCode(
     }
     return { success: false, error: msg };
   }
-}
-
-/**
- * Instant Phone Login fallback for fast demo / testing
- */
-export function loginWithPhoneFallback(phoneNumber: string): AuthUser {
-  const cleanPhone = phoneNumber.trim();
-  const phoneUser: AuthUser = {
-    id: `phone-${Date.now()}`,
-    username: `phone_${cleanPhone.replace(/\D/g, '').slice(-4)}`,
-    email: `${cleanPhone.replace(/\D/g, '')}@phone.theodoisk.com`,
-    fullName: `Người Dùng (${cleanPhone})`,
-    role: 'employee',
-    phoneNumber: cleanPhone,
-    department: 'Nhân viên Văn Phòng IoT',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-  };
-  saveCurrentUser(phoneUser);
-  syncUserProfileToFirestore(phoneUser).catch(() => {});
-  return phoneUser;
 }
