@@ -410,7 +410,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200">
             <div className="flex items-center gap-1.5 text-sky-800 text-xs font-bold mb-1">
               <Info className="w-3.5 h-3.5 text-sky-600" />
-              <span>Khuyến nghị từ Bác sĩ Công thái học:</span>
+              <span>Khuyến nghị từ Chuyên viên Công Thái Học:</span>
             </div>
             <p className="text-xs text-slate-700 leading-relaxed">
               {currentAdvice.tip}

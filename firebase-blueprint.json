@@ -36,6 +36,7 @@
         "maxSittingHours": { "type": "number" },
         "healthNotes": { "type": "string" },
         "status": { "type": "string" },
+        "deviceId": { "type": "string" },
         "lastLogin": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "role"]

@@ -1,33 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 1. Core Authentication & RBAC Primitives
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // Role Admin strictly based on Firebase Auth Custom Claim (admin: true)
     function isAdmin() {
-      return isAuthenticated() && (
-        (request.auth.token.email != null && (
-          request.auth.token.email.lower() == 'duantaiphuc@gmail.com' ||
-          request.auth.token.email.lower() == 'admin@theodoisk.com' ||
-          request.auth.token.email.lower() == 'nguyentai51.2k4@gmail.com'
-        )) ||
-        request.auth.uid == 'usr-phuc-google' ||
-        request.auth.uid == 'usr-admin-01' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
+      return isAuthenticated() && request.auth.token.admin == true;
     }
 
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Helper: Check if user's paired deviceId matches target device
+    function isPairedDevice(deviceId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.deviceId == deviceId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.device == deviceId
+        );
+    }
+
+    // Telemetry validation helper: Enforce data types and biometric ranges
+    function isValidTelemetry(data, expectedUserId) {
+      return data.userId == expectedUserId &&
+        data.bpm is number && data.bpm >= 0 && data.bpm <= 250 &&
+        data.spo2 is number && data.spo2 >= 0 && data.spo2 <= 100 &&
+        data.posture_status is int && data.posture_status >= -1 && data.posture_status <= 5;
+    }
+
+    // 2. User Profiles & Settings
     match /users/{userId} {
       allow read: if isAdmin() || isOwner(userId);
-      allow create: if isAdmin() || (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'employee'));
-      allow update: if isAdmin() || (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role));
+      // User can create their own initial profile as employee; cannot set role: admin or deviceId without admin
+      allow create: if isAdmin() || (
+        isOwner(userId) &&
+        (!('role' in request.resource.data) || request.resource.data.role == 'employee') &&
+        (!('deviceId' in request.resource.data))
+      );
+      // User can update profile info, but cannot self-assign admin role or alter deviceId
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
+        (!('deviceId' in request.resource.data) || request.resource.data.deviceId == resource.data.deviceId)
+      );
       allow delete: if isAdmin();
+
+      // Historical telemetry partitioned per user account
+      match /history/{docId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create: if isOwner(userId) && isValidTelemetry(request.resource.data, userId);
+        allow update: if false;
+        allow delete: if isAdmin() || isOwner(userId);
+      }
 
       match /{subcollection=**} {
         allow read: if isAdmin() || isOwner(userId);
@@ -36,56 +65,76 @@ service cloud.firestore {
       }
     }
 
+    // 3. User Telemetry Presence / Live State
     match /user_telemetry/{userId} {
       allow read: if isAdmin() || isOwner(userId);
-      allow create, update: if isAdmin() || isOwner(userId);
+      allow create, update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
 
       match /{subcollection=**} {
         allow read: if isAdmin() || isOwner(userId);
-        allow create, update: if isAdmin() || isOwner(userId);
+        allow create, update: if isOwner(userId) || isAdmin();
         allow delete: if isAdmin();
       }
     }
 
+    // 4. Hardware Devices & Live Streams (Raspberry Pi 4)
+    // Pi 4 uses firebase-admin SDK (bypasses rules). Client CANNOT write.
+    // Read only allowed for Admin or users paired with this deviceId.
     match /devices/{deviceId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
+      allow read: if isAdmin() || isPairedDevice(deviceId);
+      allow write: if false;
 
       match /{subcollection=**} {
-        allow read: if isAuthenticated();
-        allow create, update: if isAuthenticated();
-        allow delete: if false;
+        allow read: if isAdmin() || isPairedDevice(deviceId);
+        allow write: if false;
       }
     }
 
     match /theodoisk/{docId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || isPairedDevice(docId);
+      allow write: if false;
 
       match /{subcollection=**} {
-        allow read: if isAuthenticated();
-        allow create, update: if isAuthenticated();
-        allow delete: if isAdmin();
+        allow read: if isAdmin() || isPairedDevice(docId);
+        allow write: if false;
       }
     }
 
-    match /theodoisk_history/{logId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid));
-      allow create: if isAuthenticated();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
     match /devices_history/{logId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid));
-      allow create: if isAuthenticated();
-      allow update: if isAdmin();
+      allow read: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          resource.data.user_id == request.auth.uid ||
+          (resource.data.device != null && isPairedDevice(resource.data.device))
+        )
+      );
+      allow write: if false;
+    }
+
+    // 5. Partitioned and Top-level Telemetry History
+    match /theodoisk_history/users/{userId}/history/{docId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow create: if isOwner(userId) && isValidTelemetry(request.resource.data, userId);
+      allow update: if false;
+      allow delete: if isAdmin() || isOwner(userId);
+    }
+
+    match /theodoisk_history/{docId} {
+      allow read: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          resource.data.user_id == request.auth.uid
+        )
+      );
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        isValidTelemetry(request.resource.data, request.auth.uid);
+      allow update: if false;
       allow delete: if isAdmin();
     }
 
+    // 6. Notifications & Admin Task Dispatching
     match /notifications/{notifId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.targetUserId == request.auth.uid);
       allow create: if isAdmin();
@@ -93,6 +142,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 7. Global Safety Net - Default Deny
     match /{document=**} {
       allow read, write: if false;
     }

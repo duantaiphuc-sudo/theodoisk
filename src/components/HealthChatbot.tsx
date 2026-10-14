@@ -16,6 +16,8 @@ import {
   Users
 } from 'lucide-react';
 import { HealthTelemetry, UserRole, ChatMessage, TelemetryLog, TimeCalculations, AuthUser } from '../types';
+import { getAuth } from 'firebase/auth';
+import { initializeFirebaseApp, getSavedFirebaseConfig } from '../services/firebase';
 
 interface HealthChatbotProps {
   telemetry: HealthTelemetry;
@@ -188,18 +190,29 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
     setIsTyping(true);
 
     try {
-      // Call server-side Gemini API proxy /api/chat with rich context
+      // Lấy Firebase ID token của phiên hiện tại để xác thực an toàn
+      const config = getSavedFirebaseConfig();
+      const app = initializeFirebaseApp(config);
+      const auth = getAuth(app);
+      const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+
+      if (!idToken) {
+        throw new Error('Vui lòng đăng nhập để sử dụng Trợ Lý Công Thái Học AI');
+      }
+
+      // Call server-side Gemini API proxy /api/chat with rich context and Bearer token
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           query: textToSend,
           telemetry,
-          history: history.slice(0, 50),
+          history: history.slice(0, 40),
           timeStats,
           userName,
-          userId,
-          role,
           targetMemberName: selectedMemberId !== 'all' ? selectedMemberName : undefined,
           targetMemberId: selectedMemberId !== 'all' ? selectedMemberId : undefined,
           allUsers: allUsers.map(u => ({
@@ -214,7 +227,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned status ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server trả về mã lỗi ${response.status}`);
       }
 
       const data = await response.json();

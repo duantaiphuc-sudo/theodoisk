@@ -408,6 +408,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                         <th className="py-3.5 px-4 whitespace-nowrap text-center w-36">Vai Trò</th>
                         <th className="py-3.5 px-4 whitespace-nowrap min-w-[170px]">Thể Trạng & Tuổi</th>
                         <th className="py-3.5 px-4 whitespace-nowrap min-w-[170px]">Phòng Ban</th>
+                        <th className="py-3.5 px-4 whitespace-nowrap min-w-[150px]">Thiết Bị (DeviceId)</th>
                         <th className="py-3.5 px-4 whitespace-nowrap text-right pr-4 min-w-[200px]">Thao Tác</th>
                       </tr>
                     </thead>
@@ -485,6 +486,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                                 {u.department || 'Văn Phòng IoT'}
+                              </span>
+                            </td>
+
+                            {/* Device ID */}
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-slate-50 text-slate-700 border border-slate-200">
+                                <Radio className="w-3.5 h-3.5 text-indigo-600" />
+                                {u.deviceId || u.device || '– Chưa gán'}
                               </span>
                             </td>
 
@@ -924,6 +933,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mã Thiết Bị IoT (DeviceId ghép cặp)</label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: pi4_node_1 hoặc pi4_workspace_a"
+                  value={editingUser.deviceId || editingUser.device || ''}
+                  onChange={e => setEditingUser({ ...editingUser, deviceId: e.target.value, device: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Ghép cặp thiết bị với người dùng để bảo mật quyền truy cập theo firestore.rules</p>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -1040,6 +1061,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   onChange={e => setNewUserForm({ ...newUserForm, department: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mã Thiết Bị IoT (DeviceId ghép cặp)</label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: pi4_node_1"
+                  value={newUserForm.deviceId || newUserForm.device || ''}
+                  onChange={e => setNewUserForm({ ...newUserForm, deviceId: e.target.value, device: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Ghép cặp thiết bị với người dùng để bảo mật quyền truy cập theo firestore.rules</p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

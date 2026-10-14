@@ -17,7 +17,8 @@ import {
   Save, 
   CheckCircle2, 
   Users, 
-  Sparkles
+  Sparkles,
+  Radio
 } from 'lucide-react';
 import { syncUserProfileToFirestore, saveCurrentUser } from '../services/authService';
 
@@ -324,6 +325,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 placeholder="Ví dụ: 6"
               />
             </div>
+          </div>
+
+          {/* IoT Device Pairing Display */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Thiết Bị Đo Ghép Cặp (DeviceId):</span>
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Ghép cặp phần cứng Raspberry Pi 4 với tài khoản của bạn để bảo mật theo quy tắc Firestore.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white text-indigo-700 border border-slate-200 shadow-2xs shrink-0 self-start sm:self-auto">
+              {formData.deviceId || formData.device || '– Chưa được gán'}
+            </span>
           </div>
 
           {/* Health Notes */}

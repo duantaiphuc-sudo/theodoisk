@@ -23,26 +23,21 @@ export const PRESET_ACCOUNTS: Array<{
   permissions: string[];
 }> = [];
 
-export function isSystemAdmin(email?: string, username?: string): boolean {
-  const e = (email || '').toLowerCase().trim();
-  const u = (username || '').toLowerCase().trim();
-  return (
-    e === 'duantaiphuc@gmail.com' ||
-    e.startsWith('duantaiphuc') ||
-    u === 'duantaiphuc'
-  );
+export function isSystemAdmin(_email?: string, _username?: string): boolean {
+  // Hardcoded emails have been completely removed.
+  // Role verification is strictly governed by Firebase Auth Custom Claim 'admin: true'.
+  return false;
 }
 
 export function isUserAdmin(user?: AuthUser | null): boolean {
   if (!user) return false;
-  return user.role === 'admin' || isSystemAdmin(user.email, user.username);
+  return user.role === 'admin';
 }
 
 export function enforceStrictRole(user: AuthUser): AuthUser {
-  const isAdmin = isSystemAdmin(user.email, user.username);
   return {
     ...user,
-    role: isAdmin ? 'admin' : (user.role === 'admin' ? 'admin' : 'employee'),
+    role: user.role === 'admin' ? 'admin' : (user.role === 'manager' ? 'manager' : 'employee'),
   };
 }
 
@@ -159,6 +154,8 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
       currentPresence: user.isOnline ? 'Present' : 'Away',
       currentPosture: user.currentPosture || 'waiting',
       currentPostureText: user.currentPostureText || '– Chờ kết nối',
+      device: user.device || '',
+      deviceId: user.deviceId || user.device || '',
       lastActive: new Date().toISOString(),
       lastLogin: user.lastLogin || new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -251,7 +248,7 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
         }
 
         const username = data.username || docEmail.split('@')[0] || d.id;
-        const isAdmin = isSystemAdmin(docEmail, username) || data.role === 'admin' || data.role === 'manager';
+        const isAdmin = data.role === 'admin' || data.role === 'manager';
         const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
         const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? (now - lastActiveTime) < 2 * 60 * 1000 : false);
 
@@ -278,6 +275,7 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
           currentPosture: data.currentPosture || 'waiting',
           currentPostureText: data.currentPostureText || '– Chờ kết nối',
           device: data.device || '',
+          deviceId: data.deviceId || data.device || '',
           sittingMinutes: Number(data.sittingMinutes) || 0,
           bpm: Number(data.bpm) || 0,
           spo2: Number(data.spo2) || 0,
@@ -390,14 +388,20 @@ export async function loginWithFirebaseEmail(
     const credential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
     const fbUser = credential.user;
 
-    const isManager = cleanEmail.includes('admin') || cleanEmail.includes('quanly') || cleanEmail === 'duantaiphuc@gmail.com';
+    // Xác thực quyền quản trị qua Firebase Custom Claim 'admin'
+    let isAdmin = false;
+    try {
+      const tokenResult = await fbUser.getIdTokenResult();
+      isAdmin = Boolean(tokenResult.claims.admin === true);
+    } catch {}
+
     const authUser: AuthUser = {
       id: fbUser.uid,
       username: cleanEmail.split('@')[0],
       email: fbUser.email || cleanEmail,
-      fullName: fbUser.displayName || (isManager ? 'Đoàn Tài Phúc (Admin)' : 'Nhân Viên Văn Phòng'),
-      role: isManager ? 'admin' : 'employee',
-      department: isManager ? 'Ban Điều Hành & An Toàn Lao Động' : 'Phòng Làm Việc Văn Phòng',
+      fullName: fbUser.displayName || (isAdmin ? 'Quản Trị Viên' : 'Nhân Viên Văn Phòng'),
+      role: isAdmin ? 'admin' : 'employee',
+      department: isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Phòng Làm Việc Văn Phòng',
       avatar: fbUser.photoURL || undefined,
     };
 
@@ -495,18 +499,21 @@ export async function loginWithGoogle(): Promise<{
     const firebaseUser = result.user;
 
     const email = firebaseUser.email || '';
-    const isManager = email.toLowerCase().includes('admin') || 
-                      email.toLowerCase().includes('quanly') || 
-                      email.toLowerCase().includes('duantaiphuc');
+    // Xác thực quyền admin qua Firebase Custom Claim 'admin' từ ID Token
+    let isAdmin = false;
+    try {
+      const tokenResult = await firebaseUser.getIdTokenResult();
+      isAdmin = Boolean(tokenResult.claims.admin === true);
+    } catch {}
 
     const googleUser: AuthUser = {
       id: firebaseUser.uid,
       username: email ? email.split('@')[0] : 'google_user',
-      email: email || 'duantaiphuc@gmail.com',
-      fullName: firebaseUser.displayName || 'Tài khoản Google',
-      role: isManager ? 'admin' : 'employee',
+      email: email,
+      fullName: firebaseUser.displayName || (isAdmin ? 'Quản Trị Viên' : 'Thành Viên Google'),
+      role: isAdmin ? 'admin' : 'employee',
       avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      department: isManager ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
+      department: isAdmin ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
     };
 
     saveCurrentUser(googleUser);
@@ -620,4 +627,28 @@ export async function verifyPhoneCode(
     }
     return { success: false, error: msg };
   }
+}
+
+export async function refreshCurrentUserClaims(): Promise<AuthUser | null> {
+  try {
+    const config = getSavedFirebaseConfig();
+    const app = initializeFirebaseApp(config);
+    const auth = getAuth(app);
+    const fbUser = auth.currentUser;
+    if (!fbUser) return null;
+    const tokenResult = await fbUser.getIdTokenResult(true);
+    const isAdmin = Boolean(tokenResult.claims.admin === true);
+    const current = getCurrentUser();
+    if (current && current.id === fbUser.uid) {
+      const updated: AuthUser = {
+        ...current,
+        role: isAdmin ? 'admin' : (current.role === 'admin' ? 'employee' : current.role),
+      };
+      saveCurrentUser(updated);
+      return updated;
+    }
+  } catch (e) {
+    console.warn('Lỗi làm mới token claim:', e);
+  }
+  return null;
 }

@@ -23,7 +23,7 @@ import {
   checkIsQuotaExceeded,
   onQuotaExceededChange,
 } from './services/firebase';
-import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers, isUserAdmin } from './services/authService';
+import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers, isUserAdmin, refreshCurrentUserClaims } from './services/authService';
 import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { notificationManager } from './services/notificationService';
@@ -88,6 +88,14 @@ export default function App() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [simPostureMode, setSimPostureMode] = useState<SimPostureScenario>('auto');
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+
+  useEffect(() => {
+    refreshCurrentUserClaims().then(updated => {
+      if (updated && updated.role !== currentUser?.role) {
+        setCurrentUser(updated);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (currentUser && !isManager && selectedHistoryAccount !== currentUser.id) {
