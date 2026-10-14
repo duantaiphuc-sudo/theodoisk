@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { SupabaseConnectionConfig, TelemetryLog, HealthTelemetry, AuthUser } from '../types';
 import { getAuth } from 'firebase/auth';
 import { initializeFirebaseApp, getSavedFirebaseConfig } from './firebase';
@@ -11,7 +12,22 @@ export const DEFAULT_SUPABASE_CONFIG: SupabaseConnectionConfig = {
 };
 
 /**
- * Lấy Firebase ID Token của người dùng hiện tại để gửi kèm request lên server
+ * Tạo Supabase Direct Client làm phương án dự phòng cho AI Studio Preview
+ */
+function getDirectSupabaseClient(config?: SupabaseConnectionConfig) {
+  const cfg = config || getSavedSupabaseConfig();
+  if (cfg.url && cfg.anonKey) {
+    try {
+      return createClient(cfg.url, cfg.anonKey);
+    } catch (e) {
+      console.warn('Không thể khởi tạo Direct Supabase Client:', e);
+    }
+  }
+  return null;
+}
+
+/**
+ * Lấy Firebase ID Token của người dùng hiện tại
  */
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -50,7 +66,7 @@ export function saveSupabaseConfig(config: SupabaseConnectionConfig): void {
 }
 
 /**
- * Chuẩn hóa ngày tháng về dạng chuẩn duy nhất DD/MM/YYYY (ví dụ: 06/10/2026)
+ * Chuẩn hóa ngày tháng về dạng chuẩn duy nhất DD/MM/YYYY (ví dụ: 14/10/2026)
  */
 export function normalizeDateFormatted(input?: string | Date | null): string {
   if (!input) return '';
@@ -85,103 +101,115 @@ export function normalizeDateFormatted(input?: string | Date | null): string {
 }
 
 /**
- * Kiểm tra kết nối tới Supabase thông qua server API đã xác thực
+ * Kiểm tra kết nối tới Supabase (Thử qua API trước, fallback trực tiếp SDK)
  */
-export async function testSupabaseConnection(_config?: SupabaseConnectionConfig): Promise<{
+export async function testSupabaseConnection(config?: SupabaseConnectionConfig): Promise<{
   success: boolean;
   message: string;
   tableExists?: boolean;
 }> {
+  const currentCfg = config || getSavedSupabaseConfig();
   try {
     const token = await getAuthToken();
-    if (!token) {
-      return {
-        success: false,
-        message: 'Vui lòng đăng nhập tài khoản để kiểm tra kết nối với cơ sở dữ liệu.',
-      };
-    }
-
-    const res = await fetch('/api/telemetry/history?limit=1', {
-      headers: {
-        'Authorization': `Bearer ${token}`
+    if (token) {
+      const res = await fetch('/api/telemetry/history?limit=1', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json') && res.ok) {
+        return {
+          success: true,
+          tableExists: true,
+          message: 'Kết nối máy chủ API và cơ sở dữ liệu Supabase thành công!',
+        };
       }
-    });
-
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      return {
-        success: false,
-        message: 'Máy chủ API chưa cấu hình trên Vercel hoặc biến môi trường Supabase chưa được thiết lập.',
-      };
     }
+  } catch {}
 
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      return {
-        success: true,
-        tableExists: true,
-        message: 'Kết nối máy chủ và cơ sở dữ liệu Supabase thành công!',
-      };
-    }
-
+  // Fallback: Kiểm tra trực tiếp bằng Supabase Client nếu gọi API thất bại (trên AI Studio Preview)
+  const client = getDirectSupabaseClient(currentCfg);
+  if (!client) {
     return {
       success: false,
-      message: data.error || `Máy chủ phản hồi mã lỗi: ${res.status}`,
+      message: 'Chưa cấu hình URL và Anon Key trong bảng Supabase SQL.',
+    };
+  }
+
+  try {
+    const tableName = currentCfg.tableName || 'telemetry_logs';
+    const { error } = await client.from(tableName).select('id').limit(1);
+    if (error) {
+      return {
+        success: false,
+        message: `Lỗi kết nối Supabase: ${error.message}`,
+      };
+    }
+    return {
+      success: true,
+      tableExists: true,
+      message: 'Kết nối trực tiếp tới bảng Supabase thành công!',
     };
   } catch (err: any) {
     return {
       success: false,
-      message: `Lỗi kết nối máy chủ: ${err?.message || 'Không thể liên lạc API'}`,
+      message: `Lỗi kết nối: ${err?.message || 'Không thể liên lạc Supabase'}`,
     };
   }
 }
 
 /**
- * Ghi log dữ liệu sức khỏe thông qua API server an toàn (POST /api/telemetry/log)
+ * Ghi log dữ liệu sức khỏe
  */
 export async function insertTelemetryToSupabase(
   telemetry: HealthTelemetry | TelemetryLog,
   user?: AuthUser | null
 ): Promise<boolean> {
+  const row = {
+    created_at: new Date().toISOString(),
+    user_id: user?.id || (telemetry as TelemetryLog).userId || 'guest',
+    user_email: user?.email || (telemetry as TelemetryLog).userEmail || '',
+    user_name: user?.fullName || (telemetry as TelemetryLog).userName || '',
+    bpm: Number(telemetry.bpm) || 0,
+    spo2: Number(telemetry.spo2) || 0,
+    posture_status: Number(telemetry.postureStatus ?? -1),
+    posture_label: telemetry.postureLabel || 'Chưa có dữ liệu',
+    in_zone: Boolean((telemetry as any).inZone ?? true),
+    tracking_active: Boolean(telemetry.trackingActive ?? true),
+    has_alert: Boolean(telemetry.hasAlert),
+    device: user?.deviceId || user?.device || (telemetry as any).source || (telemetry as any).device || 'pi4_node',
+  };
+
   try {
     const token = await getAuthToken();
-    if (!token) return false;
+    if (token) {
+      const res = await fetch('/api/telemetry/log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(row),
+      });
 
-    const row = {
-      created_at: new Date().toISOString(),
-      user_id: user?.id || (telemetry as TelemetryLog).userId || 'guest',
-      user_email: user?.email || (telemetry as TelemetryLog).userEmail || '',
-      user_name: user?.fullName || (telemetry as TelemetryLog).userName || '',
-      bpm: Number(telemetry.bpm) || 0,
-      spo2: Number(telemetry.spo2) || 0,
-      posture_status: Number(telemetry.postureStatus ?? -1),
-      posture_label: telemetry.postureLabel || 'Chưa có dữ liệu',
-      in_zone: Boolean((telemetry as any).inZone ?? true),
-      tracking_active: Boolean(telemetry.trackingActive ?? true),
-      has_alert: Boolean(telemetry.hasAlert),
-      device: user?.deviceId || user?.device || (telemetry as any).source || (telemetry as any).device || 'pi4_node',
-    };
+      if (res.ok) return true;
+    }
+  } catch {}
 
-    const res = await fetch('/api/telemetry/log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(row),
-    });
-
-    return res.ok;
-  } catch (err) {
-    console.warn('Lỗi gửi dữ liệu lên server /api/telemetry/log:', err);
-    return false;
+  // Fallback direct insert
+  const client = getDirectSupabaseClient();
+  if (client) {
+    const cfg = getSavedSupabaseConfig();
+    const { error } = await client.from(cfg.tableName || 'telemetry_logs').insert([row]);
+    return !error;
   }
+
+  return false;
 }
 
 export type TimeRangeFilter = 'day' | 'week' | 'month' | 'all';
 
 /**
- * Truy xuất dữ liệu lịch sử thông qua API server an toàn (GET /api/telemetry/history)
+ * Truy xuất dữ liệu lịch sử (API First -> Fallback Direct Client)
  */
 export async function fetchSupabaseHistory(
   timeRange: TimeRangeFilter = 'day',
@@ -213,125 +241,164 @@ export async function fetchSupabaseHistory(
     },
   };
 
+  // Thử fetch qua Server API trước
   try {
     const token = await getAuthToken();
-    if (!token) {
-      return { ...emptyResult, error: 'Chưa đăng nhập tài khoản' };
-    }
+    if (token) {
+      const params = new URLSearchParams();
+      params.set('timeRange', timeRange);
+      if (userId) params.set('userId', userId);
+      params.set('limit', '300');
 
-    const params = new URLSearchParams();
-    params.set('timeRange', timeRange);
-    if (userId) {
-      params.set('userId', userId);
-    }
-    params.set('limit', '300');
+      const res = await fetch(`/api/telemetry/history?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-    const res = await fetch(`/api/telemetry/history?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json') && res.ok) {
+        const result = await res.json();
+        const rawData = result?.data || [];
+        const formatted = mapRawDataToTelemetryLogs(rawData);
+        return {
+          data: formatted,
+          stats: result.stats || calculateStats(formatted),
+        };
       }
-    });
+    }
+  } catch {}
 
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      return { 
-        ...emptyResult, 
-        error: 'Chưa cấu hình API Server hoặc biến môi trường Supabase trên Vercel.' 
-      };
+  // Fallback Direct Client nếu API Server không sẵn sàng (Ví dụ trên AI Studio Preview)
+  const client = getDirectSupabaseClient();
+  if (!client) {
+    return { 
+      ...emptyResult, 
+      error: 'Vui lòng mở cài đặt Supabase SQL và dán URL + Anon Key để kết nối.' 
+    };
+  }
+
+  try {
+    const cfg = getSavedSupabaseConfig();
+    let queryBuilder = client
+      .from(cfg.tableName || 'telemetry_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    if (userId && userId !== 'all') {
+      queryBuilder = queryBuilder.eq('user_id', userId);
     }
 
-    let result: any = null;
-    try {
-      result = await res.json();
-    } catch {
-      return { ...emptyResult, error: 'Phản hồi từ máy chủ không đúng định dạng JSON' };
+    const { data: rawData, error } = await queryBuilder;
+    if (error) {
+      return { ...emptyResult, error: `Supa Query Error: ${error.message}` };
     }
 
-    if (!res.ok) {
-      return { ...emptyResult, error: result?.error || `Server trả về mã lỗi ${res.status}` };
-    }
-
-    const rawData = result?.data || [];
-
-    const formatted: TelemetryLog[] = rawData.map((row: any) => {
-      const dateObj = new Date(row.created_at || Date.now());
-      const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const dateFormatted = normalizeDateFormatted(dateObj);
-      return {
-        id: String(row.id),
-        timestamp: row.created_at,
-        timeFormatted,
-        dateFormatted,
-        dateTimeFormatted: `${dateFormatted} ${timeFormatted}`,
-        bpm: Number(row.bpm) || 0,
-        spo2: Number(row.spo2) || 0,
-        postureStatus: Number(row.posture_status ?? -1),
-        postureLabel: row.posture_label || '',
-        trackingActive: Boolean(row.tracking_active),
-        hasAlert: Boolean(row.has_alert),
-        userId: row.user_id,
-        userEmail: row.user_email,
-        userName: row.user_name,
-        device: row.device,
-      };
-    });
-
+    const formatted = mapRawDataToTelemetryLogs(rawData || []);
     return {
       data: formatted,
-      stats: result.stats || emptyResult.stats,
+      stats: calculateStats(formatted),
     };
   } catch (err: any) {
-    return { ...emptyResult, error: err?.message || 'Lỗi truy vấn dữ liệu từ API máy chủ' };
+    return { ...emptyResult, error: err?.message || 'Lỗi truy vấn dữ liệu từ Supabase' };
   }
 }
 
-/**
- * Xóa toàn bộ lịch sử hoặc lịch sử theo tài khoản (Chỉ Admin mới có quyền trên server)
- */
+function mapRawDataToTelemetryLogs(rawData: any[]): TelemetryLog[] {
+  return rawData.map((row: any) => {
+    const dateObj = new Date(row.created_at || Date.now());
+    const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateFormatted = normalizeDateFormatted(dateObj);
+    return {
+      id: String(row.id),
+      timestamp: row.created_at,
+      timeFormatted,
+      dateFormatted,
+      dateTimeFormatted: `${dateFormatted} ${timeFormatted}`,
+      bpm: Number(row.bpm) || 0,
+      spo2: Number(row.spo2) || 0,
+      postureStatus: Number(row.posture_status ?? -1),
+      postureLabel: row.posture_label || '',
+      trackingActive: Boolean(row.tracking_active),
+      hasAlert: Boolean(row.has_alert),
+      userId: row.user_id,
+      userEmail: row.user_email,
+      userName: row.user_name,
+      device: row.device,
+    };
+  });
+}
+
+function calculateStats(logs: TelemetryLog[]) {
+  if (!logs.length) {
+    return { avgBpm: 0, avgSpo2: 0, totalRecords: 0, goodPostureRatio: 0, sittingCount: 0, standingCount: 0, incorrectCount: 0 };
+  }
+  let sumBpm = 0, sumSpo2 = 0, goodCount = 0, sitting = 0, standing = 0, incorrect = 0;
+  logs.forEach(l => {
+    sumBpm += l.bpm;
+    sumSpo2 += l.spo2;
+    if (l.postureStatus === 0) { goodCount++; sitting++; }
+    else if (l.postureStatus === 1) { goodCount++; standing++; }
+    else if (l.postureStatus > 1) { incorrect++; }
+  });
+  return {
+    avgBpm: Math.round(sumBpm / logs.length),
+    avgSpo2: Number((sumSpo2 / logs.length).toFixed(1)),
+    totalRecords: logs.length,
+    goodPostureRatio: Math.round((goodCount / logs.length) * 100),
+    sittingCount: sitting,
+    standingCount: standing,
+    incorrectCount: incorrect,
+  };
+}
+
 export async function clearSupabaseHistory(targetUserId?: string, _targetUserEmail?: string): Promise<boolean> {
   try {
     const token = await getAuthToken();
-    if (!token) return false;
+    if (token) {
+      const res = await fetch(`/api/telemetry/history?userId=${encodeURIComponent(targetUserId || 'all')}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) return true;
+    }
+  } catch {}
 
-    const res = await fetch(`/api/telemetry/history?userId=${encodeURIComponent(targetUserId || 'all')}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    return res.ok;
-  } catch (err) {
-    console.warn('Lỗi kết nối khi xóa lịch sử Supabase:', err);
-    return false;
+  const client = getDirectSupabaseClient();
+  if (client) {
+    const cfg = getSavedSupabaseConfig();
+    let q = client.from(cfg.tableName || 'telemetry_logs').delete();
+    if (targetUserId && targetUserId !== 'all') {
+      q = q.eq('user_id', targetUserId);
+    } else {
+      q = q.neq('id', '0');
+    }
+    const { error } = await q;
+    return !error;
   }
+  return false;
 }
 
-/**
- * Xóa một bản ghi đơn lẻ trên Supabase (Chỉ Admin mới có quyền trên server)
- */
 export async function deleteSingleLogFromSupabase(id: string): Promise<boolean> {
   try {
     const token = await getAuthToken();
-    if (!token) return false;
+    if (token) {
+      const res = await fetch(`/api/telemetry/history?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) return true;
+    }
+  } catch {}
 
-    const res = await fetch(`/api/telemetry/history?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    return res.ok;
-  } catch (err) {
-    console.warn('Lỗi kết nối khi xóa bản ghi Supabase:', err);
-    return false;
+  const client = getDirectSupabaseClient();
+  if (client) {
+    const cfg = getSavedSupabaseConfig();
+    const { error } = await client.from(cfg.tableName || 'telemetry_logs').delete().eq('id', id);
+    return !error;
   }
+  return false;
 }
 
-/**
- * Đồng bộ dữ liệu lịch sử theo chu kỳ qua server API (Zero-Trust RLS, không dùng Anon Key)
- */
 export function subscribeToSupabaseRealtime(
   _onData?: (data: HealthTelemetry) => void,
   onLog?: (log: TelemetryLog) => void,
@@ -344,47 +411,14 @@ export function subscribeToSupabaseRealtime(
 
   const poll = async () => {
     if (isCancelled) return;
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-
-      const res = await fetch('/api/telemetry/history?limit=5', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) return;
-
-      const result = await res.json();
-      const logs = result.data || [];
-      if (logs.length > 0) {
-        const latest = logs[0];
-        const dateObj = new Date(latest.created_at || Date.now());
-        const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const dateFormatted = normalizeDateFormatted(dateObj);
-
-        const formattedLog: TelemetryLog = {
-          id: String(latest.id),
-          timestamp: latest.created_at,
-          timeFormatted,
-          dateFormatted,
-          dateTimeFormatted: `${dateFormatted} ${timeFormatted}`,
-          bpm: Number(latest.bpm) || 0,
-          spo2: Number(latest.spo2) || 0,
-          postureStatus: Number(latest.posture_status ?? -1),
-          postureLabel: latest.posture_label || '',
-          trackingActive: Boolean(latest.tracking_active),
-          hasAlert: Boolean(latest.has_alert),
-          userId: latest.user_id,
-          userEmail: latest.user_email,
-          userName: latest.user_name,
-          device: latest.device,
-        };
-
-        if (lastSeenId && String(latest.id) !== lastSeenId && onLog) {
-          onLog(formattedLog);
-        }
-        lastSeenId = String(latest.id);
+    const res = await fetchSupabaseHistory('day');
+    if (res.data && res.data.length > 0) {
+      const latest = res.data[0];
+      if (lastSeenId && latest.id !== lastSeenId && onLog) {
+        onLog(latest);
       }
-    } catch {}
+      lastSeenId = latest.id;
+    }
   };
 
   const intervalId = setInterval(poll, 15000);
@@ -394,9 +428,4 @@ export function subscribeToSupabaseRealtime(
   };
 }
 
-/**
- * Script SQL an toàn cho Supabase SQL Editor
- */
-export const SUPABASE_SQL_SETUP_SCRIPT = `-- Xem chi tiết và chạy toàn bộ mã bảo mật tại tệp supabase/schema.sql
--- Hoặc sao chép nội dung trong thư mục supabase/schema.sql vào Supabase SQL Editor.
-`;
+export const SUPABASE_SQL_SETUP_SCRIPT = `-- Mã nguồn cài đặt bảng và RLS bảo mật tại supabase/schema.sql`;
