@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { FirebaseConnectionConfig, HealthTelemetry } from '../types';
-import { initializeFirebaseApp, markQuotaExceeded, checkIsQuotaExceeded } from './firebase';
+import { initializeFirebaseApp, markQuotaExceeded, checkIsQuotaExceeded, getAppFirestore } from './firebase';
 
 export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetry {
   const bpm = Number(raw.bpm || raw.heart_rate || raw.hr || 0);
@@ -57,12 +57,26 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
 
   const rawLabelStr = String(raw.posture_label || raw.postureLabel || raw.label || '').toLowerCase();
   const rawStatusName = String(raw.status || raw.Status || '').toUpperCase();
-  if (rawStatusName === 'STAND' || rawLabelStr.includes('đứng') || rawLabelStr.includes('dung /') || rawLabelStr.includes('stand')) {
+
+  if (rawStatusVal === -1 || rawStatusVal === '-1' || rawLabelStr.includes('xác nhận') || rawLabelStr.includes('verifying')) {
+    postureStatus = -1;
+  } else if (rawStatusName === 'STAND' || rawLabelStr.includes('đứng') || rawLabelStr.includes('dung /') || rawLabelStr.includes('stand')) {
     postureStatus = 5;
+  } else if (rawLabelStr.includes('ngoài vùng') || rawLabelStr.includes('ngoai vung')) {
+    postureStatus = 2;
+  } else if (rawLabelStr.includes('vắng') || rawLabelStr.includes('vang') || rawLabelStr.includes('absent')) {
+    postureStatus = 2;
+  } else if (rawLabelStr.includes('sai lâu') || rawLabelStr.includes('long_incorrect') || rawStatusVal === 3 || rawStatusVal === '3') {
+    postureStatus = 3;
+  } else if (rawLabelStr.includes('sai') || rawLabelStr.includes('bad') || rawLabelStr.includes('incorrect') || rawLabelStr.includes('cui') || rawLabelStr.includes('gu') || rawStatusVal === 1 || rawStatusVal === '1') {
+    postureStatus = 1;
+  } else if (rawStatusVal !== undefined && rawStatusVal !== null) {
+    postureStatus = Number(rawStatusVal);
+    if (isNaN(postureStatus)) postureStatus = 0;
   }
 
   const postureLabels: Record<number, string> = {
-    [-1]: 'Chưa có dữ liệu',
+    [-1]: 'Đang xác nhận tư thế',
     0: 'Tư thế ĐÚNG',
     1: 'Tư thế SAI (Cúi gù)',
     2: 'NGOÀI VÙNG CAMERA',
@@ -71,7 +85,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     5: 'Tư thế ĐỨNG (Làm việc)',
   };
 
-  let inZone = Boolean(
+  const inZone = Boolean(
     raw.is_in_zone !== undefined
       ? raw.is_in_zone
       : raw.in_zone !== undefined
@@ -81,20 +95,15 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
       : postureStatus !== 2 && postureStatus !== -1
   );
 
-  if (!inZone && postureStatus !== -1) {
-    postureStatus = 2;
-  }
-
-  const isHumanDetected = (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4 || postureStatus === 5) && inZone;
+  const rawTracking = 
+    raw.tracking_active !== undefined
+      ? raw.tracking_active
+      : raw.trackingActive;
 
   const trackingActive = Boolean(
-    !inZone || postureStatus === 2 || postureStatus === -1
-      ? false
-      : isHumanDetected
-      ? true
-      : raw.tracking_active !== undefined
-      ? raw.tracking_active
-      : inZone
+    rawTracking !== undefined
+      ? rawTracking
+      : (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 5 || (inZone && postureStatus !== -1))
   );
 
   let timestampStr = new Date().toISOString();
@@ -183,10 +192,7 @@ export function subscribeToFirebaseTelemetry(
         snapshot => {
           if (snapshot.exists()) {
             const raw = snapshot.val();
-            const telemetry = normalizeTelemetry(raw, 'Firebase RTDB');
-            if (telemetry.bpm <= 0 || telemetry.spo2 <= 0) {
-              return;
-            }
+            const telemetry = normalizeTelemetry(raw, 'Pi 4 - Firebase RTDB');
             onData(telemetry);
           }
         },
@@ -198,7 +204,7 @@ export function subscribeToFirebaseTelemetry(
       activeTelemetryUnsub = () => unsubRtdb();
       return activeTelemetryUnsub;
     } else {
-      const db = getFirestore(app);
+      const db = getAppFirestore(app, config);
       const targetCol = config.collectionName || 'devices';
       const targetDoc = config.documentId || 'pi4_node_1';
       const docRef = doc(db, targetCol, targetDoc);
@@ -208,10 +214,7 @@ export function subscribeToFirebaseTelemetry(
         snapshot => {
           if (snapshot.exists()) {
             const raw = snapshot.data();
-            const telemetry = normalizeTelemetry(raw, 'Firebase Firestore');
-            if (telemetry.bpm <= 0 || telemetry.spo2 <= 0) {
-              return;
-            }
+            const telemetry = normalizeTelemetry(raw, 'Pi 4 - Firebase');
             onData(telemetry);
           } else {
             listenLatestFallback(db, targetCol, onData, onError);
@@ -241,6 +244,25 @@ function listenLatestFallback(
 ) {
   if (checkIsQuotaExceeded()) return;
   try {
+    // If devices/pi4_node_1 not yet created, also listen to theodoisk/live
+    const fallbackCol = collectionName === 'devices' ? 'theodoisk' : 'devices';
+    const fallbackDoc = collectionName === 'devices' ? 'live' : 'pi4_node_1';
+    
+    const fallbackDocRef = doc(db, fallbackCol, fallbackDoc);
+    const unsubFallbackDoc = onSnapshot(
+      fallbackDocRef,
+      snap => {
+        if (snap.exists()) {
+          const docData = snap.data();
+          const telemetry = normalizeTelemetry(docData, 'Pi 4 - Firebase');
+          onData(telemetry);
+        }
+      },
+      err => {
+        markQuotaExceeded(err);
+      }
+    );
+
     const collRef = collection(db, collectionName);
     const q = query(collRef, orderBy('timestamp', 'desc'), limit(1));
     const unsubCol = onSnapshot(
@@ -248,10 +270,7 @@ function listenLatestFallback(
       snap => {
         if (!snap.empty) {
           const docData = snap.docs[0].data();
-          const telemetry = normalizeTelemetry(docData, 'Firebase Firestore');
-          if (telemetry.bpm <= 0 || telemetry.spo2 <= 0) {
-            return;
-          }
+          const telemetry = normalizeTelemetry(docData, 'Pi 4 - Firebase');
           onData(telemetry);
         }
       },
@@ -260,7 +279,10 @@ function listenLatestFallback(
         onError(err);
       }
     );
-    activeTelemetryUnsub = unsubCol;
+    activeTelemetryUnsub = () => {
+      unsubFallbackDoc();
+      unsubCol();
+    };
   } catch (e) {
     markQuotaExceeded(e);
     onError(e as Error);

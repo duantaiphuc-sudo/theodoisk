@@ -150,19 +150,31 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
   }
 
   // Evaluate Posture
-  const isOutOfZone = inZone === false || trackingActive === false;
-  const isAbsent = postureStatus === 2 || isOutOfZone;
+  const isStanding = postureStatus === 5 || (postureLabel && postureLabel.toLowerCase().includes('đứng'));
+  const isVerifying = postureStatus === -1 && ((postureLabel && postureLabel.toLowerCase().includes('xác nhận')) || trackingActive);
+  const isOutOfZone = !isStanding && !isVerifying && (inZone === false || (postureLabel && postureLabel.toLowerCase().includes('ngoài vùng')));
+  const isAbsent = !isStanding && !isVerifying && (postureStatus === 2 || isOutOfZone || (postureLabel && postureLabel.toLowerCase().includes('vắng')));
 
   let postureCardBg = 'bg-white border-slate-200';
   let postureBadgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
   let postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
-  let displayedPostureLabel = postureLabel;
+  let displayedPostureLabel = postureLabel || 'Tư thế ĐÚNG';
 
-  if (isAbsent) {
+  if (isStanding) {
+    postureCardBg = 'bg-indigo-50/50 border-indigo-200';
+    postureBadgeStyle = 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold';
+    postureIcon = <Activity className="w-5 h-5 text-indigo-600" />;
+    displayedPostureLabel = 'Tư thế ĐỨNG (Làm việc)';
+  } else if (isVerifying) {
+    postureCardBg = 'bg-sky-50/50 border-sky-200';
+    postureBadgeStyle = 'bg-sky-100 text-sky-800 border-sky-300 font-bold';
+    postureIcon = <Clock className="w-5 h-5 text-sky-600 animate-spin" />;
+    displayedPostureLabel = 'Đang xác nhận tư thế...';
+  } else if (isAbsent) {
     postureCardBg = 'bg-slate-50 border-slate-200';
     postureBadgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
     postureIcon = <UserX className="w-5 h-5 text-slate-500" />;
-    displayedPostureLabel = 'Ngoài vùng quan sát';
+    displayedPostureLabel = inZone === false ? 'Ngoài vùng quan sát' : 'Vắng / Không phát hiện';
   } else {
     switch (postureStatus) {
       case 0: // Đúng
@@ -171,23 +183,17 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
         postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
         displayedPostureLabel = 'Tư thế ĐÚNG';
         break;
-      case 5: // Đứng
-        postureCardBg = 'bg-indigo-50/50 border-indigo-200';
-        postureBadgeStyle = 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold';
-        postureIcon = <Activity className="w-5 h-5 text-indigo-600" />;
-        displayedPostureLabel = 'Tư thế ĐỨNG (Làm việc)';
-        break;
       case 1: // Sai
         postureCardBg = 'bg-rose-50/50 border-rose-200';
         postureBadgeStyle = 'bg-rose-100 text-rose-800 border-rose-300';
         postureIcon = <AlertTriangle className="w-5 h-5 text-rose-600" />;
-        displayedPostureLabel = 'Tư thế SAI';
+        displayedPostureLabel = 'Tư thế SAI (Cúi gù)';
         break;
-      case 3: // Sai lâu
+      case 3: // Sai lâu (promoted by Pi after 120s)
         postureCardBg = 'bg-rose-100/70 border-rose-300 animate-pulse';
         postureBadgeStyle = 'bg-rose-600 text-white border-rose-600 font-bold shadow-xs';
         postureIcon = <AlertTriangle className="w-5 h-5 text-rose-600 animate-bounce" />;
-        displayedPostureLabel = 'SAI TƯ THẾ LÂU';
+        displayedPostureLabel = 'SAI TƯ THẾ LÂU (≥120s)';
         break;
       case 4: // Ngồi lâu
         postureCardBg = 'bg-amber-50/60 border-amber-200';
@@ -195,11 +201,11 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
         postureIcon = <Clock className="w-5 h-5 text-amber-600" />;
         displayedPostureLabel = 'NGỒI QUÁ LÂU';
         break;
-      default: // Vắng
+      default:
         postureCardBg = 'bg-white border-slate-200';
         postureBadgeStyle = 'bg-slate-100 text-slate-600 border-slate-200';
         postureIcon = <UserX className="w-5 h-5 text-slate-500" />;
-        displayedPostureLabel = 'NGOÀI VÙNG QUAN SÁT';
+        displayedPostureLabel = postureLabel || 'Chưa nhận dạng';
         break;
     }
   }
@@ -287,11 +293,24 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
               <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-1 leading-snug">
                 Chưa có người ngồi
               </p>
+            ) : isVerifying ? (
+              <p className="text-[10px] sm:text-[11px] text-sky-700 font-medium mt-1 leading-snug flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping"></span>
+                <span>YOLO11n-Pose đang tích lũy dữ liệu</span>
+              </p>
+            ) : isStanding ? (
+              <p className="text-[10px] sm:text-[11px] text-indigo-700 font-medium mt-1 leading-snug">
+                Đang đứng làm việc (Sit-Stand Mode)
+              </p>
             ) : telemetry.postureWarning ? (
               <p className="text-[10px] sm:text-[11px] text-rose-600 font-medium mt-1 leading-snug">
                 {telemetry.postureWarning}
               </p>
-            ) : null}
+            ) : (
+              <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-1 leading-snug">
+                Cột sống tự nhiên chuẩn công thái học
+              </p>
+            )}
           </div>
         </div>
 

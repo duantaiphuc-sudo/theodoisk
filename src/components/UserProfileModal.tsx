@@ -17,7 +17,8 @@ import {
   Save, 
   CheckCircle2, 
   Users, 
-  Sparkles
+  Sparkles,
+  Radio
 } from 'lucide-react';
 import { syncUserProfileToFirestore, saveCurrentUser } from '../services/authService';
 
@@ -324,6 +325,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 placeholder="Ví dụ: 6"
               />
             </div>
+          </div>
+
+          {/* Paired Device ID */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <Radio className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">Thiết Bị Phần Cứng Được Ghép Cặp (IoT Node)</p>
+                <p className="text-[11px] font-mono text-slate-500">
+                  {formData.deviceId ? `Mã thiết bị: ${formData.deviceId}` : 'Chưa được ghép cặp thiết bị (Liên hệ Admin để gán node)'}
+                </p>
+              </div>
+            </div>
+            {formData.deviceId ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Đã gán node
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                Chưa gán
+              </span>
+            )}
           </div>
 
           {/* Health Notes */}

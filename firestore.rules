@@ -1,31 +1,60 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 1. Xác thực cơ bản
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // 2. Quyền Quản trị viên: Dựa trên Firebase Auth Custom Claim 'admin: true'
+    // Tuyệt đối không kiểm tra email cứng hay uid cứng trong rules
     function isAdmin() {
-      return isAuthenticated() && (
-        (request.auth.token.email != null && (
-          request.auth.token.email.lower() == 'duantaiphuc@gmail.com' ||
-          request.auth.token.email.lower() == 'admin@theodoisk.com'
-        )) ||
-        request.auth.uid == 'usr-phuc-google' ||
-        request.auth.uid == 'usr-admin-01' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
+      return isAuthenticated() && request.auth.token.admin == true;
     }
 
+    // 3. Quyền sở hữu tài khoản người dùng
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // 4. Lấy dữ liệu hồ sơ người dùng để kiểm tra ghép cặp thiết bị
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // 5. Kiểm tra ghép cặp thiết bị: deviceId trùng với deviceId trong hồ sơ user
+    function isPairedDevice(deviceId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().deviceId == deviceId;
+    }
+
+    // 6. Kiểm tra tính hợp lệ của dữ liệu telemetry sức khỏe & tư thế
+    // Khoảng giá trị chuẩn y sinh: bpm 0..250, spo2 0..100, posture_status trong -1..5
+    function isValidTelemetry(data) {
+      return data.bpm is number && data.bpm >= 0 && data.bpm <= 250 &&
+             data.spo2 is number && data.spo2 >= 0 && data.spo2 <= 100 &&
+             data.posture_status is number && data.posture_status >= -1 && data.posture_status <= 5;
+    }
+
+    // ==========================================
+    // QUY TẮC PHÂN QUYỀN TỪNG BỘ SƯU TẬP (COLLECTION)
+    // ==========================================
+
+    // Hồ sơ người dùng
+    // Người dùng chỉ được sửa thông tin cá nhân cơ bản; KHÔNG được tự ý gán role hay deviceId
     match /users/{userId} {
       allow read: if isAdmin() || isOwner(userId);
-      allow create: if isAdmin() || (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'employee'));
-      allow update: if isAdmin() || (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role));
+      allow create: if isAdmin() || (
+        isOwner(userId) && 
+        (!('role' in request.resource.data) || request.resource.data.role == 'employee') &&
+        (!('deviceId' in request.resource.data) || request.resource.data.deviceId == '')
+      );
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
+        (!('deviceId' in request.resource.data) || request.resource.data.deviceId == resource.data.deviceId)
+      );
       allow delete: if isAdmin();
 
       match /{subcollection=**} {
@@ -35,6 +64,7 @@ service cloud.firestore {
       }
     }
 
+    // Dữ liệu đo theo cá nhân người dùng
     match /user_telemetry/{userId} {
       allow read: if isAdmin() || isOwner(userId);
       allow create, update: if isAdmin() || isOwner(userId);
@@ -47,44 +77,64 @@ service cloud.firestore {
       }
     }
 
+    // Thiết bị phần cứng IoT (Raspberry Pi 4)
+    // Client web KHÔNG được ghi trực tiếp (Pi sử dụng firebase-admin để đẩy dữ liệu)
+    // Client chỉ được đọc nếu là Admin hoặc đã được ghép cặp thiết bị (user.deviceId == deviceId)
     match /devices/{deviceId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
+      allow read: if isAdmin() || isPairedDevice(deviceId);
+      allow write: if false;
 
       match /{subcollection=**} {
-        allow read: if isAuthenticated();
-        allow create, update: if isAuthenticated();
-        allow delete: if false;
+        allow read: if isAdmin() || isPairedDevice(deviceId);
+        allow write: if false;
       }
     }
 
+    // Tài liệu telemetry trực tiếp
     match /theodoisk/{docId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || isPairedDevice(docId);
+      allow write: if false;
 
       match /{subcollection=**} {
-        allow read: if isAuthenticated();
-        allow create, update: if isAuthenticated();
-        allow delete: if isAdmin();
+        allow read: if isAdmin() || isPairedDevice(docId);
+        allow write: if false;
       }
     }
 
-    match /theodoisk_history/{logId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid));
-      allow create: if isAuthenticated();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
+    // Lịch sử thiết bị: Chỉ đọc, client KHÔNG được ghi (ghi bởi backend hoặc Pi)
     match /devices_history/{logId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid));
-      allow create: if isAuthenticated();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.userId == request.auth.uid || 
+          resource.data.user_id == request.auth.uid ||
+          (resource.data.deviceId != null && isPairedDevice(resource.data.deviceId))
+        )
+      );
+      allow write: if false;
     }
 
+    // Lịch sử đo theodoisk_history dạng phẳng
+    // Create: Bắt buộc userId == request.auth.uid và validate khoảng giá trị telemetry
+    match /theodoisk_history/{logId} {
+      allow read: if isAdmin() || (
+        isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
+      );
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        isValidTelemetry(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    // Lịch sử đo theodoisk_history dạng cấu trúc cây /theodoisk_history/users/{uid}/history/{logId}
+    match /theodoisk_history/users/{uid}/history/{logId} {
+      allow read: if isAdmin() || isOwner(uid);
+      allow create: if isOwner(uid) && 
+        request.resource.data.userId == request.auth.uid &&
+        isValidTelemetry(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    // Thông báo công việc & nhắc nhở tư thế
     match /notifications/{notifId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.targetUserId == request.auth.uid);
       allow create: if isAdmin();
@@ -92,6 +142,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Mặc định từ chối mọi truy cập ngoài các quy tắc đã khai báo
     match /{document=**} {
       allow read, write: if false;
     }

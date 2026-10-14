@@ -90,8 +90,11 @@ except KeyboardInterrupt:
 `;
 
   const pythonFirestoreCode = `# ==========================================================
-# HỆ THỐNG GIÁM SÁT SỨC KHỎE & TƯ THẾ - RASPBERRY PI 4
-# Gửi dữ liệu cảm biến MAX30102 & AI Camera lên Firebase Firestore
+# HỆ THỐNG GIÁM SÁT SỨC KHỎE & TƯ THẾ (mainnew.py - V8)
+# Pipeline:
+#   - USB Webcam -> YOLO11n-Pose ONNX + 7-feature SVM -> Posture Snapshot
+#   - MAX30102 -> V8 PPGProcessor (BPM / SpO2)
+#   - FirebaseManager -> devices/pi4_node_1 (Metadata & Vitals only, no video upload)
 # Dự án Firebase: ${projectId || 'theodoisk-66ddb'}
 # ==========================================================
 
@@ -108,40 +111,27 @@ firebase_admin.initialize_app(cred, {
 
 db = firestore.client()
 
-print("🚀 Đang chạy bộ đẩy dữ liệu từ Raspberry Pi 4 lên Firebase '${projectId || 'theodoisk-66ddb'}'...")
-
-def read_max30102():
-    return 74, 98.4  # bpm, spo2
-
-def detect_posture_mediapipe():
-    return 0, True, True  # posture_status, in_zone, tracking_active
+print("🚀 Đang chạy bộ đẩy dữ liệu từ Raspberry Pi 4 lên Firebase 'devices/pi4_node_1'...")
 
 try:
-    last_history_save = 0
     while True:
-        bpm, spo2 = read_max30102()
-        posture_status, in_zone, tracking = detect_posture_mediapipe()
-        now_iso = datetime.datetime.utcnow().isoformat() + "Z"
-
+        # Cấu trúc gói tin chuẩn gửi lên Firestore từ mainnew.py:
         payload = {
-            "bpm": int(bpm),
-            "spo2": float(spo2),
-            "posture_status": posture_status,
-            "tracking_active": tracking,
-            "in_zone": in_zone,
-            "timestamp": now_iso,
-            "device": "Raspberry Pi 4 Model B",
-            "fps": 30
+            "bpm": 75.0,                  # 0.0 khi đang đo/chưa đặt ngón tay, số thực khi xác nhận
+            "heart_rate": 75.0,           # Đồng bộ cùng giá trị BPM V8
+            "spo2": 98.2,                 # 0.0 khi chưa đo, số thực khi xác nhận
+            "posture_status": 0,          # 0: Đúng, 1: Sai, 2: Vắng/Đứng, 3: Sai lâu, -1: Đang xác nhận
+            "posture_label": "Đúng",      # "Đúng", "Sai tư thế", "Sai tư thế lâu", "Đứng / Không ngồi"
+            "is_in_zone": True,
+            "tracking_active": True,
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
         }
 
-        # Ghi đè vào document 'live' để hiển thị trực tiếp thời gian thực trên Web Dashboard
-        doc_ref = db.collection("theodoisk").document("live")
-        doc_ref.set(payload)
+        # Ghi vào document 'pi4_node_1' của collection 'devices'
+        doc_ref = db.collection("devices").document("pi4_node_1")
+        doc_ref.set(payload, merge=True)
 
-        # Lịch sử đo đạc & công thái học được Web Dashboard tự động đồng bộ và lưu trữ vào Supabase PostgreSQL Cloud.
-        # Không ghi vào Firestore history để tránh quá hạn ngạch 50,000 lượt đọc/ghi/ngày của Firestore.
-
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Đã gửi trực tiếp: BPM={bpm}, SpO2={spo2}%, Posture={posture_status}")
+        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ Đã cập nhật Firestore: BPM={payload['bpm']}, SpO2={payload['spo2']}%, Posture={payload['posture_label']}")
         time.sleep(1.5)
 
 except KeyboardInterrupt:

@@ -229,7 +229,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                 type="text"
                 value={formData.collectionName}
                 onChange={e => setFormData({ ...formData, collectionName: e.target.value })}
-                placeholder="theodoisk"
+                placeholder="devices"
                 className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
               />
             </div>
@@ -243,7 +243,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                   type="text"
                   value={formData.documentId}
                   onChange={e => setFormData({ ...formData, documentId: e.target.value })}
-                  placeholder="live"
+                  placeholder="pi4_node_1"
                   className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
                 />
               </div>

@@ -21,7 +21,8 @@ import {
 import { 
   initializeFirebaseApp, 
   getHistoryCollectionName, 
-  markQuotaExceeded 
+  markQuotaExceeded,
+  getAppFirestore
 } from './firebase';
 
 const STORAGE_KEY = 'theodoisk_historical_records_v1';
@@ -58,7 +59,7 @@ export function saveHistoricalRecords(records: HistoricalRecord[]): void {
 }
 
 export function appendTelemetryToHistory(telemetry: HealthTelemetry): void {
-  if (!telemetry || (telemetry.bpm <= 0 && telemetry.spo2 <= 0) || telemetry.postureStatus === -1) {
+  if (!telemetry || (telemetry.bpm <= 0 && telemetry.spo2 <= 0 && (telemetry.postureStatus === undefined || telemetry.postureStatus === -1))) {
     return;
   }
 
@@ -380,7 +381,7 @@ export async function fetchUserTelemetryHistoryFromFirebase(
       }
       return [];
     } else {
-      const db = getFirestore(app);
+      const db = getAppFirestore(app, config);
       const map = new Map<string, TelemetryLog>();
 
       if (userId) {
@@ -461,7 +462,7 @@ export function subscribeToFirebaseHistory(
       );
       return () => unsub();
     } else {
-      const db = getFirestore(app);
+      const db = getAppFirestore(app, config);
       const unsubs: (() => void)[] = [];
       const cacheMap = new Map<string, TelemetryLog>();
 
@@ -568,7 +569,7 @@ export async function clearFirebaseHistory(
   }
 
   try {
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
 
     const safeBatchDelete = async (q: any): Promise<number> => {
       let count = 0;
@@ -674,7 +675,7 @@ export async function deleteSingleTelemetryLogFromFirebase(
       'telemetry_logs'
     ]));
 
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     for (const col of targetCollections) {
       await deleteDoc(doc(db, col, logId)).catch(() => {});
     }

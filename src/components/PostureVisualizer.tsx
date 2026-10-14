@@ -26,7 +26,9 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
     }
   }, [image]);
 
-  if (!hasData || postureStatus === -1) {
+  const isVerifying = postureStatus === -1 && Boolean((postureLabel && postureLabel.toLowerCase().includes('xác nhận')) || trackingActive || inZone);
+
+  if (!hasData || (postureStatus === -1 && !isVerifying)) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-3.5 sm:p-5 lg:p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-4">
@@ -48,7 +50,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           </div>
           <h3 className="text-sm font-bold text-slate-800">Chưa có dữ liệu tư thế từ Camera AI</h3>
           <p className="text-xs text-slate-500 max-w-sm mt-1">
-            Hệ thống đang chờ nhận diện các mốc giải phẫu MediaPipe từ Raspberry Pi 4. Khung xương và góc gập cột sống sẽ xuất hiện ngay khi có dữ liệu.
+            Hệ thống đang chờ nhận diện tư thế từ Raspberry Pi 4 (YOLO11n-Pose ONNX). Khung xương và phân tích công thái học sẽ xuất hiện ngay khi có dữ liệu.
           </p>
         </div>
 
@@ -62,6 +64,12 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
 
   // Ergonomic advice mapping
   const adviceMap: Record<number, { title: string; desc: string; tip: string; color: string }> = {
+    [-1]: {
+      title: 'Hệ thống AI đang tích lũy & xác nhận tư thế',
+      desc: 'Mô hình YOLO11n-Pose ONNX và bộ lọc thời gian trên Pi 4 đang phân tích chuỗi khung hình để lọc nhiễu trước khi đưa ra kết luận chuẩn xác.',
+      tip: 'Hãy ngồi thoải mái tự nhiên, trạng thái tư thế chuẩn sẽ được xác nhận sau vài giây.',
+      color: 'sky',
+    },
     0: {
       title: 'Tư thế ngồi chuẩn công thái học',
       desc: 'Cột sống ở trạng thái tự nhiên chữ S, mắt ngang 1/3 trên màn hình, góc khuỷu tay và đầu gối ~90 độ.',
@@ -75,8 +83,8 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
       color: 'rose',
     },
     3: {
-      title: 'Nguy hiểm: Sai tư thế kéo dài liên tục!',
-      desc: 'Duy trì tư thế sai hơn 60 giây gây co thắt cơ vai gáy, chèn ép dây thần kinh và suy giảm lưu thông máu.',
+      title: 'Nguy hiểm: Sai tư thế kéo dài liên tục (≥120s)!',
+      desc: 'Duy trì tư thế sai hơn 2 phút gây co thắt cơ vai gáy, chèn ép dây thần kinh và suy giảm lưu thông máu.',
       tip: 'Hãy dừng công việc 30 giây: Xoay vai 5 vòng ra sau, ngửa cổ nhìn trần nhà.',
       color: 'rose',
     },
@@ -100,15 +108,15 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
     },
   };
 
-  const isOutOfZone = inZone === false || trackingActive === false;
-  const isAbsent = postureStatus === 2 || isOutOfZone;
+  const isStanding = postureStatus === 5 || Boolean(postureLabel && postureLabel.toLowerCase().includes('đứng'));
+  const isOutOfZone = !isVerifying && !isStanding && (inZone === false || trackingActive === false || Boolean(postureLabel && postureLabel.toLowerCase().includes('ngoài vùng')));
+  const isAbsent = !isVerifying && !isStanding && (postureStatus === 2 || isOutOfZone || Boolean(postureLabel && postureLabel.toLowerCase().includes('vắng')));
 
-  const currentAdvice = isAbsent ? adviceMap[2] : (adviceMap[postureStatus] || adviceMap[0]);
+  const currentAdvice = isVerifying ? adviceMap[-1] : (isAbsent ? adviceMap[2] : (adviceMap[postureStatus] || adviceMap[0]));
 
-  const isStanding = !isAbsent && postureStatus === 5;
-  const isGood = !isAbsent && postureStatus === 0;
-  const isBad = !isAbsent && (postureStatus === 1 || postureStatus === 3);
-  const isSittingLong = !isAbsent && postureStatus === 4;
+  const isGood = !isAbsent && !isVerifying && postureStatus === 0;
+  const isBad = !isAbsent && !isVerifying && (postureStatus === 1 || postureStatus === 3);
+  const isSittingLong = !isAbsent && !isVerifying && postureStatus === 4;
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 lg:p-6 shadow-xs">
@@ -164,13 +172,15 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           </button>
 
           <span className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider border whitespace-nowrap ${
+            isVerifying ? 'bg-sky-100 text-sky-800 border-sky-300 animate-pulse' :
             isAbsent ? 'bg-amber-100 text-amber-800 border-amber-300' :
             isGood ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
             isBad ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse' :
+            isStanding ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold' :
             isSittingLong ? 'bg-amber-100 text-amber-800 border-amber-300' :
             'bg-slate-100 text-slate-600 border-slate-200'
           }`}>
-            {isAbsent ? 'NGOÀI VÙNG CAMERA' : postureLabel}
+            {isVerifying ? 'ĐANG XÁC NHẬN TƯ THẾ' : isAbsent ? 'NGOÀI VÙNG CAMERA' : postureLabel}
           </span>
         </div>
       </div>

@@ -332,8 +332,9 @@ export default function App() {
     }
     lastProcessedPacketTimestampRef.current = data.timestamp || '';
 
-    // Only consider packet empty if posture is unknown/cleared (-1) AND no sensors or camera frames are present
-    const isEmptyPacket = data.postureStatus === -1 && data.bpm === 0 && data.spo2 === 0 && !data.trackingActive && !data.image;
+    // Only consider packet empty if posture is unknown/cleared (-1) AND no sensors, verifying status, or camera frames are present
+    const isVerifying = data.postureStatus === -1 && (data.postureLabel?.toLowerCase().includes('xác nhận') || data.trackingActive);
+    const isEmptyPacket = (data.postureStatus === -1 && !isVerifying) && data.bpm === 0 && data.spo2 === 0 && !data.trackingActive && !data.image;
 
     if (isEmptyPacket) {
       setTelemetry(data);
@@ -507,16 +508,16 @@ export default function App() {
     );
     const isCameraUntracked = isOutOfZone || data.trackingActive === false;
     const isAbsent = hasLiveSignal && (data.postureStatus === 2 || isCameraUntracked);
-    const isStanding = hasLiveSignal && !isAbsent && data.postureStatus === 5;
+    const isStanding = hasLiveSignal && !isAbsent && (data.postureStatus === 5 || data.postureLabel?.toLowerCase().includes('đứng'));
     const isBad = hasLiveSignal && !isAbsent && (data.postureStatus === 1 || data.postureStatus === 3);
 
     const presence: 'Present' | 'Away' = 'Present'; // Active logged-in session is always Present (Đang hoạt động)
     const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = !hasLiveSignal
       ? 'waiting'
-      : (isAbsent ? 'absent' : (isStanding ? 'standing' : (isBad ? 'incorrect' : 'correct')));
+      : (isVerifying ? 'waiting' : (isAbsent ? 'absent' : (isStanding ? 'standing' : (isBad ? 'incorrect' : 'correct'))));
     const postureText = !hasLiveSignal
       ? '– Chờ kết nối'
-      : (isAbsent ? '– Ngoài vùng' : (isStanding ? '↑ Đứng' : (isBad ? '⚠ Sai' : '✓ Đúng')));
+      : (isVerifying ? '– Đang xác nhận' : (isAbsent ? '– Ngoài vùng' : (isStanding ? '↑ Đứng' : (isBad ? '⚠ Sai' : '✓ Đúng'))));
 
     if (activeUser && firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {

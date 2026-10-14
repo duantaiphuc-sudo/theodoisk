@@ -96,3 +96,84 @@ describe('telemetryEvaluator seam', () => {
     expect(result.label).toBe('Ngồi quá lâu');
   });
 });
+
+describe('Pi 4 mainnew.py schema normalization', () => {
+  it('correctly maps STAND posture from Pi to code 5 with trackingActive true', async () => {
+    const { normalizeTelemetry } = await import('../src/services/deviceTelemetry');
+    const piPacket = {
+      bpm: 75.0,
+      heart_rate: 75.0,
+      spo2: 98.2,
+      posture_status: 2,
+      posture_label: 'Đứng / Không ngồi',
+      is_in_zone: true,
+      tracking_active: true,
+      timestamp: '2026-10-13T17:00:00Z',
+    };
+
+    const normalized = normalizeTelemetry(piPacket, 'Pi 4');
+    expect(normalized.postureStatus).toBe(5);
+    expect(normalized.inZone).toBe(true);
+    expect(normalized.trackingActive).toBe(true);
+    expect(normalized.bpm).toBe(75);
+    expect(normalized.spo2).toBe(98.2);
+  });
+
+  it('handles Pi 4 verifying state (-1) without dropping trackingActive', async () => {
+    const { normalizeTelemetry } = await import('../src/services/deviceTelemetry');
+    const piPacket = {
+      bpm: 0.0,
+      heart_rate: 0.0,
+      spo2: 0.0,
+      posture_status: -1,
+      posture_label: 'Đang xác nhận tư thế',
+      is_in_zone: true,
+      tracking_active: true,
+      timestamp: '2026-10-13T17:00:00Z',
+    };
+
+    const normalized = normalizeTelemetry(piPacket, 'Pi 4');
+    expect(normalized.postureStatus).toBe(-1);
+    expect(normalized.postureLabel).toBe('Đang xác nhận tư thế');
+    expect(normalized.inZone).toBe(true);
+    expect(normalized.trackingActive).toBe(true);
+    expect(normalized.bpm).toBe(0);
+  });
+
+  it('handles Pi 4 long bad posture promotion (status 3 after 120s)', async () => {
+    const { normalizeTelemetry } = await import('../src/services/deviceTelemetry');
+    const piPacket = {
+      bpm: 74.0,
+      heart_rate: 74.0,
+      spo2: 97.8,
+      posture_status: 3,
+      posture_label: 'Sai tư thế lâu',
+      is_in_zone: true,
+      tracking_active: true,
+      timestamp: '2026-10-13T17:00:00Z',
+    };
+
+    const normalized = normalizeTelemetry(piPacket, 'Pi 4');
+    expect(normalized.postureStatus).toBe(3);
+    expect(normalized.postureLabel).toBe('Sai tư thế lâu');
+    expect(normalized.hasAlert).toBe(true);
+  });
+
+  it('handles Pi 4 out-of-zone monitoring status', async () => {
+    const { normalizeTelemetry } = await import('../src/services/deviceTelemetry');
+    const piPacket = {
+      bpm: 0.0,
+      heart_rate: 0.0,
+      spo2: 0.0,
+      posture_status: 2,
+      posture_label: 'Ngoài vùng quan sát',
+      is_in_zone: false,
+      tracking_active: true,
+      timestamp: '2026-10-13T17:00:00Z',
+    };
+
+    const normalized = normalizeTelemetry(piPacket, 'Pi 4');
+    expect(normalized.postureStatus).toBe(2);
+    expect(normalized.inZone).toBe(false);
+  });
+});

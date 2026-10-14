@@ -26,11 +26,21 @@ export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
   projectId: 'theodoisk-66ddb',
   apiKey: 'AIzaSyAYVIfVEKOAtjGUcYfjib1WU2GjzHzXZpQ',
   databaseURL: 'https://theodoisk-66ddb-default-rtdb.firebaseio.com',
-  collectionName: 'theodoisk',
-  documentId: 'live',
+  collectionName: 'devices',
+  documentId: 'pi4_node_1',
   useRealtimeDb: false,
   autoConnect: true,
+  firestoreDatabaseId: 'ai-studio-hthngtheodisckhe-873ee1ec-be23-46f3-b2ac-3f0db857b04a',
 };
+
+export function getAppFirestore(app: any, config?: FirebaseConnectionConfig) {
+  const dbId = config?.firestoreDatabaseId || DEFAULT_FIREBASE_CONFIG.firestoreDatabaseId;
+  try {
+    return dbId ? getFirestore(app, dbId) : getFirestore(app);
+  } catch {
+    return getFirestore(app);
+  }
+}
 
 let isQuotaExceeded = false;
 const quotaListeners: Array<(exceeded: boolean) => void> = [];
@@ -83,7 +93,17 @@ export function getSavedFirebaseConfig(): FirebaseConnectionConfig {
       if (!parsed.apiKey) {
         parsed.apiKey = 'AIzaSyAYVIfVEKOAtjGUcYfjib1WU2GjzHzXZpQ';
       }
-      return { ...DEFAULT_FIREBASE_CONFIG, ...parsed };
+      if (!parsed.collectionName || parsed.collectionName === 'theodoisk') {
+        parsed.collectionName = 'devices';
+      }
+      if (!parsed.documentId || parsed.documentId === 'live') {
+        parsed.documentId = 'pi4_node_1';
+      }
+      return { 
+        ...DEFAULT_FIREBASE_CONFIG, 
+        ...parsed,
+        firestoreDatabaseId: parsed.firestoreDatabaseId || DEFAULT_FIREBASE_CONFIG.firestoreDatabaseId
+      };
     }
   } catch (e) {
     console.error('Error loading Firebase config:', e);
@@ -165,7 +185,7 @@ export async function clearFirebaseTelemetry(config: FirebaseConnectionConfig): 
       const dataRef = ref(rtdb, targetCol);
       await set(dataRef, emptyPayload);
     } else {
-      const db = getFirestore(app);
+      const db = getAppFirestore(app, config);
       const docRef = doc(db, targetCol, targetDoc);
       await setDoc(docRef, emptyPayload);
     }
@@ -198,7 +218,7 @@ export async function pushMockTelemetryToFirebase(config: FirebaseConnectionConf
     const dataRef = ref(rtdb, targetCol);
     await set(dataRef, payload);
   } else {
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     const docRef = doc(db, targetCol, targetDoc);
     await setDoc(docRef, payload, { merge: true });
   }
@@ -209,7 +229,7 @@ export async function sendTaskNotificationToFirebase(
   notif: Omit<UserTaskNotification, 'id' | 'createdAt' | 'status'>
 ): Promise<UserTaskNotification> {
   const app = initializeFirebaseApp(config);
-  const db = getFirestore(app);
+  const db = getAppFirestore(app, config);
   const now = new Date();
   const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
@@ -243,7 +263,7 @@ export function subscribeToTaskNotifications(
 ): () => void {
   try {
     const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     const collRef = collection(db, 'notifications');
     const q = query(collRef, orderBy('createdAt', 'desc'), limit(60));
 
@@ -290,7 +310,7 @@ export async function updateTaskStatusInFirebase(
 ): Promise<void> {
   try {
     const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     const updateData: any = { status: newStatus };
     if (newStatus === 'acknowledged') {
       updateData.acknowledgedAt = new Date().toISOString();
@@ -328,7 +348,7 @@ export async function deleteTaskFromFirebase(
 ): Promise<void> {
   try {
     const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     await deleteDoc(doc(db, 'notifications', taskId));
   } catch (err) {
     console.warn('Lỗi xóa task từ Firebase:', err);
@@ -349,7 +369,7 @@ export function subscribeToUsers(
 ): () => void {
   try {
     const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     const usersColl = collection(db, 'users');
     const unsub = onSnapshot(usersColl, (snap) => {
       if (!snap.empty) {
@@ -451,7 +471,7 @@ export async function updateUserRealtimePresence(
   if (isQuotaExceeded) return;
   try {
     const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     const userRef = doc(db, 'users', userId);
     
     const cleanPresence: Record<string, any> = {};
@@ -477,7 +497,7 @@ export async function clearUserTelemetryFromFirebase(
 ): Promise<void> {
   try {
     const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
+    const db = getAppFirestore(app, config);
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
       bpm: 0,
