@@ -571,7 +571,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <span className="truncate">Truy Vấn</span>
                   </button>
 
-                  {(user.id !== currentUser.id && (!user.email || !currentUser.email || user.email.toLowerCase() !== currentUser.email.toLowerCase())) && (
+                  {((user.id !== currentUser.id && user.email.toLowerCase() !== currentUser.email.toLowerCase()) || (user.fullName !== currentUser.fullName)) && (
                     <button
                       type="button"
                       onClick={() => onDeleteUser(user)}

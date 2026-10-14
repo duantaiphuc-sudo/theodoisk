@@ -30,16 +30,10 @@ export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
   documentId: 'pi4_node_1',
   useRealtimeDb: false,
   autoConnect: true,
-  firestoreDatabaseId: 'ai-studio-hthngtheodisckhe-873ee1ec-be23-46f3-b2ac-3f0db857b04a',
 };
 
-export function getAppFirestore(app: any, config?: FirebaseConnectionConfig) {
-  const dbId = config?.firestoreDatabaseId || DEFAULT_FIREBASE_CONFIG.firestoreDatabaseId;
-  try {
-    return dbId ? getFirestore(app, dbId) : getFirestore(app);
-  } catch {
-    return getFirestore(app);
-  }
+export function getAppFirestore(app: any, _config?: FirebaseConnectionConfig) {
+  return getFirestore(app);
 }
 
 let isQuotaExceeded = false;
@@ -99,10 +93,10 @@ export function getSavedFirebaseConfig(): FirebaseConnectionConfig {
       if (!parsed.documentId || parsed.documentId === 'live') {
         parsed.documentId = 'pi4_node_1';
       }
+      delete parsed.firestoreDatabaseId;
       return { 
         ...DEFAULT_FIREBASE_CONFIG, 
-        ...parsed,
-        firestoreDatabaseId: parsed.firestoreDatabaseId || DEFAULT_FIREBASE_CONFIG.firestoreDatabaseId
+        ...parsed
       };
     }
   } catch (e) {
@@ -113,7 +107,9 @@ export function getSavedFirebaseConfig(): FirebaseConnectionConfig {
 
 export function saveFirebaseConfig(config: FirebaseConnectionConfig) {
   try {
-    localStorage.setItem('theodoisk_firebase_config', JSON.stringify(config));
+    const cleanConfig = { ...config };
+    delete (cleanConfig as any).firestoreDatabaseId;
+    localStorage.setItem('theodoisk_firebase_config', JSON.stringify(cleanConfig));
   } catch (e) {
     console.error('Error saving Firebase config:', e);
   }
@@ -196,8 +192,8 @@ export async function clearFirebaseTelemetry(config: FirebaseConnectionConfig): 
 
 export async function pushMockTelemetryToFirebase(config: FirebaseConnectionConfig, data: Partial<HealthTelemetry>) {
   const app = initializeFirebaseApp(config);
-  const targetCol = config.collectionName || 'theodoisk';
-  const targetDoc = config.documentId || 'live';
+  const targetCol = config.collectionName || 'devices';
+  const targetDoc = config.documentId || 'pi4_node_1';
 
   const nowIso = new Date().toISOString();
   const payload = {
@@ -209,7 +205,7 @@ export async function pushMockTelemetryToFirebase(config: FirebaseConnectionConf
     is_in_zone: data.inZone ?? true,
     timestamp: nowIso,
     device: 'Raspberry Pi 4 Model B (Test)',
-    image: data.image ?? undefined,
+    image: data.image ?? null,
     note: 'Sent from Web Health Monitor console'
   };
 
@@ -257,7 +253,7 @@ export async function sendTaskNotificationToFirebase(
 
 export function subscribeToTaskNotifications(
   config: FirebaseConnectionConfig,
-  currentUserId: string,
+  _currentUserId: string,
   onUpdate: (notifications: UserTaskNotification[]) => void,
   onError?: (err: Error) => void
 ): () => void {

@@ -581,7 +581,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                           <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
                             item.trackingActive ? 'bg-emerald-500' : 'bg-slate-400'
                           }`}></span>
-                          <span className="text-slate-600">{item.trackingActive ? 'Trong vùng' : 'Ngoài vùng'}</span>
+                          <span className="text-slate-600">{item.trackingActive ? 'Trong vùng' : 'Vắng'}</span>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           {item.hasAlert ? (
@@ -694,7 +694,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                       <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
                         <span className="text-[10px] text-slate-500 block mb-0.5">Vùng AI</span>
                         <span className="text-[11px] font-semibold text-slate-700">
-                          {item.trackingActive ? 'Trong vùng' : 'Ngoài vùng'}
+                          {item.trackingActive ? 'Trong vùng' : 'Vắng'}
                         </span>
                       </div>
                     </div>
