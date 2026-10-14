@@ -445,16 +445,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
                                     {u.email}
                                   </span>
-                                  {u.deviceId ? (
-                                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                      <Radio className="w-3 h-3 text-emerald-600" />
-                                      <span>Thiết bị: {u.deviceId}</span>
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-200">
-                                      Chưa ghép cặp thiết bị
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </td>
@@ -934,22 +924,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mã Thiết Bị Ghép Cặp (Device ID / Raspberry Pi)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: pi4_node_1"
-                  value={editingUser.deviceId || ''}
-                  onChange={e => setEditingUser({ ...editingUser, deviceId: e.target.value.trim() })}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Chỉ định mã thiết bị phần cứng để nhân viên được cấp quyền đọc telemetry theo đúng firestore.rules.
-                </p>
-              </div>
-
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -1065,19 +1039,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   value={newUserForm.department || ''}
                   onChange={e => setNewUserForm({ ...newUserForm, department: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mã Thiết Bị Ghép Cặp (Tùy chọn)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: pi4_node_1"
-                  value={newUserForm.deviceId || ''}
-                  onChange={e => setNewUserForm({ ...newUserForm, deviceId: e.target.value.trim() })}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono focus:outline-none focus:border-indigo-500"
                 />
               </div>
 

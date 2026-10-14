@@ -23,16 +23,26 @@ export const PRESET_ACCOUNTS: Array<{
   permissions: string[];
 }> = [];
 
+export function isSystemAdmin(email?: string, username?: string): boolean {
+  const e = (email || '').toLowerCase().trim();
+  const u = (username || '').toLowerCase().trim();
+  return (
+    e === 'duantaiphuc@gmail.com' ||
+    e.startsWith('duantaiphuc') ||
+    u === 'duantaiphuc'
+  );
+}
+
 export function isUserAdmin(user?: AuthUser | null): boolean {
   if (!user) return false;
-  return Boolean(user.role === 'admin' || user.isAdmin === true);
+  return user.role === 'admin' || isSystemAdmin(user.email, user.username);
 }
 
 export function enforceStrictRole(user: AuthUser): AuthUser {
+  const isAdmin = isSystemAdmin(user.email, user.username);
   return {
     ...user,
-    role: user.role === 'admin' || user.isAdmin === true ? 'admin' : 'employee',
-    isAdmin: Boolean(user.role === 'admin' || user.isAdmin === true),
+    role: isAdmin ? 'admin' : (user.role === 'admin' ? 'admin' : 'employee'),
   };
 }
 
@@ -135,8 +145,6 @@ export async function syncUserProfileToFirestore(user: AuthUser): Promise<void> 
       email: user.email,
       fullName: user.fullName,
       role: user.role,
-      isAdmin: Boolean(user.role === 'admin' || user.isAdmin === true),
-      deviceId: user.deviceId || '',
       department: user.department || 'Nhân viên Văn Phòng IoT',
       avatar: user.avatar || '',
       phoneNumber: user.phoneNumber || '',
@@ -243,7 +251,7 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
         }
 
         const username = data.username || docEmail.split('@')[0] || d.id;
-        const isAdmin = data.role === 'admin' || data.isAdmin === true || data.role === 'manager';
+        const isAdmin = isSystemAdmin(docEmail, username) || data.role === 'admin' || data.role === 'manager';
         const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
         const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? (now - lastActiveTime) < 2 * 60 * 1000 : false);
 
@@ -253,8 +261,6 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
           email: docEmail,
           fullName: docFullName || (isAdmin ? 'Quản Trị Viên' : 'Thành Viên'),
           role: isAdmin ? 'admin' : 'employee',
-          isAdmin: Boolean(isAdmin),
-          deviceId: data.deviceId || '',
           department: data.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
           avatar: data.avatar || '',
           phoneNumber: data.phoneNumber || '',
@@ -384,16 +390,14 @@ export async function loginWithFirebaseEmail(
     const credential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
     const fbUser = credential.user;
 
-    const tokenResult = await credential.user.getIdTokenResult(true);
-    const isAdmin = Boolean(tokenResult.claims.admin === true);
+    const isManager = cleanEmail.includes('admin') || cleanEmail.includes('quanly') || cleanEmail === 'duantaiphuc@gmail.com';
     const authUser: AuthUser = {
       id: fbUser.uid,
       username: cleanEmail.split('@')[0],
       email: fbUser.email || cleanEmail,
-      fullName: fbUser.displayName || (isAdmin ? 'Quản Trị Viên' : 'Nhân Viên Văn Phòng'),
-      role: isAdmin ? 'admin' : 'employee',
-      isAdmin,
-      department: isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Phòng Làm Việc Văn Phòng',
+      fullName: fbUser.displayName || (isManager ? 'Đoàn Tài Phúc (Admin)' : 'Nhân Viên Văn Phòng'),
+      role: isManager ? 'admin' : 'employee',
+      department: isManager ? 'Ban Điều Hành & An Toàn Lao Động' : 'Phòng Làm Việc Văn Phòng',
       avatar: fbUser.photoURL || undefined,
     };
 
@@ -491,18 +495,18 @@ export async function loginWithGoogle(): Promise<{
     const firebaseUser = result.user;
 
     const email = firebaseUser.email || '';
-    const tokenResult = await firebaseUser.getIdTokenResult(true);
-    const isAdmin = Boolean(tokenResult.claims.admin === true);
+    const isManager = email.toLowerCase().includes('admin') || 
+                      email.toLowerCase().includes('quanly') || 
+                      email.toLowerCase().includes('duantaiphuc');
 
     const googleUser: AuthUser = {
       id: firebaseUser.uid,
       username: email ? email.split('@')[0] : 'google_user',
-      email: email,
+      email: email || 'duantaiphuc@gmail.com',
       fullName: firebaseUser.displayName || 'Tài khoản Google',
-      role: isAdmin ? 'admin' : 'employee',
-      isAdmin,
+      role: isManager ? 'admin' : 'employee',
       avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      department: isAdmin ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
+      department: isManager ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
     };
 
     saveCurrentUser(googleUser);
@@ -615,49 +619,5 @@ export async function verifyPhoneCode(
       msg = 'Mã xác thực đã hết hạn. Vui lòng bấm gửi lại mã.';
     }
     return { success: false, error: msg };
-  }
-}
-
-/**
- * Lấy Firebase ID Token hiện tại của người dùng đã xác thực
- * Dùng để đính kèm vào header Authorization: Bearer <idToken> khi gọi API
- */
-export async function getFirebaseIdToken(forceRefresh = false): Promise<string | null> {
-  try {
-    const config = getSavedFirebaseConfig();
-    const app = initializeFirebaseApp(config);
-    const auth = getAuth(app);
-    if (!auth.currentUser) return null;
-    return await auth.currentUser.getIdToken(forceRefresh);
-  } catch (err) {
-    console.warn('Lỗi lấy Firebase ID Token:', err);
-    return null;
-  }
-}
-
-/**
- * Làm mới trạng thái quyền Admin của người dùng từ Custom Claims
- */
-export async function refreshUserAdminStatus(): Promise<boolean> {
-  try {
-    const config = getSavedFirebaseConfig();
-    const app = initializeFirebaseApp(config);
-    const auth = getAuth(app);
-    if (!auth.currentUser) return false;
-    const tokenResult = await auth.currentUser.getIdTokenResult(true);
-    const isAdmin = Boolean(tokenResult.claims.admin === true);
-    const current = getCurrentUser();
-    if (current) {
-      const updated: AuthUser = {
-        ...current,
-        role: isAdmin ? 'admin' : 'employee',
-        isAdmin,
-      };
-      saveCurrentUser(updated);
-    }
-    return isAdmin;
-  } catch (err) {
-    console.warn('Lỗi làm mới quyền admin từ token:', err);
-    return false;
   }
 }

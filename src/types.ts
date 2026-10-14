@@ -40,8 +40,6 @@ export interface AuthUser {
   lastLogin?: string;
   createdAt?: string;
   device?: string;
-  deviceId?: string; // Mã thiết bị ghép cặp (vd: pi4_node_1)
-  isAdmin?: boolean; // Custom claim admin
   isOnline?: boolean;
   lastActive?: string;
   currentPresence?: 'Present' | 'Away' | string;
