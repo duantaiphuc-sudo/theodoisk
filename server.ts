@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
-import { createServer as createViteServer } from 'vite';
 import { initializeApp as initAdminApp, getApps as getAdminApps, cert as adminCert } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import path from 'path';
@@ -613,6 +612,7 @@ async function startServer() {
   const isDev = process.env.NODE_ENV !== 'production';
 
   if (isDev) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -630,4 +630,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

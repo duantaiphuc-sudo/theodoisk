@@ -107,6 +107,15 @@ export async function testSupabaseConnection(_config?: SupabaseConnectionConfig)
       }
     });
 
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        success: false,
+        message: 'Máy chủ API chưa cấu hình trên Vercel hoặc biến môi trường Supabase chưa được thiết lập.',
+      };
+    }
+
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       return {
         success: true,
@@ -115,7 +124,6 @@ export async function testSupabaseConnection(_config?: SupabaseConnectionConfig)
       };
     }
 
-    const data = await res.json().catch(() => ({}));
     return {
       success: false,
       message: data.error || `Máy chủ phản hồi mã lỗi: ${res.status}`,
@@ -224,13 +232,26 @@ export async function fetchSupabaseHistory(
       }
     });
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      return { ...emptyResult, error: errData.error || `Server trả về mã lỗi ${res.status}` };
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { 
+        ...emptyResult, 
+        error: 'Chưa cấu hình API Server hoặc biến môi trường Supabase trên Vercel.' 
+      };
     }
 
-    const result = await res.json();
-    const rawData = result.data || [];
+    let result: any = null;
+    try {
+      result = await res.json();
+    } catch {
+      return { ...emptyResult, error: 'Phản hồi từ máy chủ không đúng định dạng JSON' };
+    }
+
+    if (!res.ok) {
+      return { ...emptyResult, error: result?.error || `Server trả về mã lỗi ${res.status}` };
+    }
+
+    const rawData = result?.data || [];
 
     const formatted: TelemetryLog[] = rawData.map((row: any) => {
       const dateObj = new Date(row.created_at || Date.now());
