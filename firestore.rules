@@ -179,8 +179,8 @@ service cloud.firestore {
       allow get: if isAdmin() || isOwner(userId);
       // Chặn người dùng thường list/quét toàn bộ database khuôn mặt của người khác
       allow list: if isAdmin();
-      // Quản trị viên có quyền cập nhật, thêm hoặc vô hiệu hóa mẫu
-      allow create, update, delete: if isAdmin();
+      // Quản trị viên hoặc chính chủ có quyền cập nhật, đặt lại hoặc xóa mẫu của mình
+      allow create, update, delete: if isAdmin() || isOwner(userId);
     }
 
     // 8. Global Safety Net - Default Deny
