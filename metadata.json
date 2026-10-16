@@ -1,0 +1,6 @@
+{
+  "name": "Hệ Thống Theo Dõi Sức Khỏe & Tư Thế",
+  "description": "Hệ thống giám sát sức khỏe, tư thế làm việc, nhịp tim và SpO2 kết nối Firebase từ Raspberry Pi 4",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
