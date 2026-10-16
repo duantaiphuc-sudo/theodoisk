@@ -22,9 +22,11 @@ import {
   Layers,
   Bell,
   CheckSquare,
-  Clock
+  Clock,
+  Unplug,
+  Plug
 } from 'lucide-react';
-import { FirebaseConnectionConfig, AuthUser, UserTaskNotification } from '../types';
+import { FirebaseConnectionConfig, AuthUser, UserTaskNotification, SupabaseConnectionConfig } from '../types';
 import { updateTaskStatusInFirebase } from '../services/firebase';
 
 interface HeaderProps {
@@ -47,6 +49,9 @@ interface HeaderProps {
   lastUpdate: string | null;
   onOpenMobileMenu?: () => void;
   activeTabTitle?: string;
+  supabaseConfig?: SupabaseConnectionConfig;
+  onToggleSupabaseConnection?: () => void;
+  onOpenSupabaseModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -69,6 +74,9 @@ export const Header: React.FC<HeaderProps> = ({
   lastUpdate,
   onOpenMobileMenu,
   activeTabTitle,
+  supabaseConfig,
+  onToggleSupabaseConnection,
+  onOpenSupabaseModal,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSystemInfoModal, setShowSystemInfoModal] = useState(false);
@@ -175,6 +183,37 @@ export const Header: React.FC<HeaderProps> = ({
               </>
             )}
           </button>
+
+          {/* Supabase Connection & Disconnect / Test Toggle Button */}
+          {supabaseConfig && (
+            <button
+              onClick={onToggleSupabaseConnection}
+              title={
+                supabaseConfig.isConnected !== false
+                  ? 'Supabase: Đang kết nối và lưu dữ liệu. Bấm để NGẮT KẾT NỐI (Chuyển sang chế độ Test thử nghiệm, không lưu DB)'
+                  : 'Supabase: ĐÃ NGẮT KẾT NỐI (Chế độ Test - KHÔNG lưu DB). Bấm để KẾT NỐI LẠI và tự động lưu dữ liệu'
+              }
+              className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                supabaseConfig.isConnected !== false
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
+                  : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-xs'
+              }`}
+            >
+              {supabaseConfig.isConnected !== false ? (
+                <>
+                  <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="whitespace-nowrap">Supa: Lưu DB</span>
+                  <span className="text-emerald-600 text-[10px]">●</span>
+                </>
+              ) : (
+                <>
+                  <Unplug className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="whitespace-nowrap font-bold">Supa: Test (Ngắt DB)</span>
+                  <span className="text-amber-600 text-[10px]">○</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Simulation Toggle */}
           <button
@@ -519,6 +558,33 @@ export const Header: React.FC<HeaderProps> = ({
                 </>
               )}
             </button>
+
+            {/* Supabase Connection & Test Toggle on Mobile */}
+            {supabaseConfig && (
+              <button
+                onClick={() => {
+                  if (onToggleSupabaseConnection) onToggleSupabaseConnection();
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 p-2.5 rounded-lg border font-semibold cursor-pointer ${
+                  supabaseConfig.isConnected !== false
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-amber-50 text-amber-900 border-amber-300'
+                }`}
+              >
+                {supabaseConfig.isConnected !== false ? (
+                  <>
+                    <Database className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Supa: Đang lưu DB</span>
+                  </>
+                ) : (
+                  <>
+                    <Unplug className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Supa: Test (Đã ngắt)</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Simulation Toggle */}
             <button

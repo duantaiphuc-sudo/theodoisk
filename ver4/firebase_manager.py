@@ -43,10 +43,30 @@ from firebase_admin import firestore
 # CONFIG
 # ============================================================
 
+import os
+
 KEY_PATH = "serviceAccountKey.json"
 
 COLLECTION_NAME = "devices"
 DOCUMENT_ID = "pi4_node_1"
+
+def resolve_key_path(preferred_path=KEY_PATH):
+    """Tìm file serviceAccountKey.json ở các vị trí thông dụng trên Raspberry Pi."""
+    env_cred = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    candidates = [
+        env_cred,
+        preferred_path,
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "serviceAccountKey.json"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "serviceAccountKey.json"),
+        os.path.expanduser("~/serviceAccountKey.json"),
+        os.path.expanduser("~/Desktop/office_health/serviceAccountKey.json"),
+        os.path.expanduser("~/Desktop/office_health/ver3/serviceAccountKey.json"),
+        os.path.expanduser("~/Desktop/office_health/ver4/serviceAccountKey.json"),
+    ]
+    for p in candidates:
+        if p and os.path.isfile(p):
+            return os.path.abspath(p)
+    return preferred_path
 
 
 # ============================================================
@@ -62,7 +82,7 @@ class FirebaseManager:
         document_id=DOCUMENT_ID,
     ):
 
-        self.key_path = key_path
+        self.key_path = resolve_key_path(key_path)
         self.collection_name = collection_name
         self.document_id = document_id
 
@@ -77,18 +97,36 @@ class FirebaseManager:
     # ========================================================
 
     def _initialize(self):
+        if not os.path.isfile(self.key_path):
+            print(
+                f"\n[CẢNH BÁO FIREBASE] Không tìm thấy file private key '{self.key_path}'!\n"
+                f"Vui lòng vào Firebase Console > Project Settings > Service accounts > Generate new private key,\n"
+                f"đổi tên thành 'serviceAccountKey.json' và đặt vào thư mục chạy code trên Raspberry Pi.\n"
+            )
 
         if not firebase_admin._apps:
-
             cred = credentials.Certificate(
                 self.key_path
             )
-
             firebase_admin.initialize_app(
                 cred
             )
 
-        self.db = firestore.client()
+        database_id = os.environ.get("FIRESTORE_DATABASE_ID", "").strip() or None
+        custom_db_candidate = "ai-studio-hthngtheodisckhe-873ee1ec-be23-46f3-b2ac-3f0db857b04a"
+
+        try:
+            # 1. Thử kết nối database mặc định (default)
+            if database_id:
+                self.db = firestore.client(database=database_id)
+            else:
+                self.db = firestore.client()
+        except Exception:
+            # 2. Thử kết nối named database nếu default không tồn tại
+            try:
+                self.db = firestore.client(database=custom_db_candidate)
+            except Exception:
+                self.db = firestore.client()
 
         self.doc_ref = (
             self.db
@@ -346,11 +384,10 @@ class FirebaseManager:
             return True
 
         except Exception as e:
-
             print(
-                f"Firebase update error: {e}"
+                f"[Firebase Push LỖI] Không thể ghi tài liệu '{self.collection_name}/{self.document_id}': {e}",
+                flush=True
             )
-
             return False
 
 

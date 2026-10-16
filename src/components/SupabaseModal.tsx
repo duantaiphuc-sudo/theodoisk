@@ -7,7 +7,10 @@ import {
   RefreshCw, 
   Key, 
   Calendar,
-  ExternalLink
+  ExternalLink,
+  Unplug,
+  Plug,
+  Trash2
 } from 'lucide-react';
 import { SupabaseConnectionConfig } from '../types';
 import { 
@@ -15,6 +18,9 @@ import {
   saveSupabaseConfig, 
   testSupabaseConnection, 
   fetchSupabaseHistory,
+  disconnectSupabase,
+  reconnectSupabase,
+  clearSupabaseConfig,
   TimeRangeFilter
 } from '../services/supabaseService';
 import { isUserAdmin } from '../services/authService';
@@ -50,6 +56,8 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   const [isQuerying, setIsQuerying] = useState(false);
   const [queryResult, setQueryResult] = useState<any>(null);
 
+  const isConnected = Boolean(config.isConnected !== false && config.url && config.anonKey);
+
   useEffect(() => {
     if (isOpen) {
       const saved = getSavedSupabaseConfig();
@@ -76,6 +84,38 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
     saveSupabaseConfig(config);
     onConfigSaved?.(config);
     onClose();
+  };
+
+  const handleDisconnect = () => {
+    const updated = disconnectSupabase();
+    setConfig(updated);
+    onConfigSaved?.(updated);
+    setTestResult({
+      success: true,
+      message: 'Đã ngắt kết nối Supabase thành công! Hệ thống đang ở chế độ Test thử nghiệm (KHÔNG lưu dữ liệu vào database).'
+    });
+  };
+
+  const handleReconnect = async () => {
+    const updated = reconnectSupabase();
+    setConfig(updated);
+    onConfigSaved?.(updated);
+    setIsTesting(true);
+    const result = await testSupabaseConnection(updated);
+    setIsTesting(false);
+    setTestResult(result);
+  };
+
+  const handleClear = () => {
+    if (window.confirm('Bạn có chắc chắn muốn ngắt kết nối và xóa toàn bộ cấu hình Supabase không?')) {
+      const reset = clearSupabaseConfig();
+      setConfig(reset);
+      onConfigSaved?.(reset);
+      setTestResult({
+        success: true,
+        message: 'Đã xóa toàn bộ cấu hình Supabase.'
+      });
+    }
   };
 
   const handleRunTestQuery = async () => {
@@ -151,6 +191,92 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
         {/* Body content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {/* Status & Connection Controller Banner */}
+          <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+            isConnected 
+              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950' 
+              : (config.url && config.anonKey)
+                ? 'bg-amber-50/90 border-amber-200 text-amber-950'
+                : 'bg-slate-50 border-slate-200 text-slate-800'
+          }`}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                isConnected 
+                  ? 'bg-emerald-100 border-emerald-300 text-emerald-700' 
+                  : (config.url && config.anonKey)
+                    ? 'bg-amber-100 border-amber-300 text-amber-700'
+                    : 'bg-slate-200 border-slate-300 text-slate-600'
+              }`}>
+                {isConnected ? <Plug className="w-4 h-4" /> : <Unplug className="w-4 h-4" />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-xs sm:text-sm">
+                    {isConnected 
+                      ? 'Đang kết nối Supabase' 
+                      : (config.url && config.anonKey)
+                        ? 'Đã ngắt kết nối Supabase (Chế độ test)'
+                        : 'Chưa kết nối Supabase'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                    isConnected
+                      ? 'bg-emerald-200/80 text-emerald-900 border border-emerald-300'
+                      : (config.url && config.anonKey)
+                        ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                        : 'bg-slate-200 text-slate-700 border border-slate-300'
+                  }`}>
+                    {isConnected ? '🟢 Đang lưu DB' : (config.url && config.anonKey) ? '⚪ Test Mode (Không lưu DB)' : 'Chưa cấu hình'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                  {isConnected 
+                    ? `Dữ liệu sinh trắc học và tư thế đang được tự động lưu vào bảng '${config.tableName || 'telemetry_logs'}'.` 
+                    : (config.url && config.anonKey)
+                      ? 'Hệ thống đã ngắt kết nối tạm thời. Bạn có thể test thoải mái mà không lo ghi dữ liệu vào database.'
+                      : 'Vui lòng dán Supabase Project URL và Anon Key để đồng bộ dữ liệu.'}
+                </p>
+              </div>
+            </div>
+
+            {(config.url && config.anonKey) && (
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                {isConnected ? (
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    className="px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                    title="Ngắt kết nối để chỉ test mà không lưu vào database"
+                  >
+                    <Unplug className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Ngắt kết nối (Test)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleReconnect}
+                    disabled={isTesting}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                    title="Bật lại kết nối và tự động lưu dữ liệu"
+                  >
+                    <Plug className="w-3.5 h-3.5" />
+                    <span>Kết nối lại DB</span>
+                  </button>
+                )}
+
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    title="Xóa cấu hình"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {activeTab === 'config' && (
             <div className="space-y-4 text-xs">
               {/* Supabase URL */}

@@ -574,7 +574,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                   </button>
 
                   {/* Chỉ hiển thị Giao Việc cho tài khoản Nhân viên, không hiển thị trên thẻ Admin hoặc chính mình */}
-                  {onOpenTaskModalWithUser && user.role !== 'admin' && user.id !== currentUser.id && (
+                  {onOpenTaskModalWithUser && !isUserAdmin(user) && user.id !== currentUser.id && (
                     <button
                       type="button"
                       onClick={() => onOpenTaskModalWithUser(user)}
@@ -1806,7 +1806,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
 
               {/* Nếu là Admin thì không hiển thị tab Lịch Sử Nhật Ký Đo */}
-              {selectedUserForDetail.role !== 'admin' && (
+              {!isUserAdmin(selectedUserForDetail) && (
                 <button
                   type="button"
                   onClick={() => setDetailActiveTab('history')}
@@ -2016,7 +2016,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="flex items-center gap-2">
                 {/* Chỉ hiển thị Giao Việc khi tài khoản được xem không phải là Admin */}
-                {onOpenTaskModalWithUser && selectedUserForDetail.role !== 'admin' && selectedUserForDetail.id !== currentUser.id && (
+                {onOpenTaskModalWithUser && !isUserAdmin(selectedUserForDetail) && selectedUserForDetail.id !== currentUser.id && (
                   <button
                     type="button"
                     onClick={() => {

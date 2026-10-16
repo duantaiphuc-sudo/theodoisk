@@ -12,6 +12,9 @@ import {
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 import { initializeFirebaseApp, getSavedFirebaseConfig } from './firebase';
+import { assignDeviceToUser } from './adminDeviceAssignmentService';
+
+export { assignDeviceToUser } from './adminDeviceAssignmentService';
 
 const AUTH_STORAGE_KEY = 'theodoisk_authenticated_user_v1';
 const ALL_USERS_STORAGE_KEY = 'theodoisk_all_registered_users_v1';
@@ -349,20 +352,26 @@ export async function adminAssignDevice(userId: string, device: string): Promise
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedCurrent));
     }
 
-    // Cập nhật Firestore document users/{userId} với field device
-    const config = getSavedFirebaseConfig();
-    const app = initializeFirebaseApp(config);
-    const db = getFirestore(app);
-    await setDoc(doc(db, 'users', userId), {
-      device: cleanDevice,
-      deviceId: cleanDevice,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    // Thực hiện gán thiết bị bằng Firestore Transaction kèm assignment_id mới
+    await assignDeviceToUser(userId, cleanDevice);
 
     return true;
   } catch (err) {
-    console.error('Lỗi adminAssignDevice:', err);
-    return false;
+    console.error('Lỗi adminAssignDevice (assignDeviceToUser):', err);
+    // Fallback cập nhật document người dùng
+    try {
+      const config = getSavedFirebaseConfig();
+      const app = initializeFirebaseApp(config);
+      const db = getFirestore(app);
+      await setDoc(doc(db, 'users', userId), {
+        device: device.trim(),
+        deviceId: device.trim(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

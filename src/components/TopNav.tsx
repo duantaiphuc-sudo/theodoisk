@@ -12,9 +12,12 @@ import {
   Shield, 
   LogOut,
   Calendar,
-  Clock
+  Clock,
+  Database,
+  Unplug,
+  Plug
 } from 'lucide-react';
-import { AuthUser, MainNavTab } from '../types';
+import { AuthUser, MainNavTab, SupabaseConnectionConfig } from '../types';
 
 interface TopNavProps {
   activeTab: MainNavTab;
@@ -30,6 +33,9 @@ interface TopNavProps {
   onOpenTasks: () => void;
   onOpenProfile: () => void;
   onLogout: () => void;
+  supabaseConfig?: SupabaseConnectionConfig;
+  onToggleSupabaseConnection?: () => void;
+  onOpenSupabaseModal?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -45,7 +51,10 @@ export const TopNav: React.FC<TopNavProps> = ({
   pendingTasksCount,
   onOpenTasks,
   onOpenProfile,
-  onLogout
+  onLogout,
+  supabaseConfig,
+  onToggleSupabaseConnection,
+  onOpenSupabaseModal
 }) => {
   const isManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
@@ -153,6 +162,39 @@ export const TopNav: React.FC<TopNavProps> = ({
           >
             <Sparkles className={`w-4 h-4 ${isSimulating ? 'text-amber-600 animate-spin' : ''}`} />
           </button>
+
+          {/* Supabase Quick Connection / Test Disconnect Toggle */}
+          {supabaseConfig && (
+            <button
+              onClick={onToggleSupabaseConnection}
+              title={
+                supabaseConfig.isConnected !== false
+                  ? 'Supabase: Đang kết nối và lưu dữ liệu. Bấm để NGẮT KẾT NỐI (Chuyển sang chế độ Test thử nghiệm, KHÔNG lưu DB)'
+                  : 'Supabase: ĐÃ NGẮT KẾT NỐI (Chế độ Test - KHÔNG lưu DB). Bấm để KẾT NỐI LẠI và tiếp tục lưu dữ liệu'
+              }
+              className={`h-9 px-2.5 sm:px-3 rounded-xl flex items-center gap-1.5 transition cursor-pointer border text-xs font-bold whitespace-nowrap shadow-2xs ${
+                supabaseConfig.isConnected !== false
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-xs'
+              }`}
+            >
+              {supabaseConfig.isConnected !== false ? (
+                <>
+                  <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="hidden sm:inline">Supa: Lưu DB</span>
+                  <span className="sm:hidden">Supa</span>
+                  <span className="text-emerald-600 text-[10px]">●</span>
+                </>
+              ) : (
+                <>
+                  <Unplug className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="hidden sm:inline">Supa: Test (Ngắt DB)</span>
+                  <span className="sm:hidden">Test</span>
+                  <span className="text-amber-600 text-[10px]">○</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Notifications Bell */}
           <button

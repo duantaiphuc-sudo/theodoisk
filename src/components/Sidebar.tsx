@@ -433,24 +433,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* 1.1 Supabase Configuration (PostgreSQL) */}
               <button
                 onClick={() => {
-                  if (isManager && onOpenSupabase) {
+                  if (onOpenSupabase) {
                     onOpenSupabase();
                     onCloseMobile();
                   }
                 }}
-                disabled={!isManager}
                 className={`w-full flex items-center transition text-left group ${
                   isExpanded
-                    ? `justify-between px-3 py-2 rounded-xl text-xs font-semibold ${
-                        isManager
-                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
-                          : 'text-slate-400 cursor-not-allowed opacity-60'
-                      }`
-                    : `justify-center w-11 h-11 mx-auto rounded-xl ${
-                        isManager ? 'hover:bg-slate-100 cursor-pointer' : 'cursor-not-allowed opacity-60'
-                      }`
+                    ? 'justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
+                    : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-slate-100 cursor-pointer'
                 }`}
-                title={isManager ? "Cấu hình kết nối Supabase (PostgreSQL)" : "Chức năng dành cho Quản trị viên"}
+                title="Cấu hình & trạng thái kết nối Supabase (PostgreSQL)"
               >
                 <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
                   <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition">

@@ -48,8 +48,12 @@ import {
   fetchSupabaseHistory,
   clearSupabaseHistory,
   deleteSingleLogFromSupabase,
-  normalizeDateFormatted
+  normalizeDateFormatted,
+  getSavedSupabaseConfig,
+  disconnectSupabase,
+  reconnectSupabase
 } from './services/supabaseService';
+import { SupabaseConnectionConfig } from './types';
 import { UserProfileModal } from './components/UserProfileModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
@@ -159,6 +163,33 @@ export default function App() {
   const [isRpiGuideModalOpen, setIsRpiGuideModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
+  // 2.1 Supabase Connection & Test Mode State
+  const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConnectionConfig>(() => getSavedSupabaseConfig());
+
+  useEffect(() => {
+    const handleSupaChange = (e: any) => {
+      if (e?.detail) {
+        setSupabaseConfig(e.detail);
+      } else {
+        setSupabaseConfig(getSavedSupabaseConfig());
+      }
+    };
+    window.addEventListener('supabase-config-changed', handleSupaChange);
+    return () => window.removeEventListener('supabase-config-changed', handleSupaChange);
+  }, []);
+
+  const handleToggleSupabaseConnection = () => {
+    if (supabaseConfig.isConnected !== false) {
+      const updated = disconnectSupabase();
+      setSupabaseConfig(updated);
+      setClearNotice('Đã ngắt kết nối Supabase! Hệ thống đang ở chế độ Test thử nghiệm (KHÔNG lưu dữ liệu vào database).');
+    } else {
+      const updated = reconnectSupabase();
+      setSupabaseConfig(updated);
+      setClearNotice('Đã kết nối lại Supabase! Dữ liệu đo đạc sẽ tiếp tục được tự động lưu vào PostgreSQL.');
+    }
+  };
+
   // 3. Alert Thresholds State
   const [thresholds, setThresholds] = useState<AlertThresholds>(() => {
     try {
@@ -184,7 +215,7 @@ export default function App() {
       standingTargetSec: 300,
       soundEnabled: true,
       voiceAlertEnabled: true,
-      outOfZoneAlertEnabled: true,
+      outOfZoneAlertEnabled: false,
       browserNotificationEnabled: true,
     };
   });
@@ -286,6 +317,7 @@ export default function App() {
   const lastPostureVoiceRef = useRef<number>(0);
   const lastZoneVoiceRef = useRef<number>(0);
   const lastVitalVoiceRef = useRef<number>(0);
+  const lastBrowserNotifRef = useRef<number>(0);
   const lastInZoneStatusRef = useRef<boolean>(true);
   const lastFirebaseHistorySaveRef = useRef<number>(0);
   const lastSavedMetricsRef = useRef<{ bpm: number; spo2: number }>({ bpm: 0, spo2: 0 });
@@ -380,8 +412,11 @@ export default function App() {
     let hasAlert = false;
     let alertType = '';
 
-    const isBadPosture = !isCameraError && (data.postureStatus === 1 || data.postureStatus === 3);
-    const isOutOfZone = !isCameraError && (data.inZone === false || data.postureStatus === 2);
+    // Phân loại trạng thái có điều kiện: Trạng thái VẮNG MẶT (status === 2) hoặc ĐỨNG (status === 5) KHÔNG PHẢI là nguy cơ cần cảnh báo dồn dập
+    const isAbsent = !isCameraError && (data.postureStatus === 2 || data.trackingActive === false);
+    const isStanding = !isCameraError && !isAbsent && (data.postureStatus === 5 || data.postureLabel?.toLowerCase().includes('đứng'));
+    const isBadPosture = !isCameraError && !isAbsent && !isStanding && (data.postureStatus === 1 || data.postureStatus === 3);
+    const isOutOfZone = !isCameraError && !isAbsent && !isStanding && data.inZone === false;
     const isAbnormalHR = data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax);
     const isAbnormalSpO2 = data.spo2 > 0 && data.spo2 < currentThresholds.spo2Min;
 
@@ -394,35 +429,36 @@ export default function App() {
     } else if (isBadPosture) {
       hasAlert = true;
       alertType = data.postureStatus === 3 ? 'Sai tư thế lâu' : 'Sai tư thế';
-    } else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled && data.trackingActive !== false) {
+    } else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
       hasAlert = true;
       alertType = 'Ngoài vùng quan sát';
     }
 
-    // Audio chime & Vietnamese voice alert triggers
+    // Audio chime & Vietnamese voice alert triggers với cơ chế giãn cách (Throttling) chuẩn y tế công thái học
     const now = Date.now();
     const canPlayAudio = currentThresholds.soundEnabled;
     const canPlayVoice = currentThresholds.voiceAlertEnabled;
 
     if (canPlayAudio || canPlayVoice) {
-      // 1. Alert for Incorrect Posture ("Xin hãy ngồi thẳng lưng lên!")
+      // 1. Cảnh báo tư thế sai ("Xin hãy ngồi thẳng lưng lên!" hoặc "Bạn đang ngồi sai tư thế quá lâu!")
       if (isBadPosture) {
-        const postureJustChanged = lastPostureStatusRef.current !== data.postureStatus && lastPostureStatusRef.current === 0;
+        const isProlongedBad = data.postureStatus === 3;
         const timeSinceLastVoice = now - lastPostureVoiceRef.current;
-        if (postureJustChanged || timeSinceLastVoice > 12000) {
+        // Giãn cách: Sai lâu nhắc sau mỗi 30s, sai mới phát hiện nhắc sau mỗi 45s (tránh spam âm thanh liên tục)
+        const voiceCooldown = isProlongedBad ? 30000 : 45000;
+        if (timeSinceLastVoice > voiceCooldown) {
           lastPostureVoiceRef.current = now;
           lastAlertPlayedRef.current = now;
-          playErgonomicVoiceAlert(data.postureStatus === 3 ? 'long_incorrect' : 'posture_incorrect', {
+          playErgonomicVoiceAlert(isProlongedBad ? 'long_incorrect' : 'posture_incorrect', {
             playChime: canPlayAudio,
             playVoice: canPlayVoice,
           });
         }
       }
-      // 2. Alert for Out of Observation Zone ("Bạn đang ngồi ngoài vùng quan sát, xin hãy ngồi lại vào vị trí quan sát!")
+      // 2. Nhắc nhở ngồi ngoài vùng quan sát camera (chỉ nhắc khi tính năng bật và cách nhau tối thiểu 60 giây)
       else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
-        const zoneJustChanged = lastInZoneStatusRef.current !== false;
         const timeSinceLastZoneVoice = now - lastZoneVoiceRef.current;
-        if (zoneJustChanged || timeSinceLastZoneVoice > 15000) {
+        if (timeSinceLastZoneVoice > 60000) {
           lastZoneVoiceRef.current = now;
           lastAlertPlayedRef.current = now;
           playErgonomicVoiceAlert('out_of_zone', {
@@ -431,8 +467,8 @@ export default function App() {
           });
         }
       }
-      // 3. Alert for abnormal vitals (HR or SpO2)
-      else if ((isAbnormalHR || isAbnormalSpO2) && now - lastVitalVoiceRef.current > 15000) {
+      // 3. Cảnh báo chỉ số sinh tồn bất thường (Nhịp tim / SpO2 - giãn cách 45 giây)
+      else if ((isAbnormalHR || isAbnormalSpO2) && now - lastVitalVoiceRef.current > 45000) {
         lastVitalVoiceRef.current = now;
         lastAlertPlayedRef.current = now;
         playErgonomicVoiceAlert('vital_abnormal', {
@@ -443,8 +479,8 @@ export default function App() {
       }
     }
 
-    // 4. Browser Notification API (Triggers system notification even when browser window is minimized or user is on another tab)
-    if (hasAlert && currentThresholds.browserNotificationEnabled) {
+    // 4. Browser Notification API (Giãn cách tối thiểu 45 giây để tránh bắn thông báo dồn dập vào màn hình)
+    if (hasAlert && currentThresholds.browserNotificationEnabled && now - lastBrowserNotifRef.current > 45000) {
       let notifTitle = '⚠️ Cảnh Báo Sức Khỏe - HealthOffice';
       let notifBody = '';
 
@@ -465,6 +501,7 @@ export default function App() {
       }
 
       if (notifBody) {
+        lastBrowserNotifRef.current = now;
         notificationManager.sendNotification({
           title: notifTitle,
           body: notifBody,
@@ -531,9 +568,9 @@ export default function App() {
       )
     );
     const isCameraUntracked = !isCameraError && (isOutOfZone || data.trackingActive === false);
-    const isAbsent = hasLiveSignal && !isCameraError && (data.postureStatus === 2 || isCameraUntracked);
-    const isStanding = hasLiveSignal && !isAbsent && !isCameraError && (data.postureStatus === 5 || Boolean(data.postureLabel?.toLowerCase().includes('đứng')));
-    const isBad = hasLiveSignal && !isAbsent && !isCameraError && (data.postureStatus === 1 || data.postureStatus === 3);
+    const isPresenceAbsent = hasLiveSignal && !isCameraError && (data.postureStatus === 2 || isCameraUntracked || isAbsent);
+    const isPresenceStanding = hasLiveSignal && !isPresenceAbsent && !isCameraError && (isStanding || data.postureStatus === 5 || Boolean(data.postureLabel?.toLowerCase().includes('đứng')));
+    const isBad = hasLiveSignal && !isPresenceAbsent && !isCameraError && (data.postureStatus === 1 || data.postureStatus === 3);
 
     const presence: 'Present' | 'Away' = 'Present'; // Active logged-in session is always Present (Đang hoạt động)
     const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = isCameraError
@@ -597,7 +634,7 @@ export default function App() {
     }
   }, [firebaseConfig]);
 
-  const assignedDevice = currentUser?.device ? currentUser.device.trim() : '';
+  const assignedDevice = (currentUser?.device ? currentUser.device.trim() : '') || firebaseConfig.documentId || 'pi4_node_1';
 
   // Đồng bộ thời gian thực hồ sơ currentUser (bao gồm cả trường device được Admin gán)
   useEffect(() => {
@@ -724,9 +761,9 @@ export default function App() {
         const matchesUser = (newLog.userId && newLog.userId === currentUser.id) ||
           (newLog.userEmail && currentUser.email && newLog.userEmail.toLowerCase() === currentUser.email.toLowerCase());
 
-        // Nếu là nhân viên: CHỈ nhận bản ghi của chính tài khoản mình
-        // Nếu là quản trị viên: Nhận bản ghi để giám sát
-        if (matchesUser || !isEmployee) {
+        // Cả Admin và Nhân viên tại tab Nhật Ký đều chỉ nhận bản ghi của chính tài khoản mình
+        // Muốn xem người khác thì vào mục Danh Mục Quản Trị
+        if (matchesUser) {
           setHistory(prev => {
             if (prev.some(l => l.id === newLog.id || (l.id && l.id === newLog.id))) return prev;
             return [newLog, ...prev.filter(l => l.id !== newLog.id).slice(0, 299)];
@@ -1276,7 +1313,7 @@ export default function App() {
         onOpenSettings={() => isManager && setIsSettingsModalOpen(true)}
         onOpenRpiGuide={() => isManager && setIsRpiGuideModalOpen(true)}
         onOpenFirebase={() => isManager && setIsFirebaseModalOpen(true)}
-        onOpenSupabase={() => isManager && setIsSupabaseModalOpen(true)}
+        onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onLogout={handleLogout}
         mobileOpen={mobileSidebarOpen}
@@ -1303,6 +1340,9 @@ export default function App() {
           onOpenTasks={() => setMainNavTab('tasks')}
           onOpenProfile={() => setIsProfileModalOpen(true)}
           onLogout={handleLogout}
+          supabaseConfig={supabaseConfig}
+          onToggleSupabaseConnection={handleToggleSupabaseConnection}
+          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         />
 
         {/* Main Content Dashboard */}
@@ -1684,6 +1724,8 @@ export default function App() {
                 isSyncing={isSyncingHistory}
                 isManager={isManager}
                 onOpenSupabase={() => setIsSupabaseModalOpen(true)}
+                supabaseConfig={supabaseConfig}
+                onToggleSupabase={handleToggleSupabaseConnection}
               />
             </div>
           )}
@@ -1962,6 +2004,7 @@ export default function App() {
         onClose={() => setIsSupabaseModalOpen(false)}
         currentUser={currentUser}
         onNavigateToAdminQuery={() => setMainNavTab('admin_overview')}
+        onConfigSaved={(cfg) => setSupabaseConfig(cfg)}
       />
 
       {/* Modals (Only Manager has access) */}

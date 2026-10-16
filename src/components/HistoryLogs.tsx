@@ -13,12 +13,19 @@ import {
   Sparkles,
   Database,
   FileText,
-  UserCheck
+  UserCheck,
+  Unplug,
+  Plug
 } from 'lucide-react';
-import { TelemetryLog, AuthUser } from '../types';
+import { TelemetryLog, AuthUser, SupabaseConnectionConfig } from '../types';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
 import { getCurrentUser } from '../services/authService';
-import { normalizeDateFormatted } from '../services/supabaseService';
+import { 
+  normalizeDateFormatted, 
+  getSavedSupabaseConfig, 
+  disconnectSupabase, 
+  reconnectSupabase 
+} from '../services/supabaseService';
 
 interface HistoryLogsProps {
   history: TelemetryLog[];
@@ -31,6 +38,8 @@ interface HistoryLogsProps {
   isSyncing?: boolean;
   isManager?: boolean;
   onOpenSupabase?: () => void;
+  supabaseConfig?: SupabaseConnectionConfig;
+  onToggleSupabase?: () => void;
 }
 
 export const HistoryLogs: React.FC<HistoryLogsProps> = ({ 
@@ -43,8 +52,41 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   onRefreshHistory,
   isSyncing = false,
   isManager = false,
-  onOpenSupabase
+  onOpenSupabase,
+  supabaseConfig: propSupabaseConfig,
+  onToggleSupabase
 }) => {
+  const [internalSupabaseConfig, setInternalSupabaseConfig] = useState<SupabaseConnectionConfig>(() => getSavedSupabaseConfig());
+
+  // Lắng nghe sự kiện cấu hình Supabase thay đổi để cập nhật trạng thái tức thì
+  React.useEffect(() => {
+    const handleConfigChange = (e: any) => {
+      if (e?.detail) {
+        setInternalSupabaseConfig(e.detail);
+      } else {
+        setInternalSupabaseConfig(getSavedSupabaseConfig());
+      }
+    };
+    window.addEventListener('supabase-config-changed', handleConfigChange);
+    return () => window.removeEventListener('supabase-config-changed', handleConfigChange);
+  }, []);
+
+  const activeSupabaseConfig = propSupabaseConfig || internalSupabaseConfig;
+  const isSupaConnected = activeSupabaseConfig.isConnected !== false;
+
+  const handleToggleSupabase = () => {
+    if (onToggleSupabase) {
+      onToggleSupabase();
+    } else {
+      if (isSupaConnected) {
+        const updated = disconnectSupabase();
+        setInternalSupabaseConfig(updated);
+      } else {
+        const updated = reconnectSupabase();
+        setInternalSupabaseConfig(updated);
+      }
+    }
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPosture, setFilterPosture] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('all');
@@ -270,6 +312,33 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
               <span>Supabase SQL</span>
             </button>
           )}
+
+          {/* Supabase Quick Disconnect / Reconnect Toggle (Test Mode) */}
+          <button
+            onClick={handleToggleSupabase}
+            title={
+              isSupaConnected
+                ? 'Supabase đang lưu dữ liệu. Bấm để NGẮT KẾT NỐI (Chuyển sang chế độ Test thử nghiệm, KHÔNG lưu dữ liệu vào database)'
+                : 'Đang ở chế độ Test thử nghiệm (Đã ngắt lưu DB). Bấm để KẾT NỐI LẠI Supabase và tự động lưu dữ liệu'
+            }
+            className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold whitespace-nowrap shadow-2xs cursor-pointer transition ${
+              isSupaConnected
+                ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
+                : 'bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100'
+            }`}
+          >
+            {isSupaConnected ? (
+              <>
+                <Unplug className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Ngắt kết nối Supa (Test)</span>
+              </>
+            ) : (
+              <>
+                <Plug className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Kết nối lại Supa (Lưu DB)</span>
+              </>
+            )}
+          </button>
 
           {/* Sync Button */}
           {onRefreshHistory && (

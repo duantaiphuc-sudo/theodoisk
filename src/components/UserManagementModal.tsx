@@ -540,7 +540,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             <td className="py-3.5 px-4 whitespace-nowrap text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 {/* Direct Send Task Shortcut (Chỉ hiển thị cho Nhân viên, không hiển thị cho Admin) */}
-                                {u.role !== 'admin' && (
+                                {!isUserAdmin(u) && (
                                   <button
                                     type="button"
                                     onClick={() => handleAssignTaskShortcut(u)}

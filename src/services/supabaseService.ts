@@ -60,9 +60,55 @@ export function getSavedSupabaseConfig(): SupabaseConnectionConfig {
 export function saveSupabaseConfig(config: SupabaseConnectionConfig): void {
   try {
     localStorage.setItem('theodoisk_supabase_config', JSON.stringify(config));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('supabase-config-changed', { detail: config }));
+    }
   } catch (err) {
     console.error('Lỗi lưu cấu hình Supabase:', err);
   }
+}
+
+/**
+ * Ngắt kết nối Supabase (Chế độ test cục bộ, không ghi log vào DB)
+ */
+export function disconnectSupabase(): SupabaseConnectionConfig {
+  const current = getSavedSupabaseConfig();
+  const updated: SupabaseConnectionConfig = {
+    ...current,
+    isConnected: false,
+    autoSync: false,
+  };
+  saveSupabaseConfig(updated);
+  return updated;
+}
+
+/**
+ * Kết nối lại Supabase (Bật lại tự động đồng bộ vào DB)
+ */
+export function reconnectSupabase(): SupabaseConnectionConfig {
+  const current = getSavedSupabaseConfig();
+  const updated: SupabaseConnectionConfig = {
+    ...current,
+    isConnected: true,
+    autoSync: true,
+  };
+  saveSupabaseConfig(updated);
+  return updated;
+}
+
+/**
+ * Xóa trắng toàn bộ cấu hình Supabase khỏi localStorage
+ */
+export function clearSupabaseConfig(): SupabaseConnectionConfig {
+  const reset: SupabaseConnectionConfig = {
+    url: '',
+    anonKey: '',
+    tableName: 'telemetry_logs',
+    autoSync: false,
+    isConnected: false,
+  };
+  saveSupabaseConfig(reset);
+  return reset;
 }
 
 /**
@@ -164,6 +210,12 @@ export async function insertTelemetryToSupabase(
   telemetry: HealthTelemetry | TelemetryLog,
   user?: AuthUser | null
 ): Promise<boolean> {
+  const cfg = getSavedSupabaseConfig();
+  // Nếu đã ngắt kết nối (chế độ test) hoặc tắt tự động đồng bộ, không ghi vào database
+  if (cfg.isConnected === false || cfg.autoSync === false) {
+    return false;
+  }
+
   const row = {
     created_at: new Date().toISOString(),
     user_id: user?.id || (telemetry as TelemetryLog).userId || 'guest',
@@ -258,21 +310,33 @@ export async function fetchSupabaseHistory(
       if (contentType.includes('application/json') && res.ok) {
         const result = await res.json();
         const rawData = result?.data || [];
-        const formatted = mapRawDataToTelemetryLogs(rawData);
-        return {
-          data: formatted,
-          stats: result.stats || calculateStats(formatted),
-        };
+        if (rawData.length > 0) {
+          const formatted = mapRawDataToTelemetryLogs(rawData);
+          return {
+            data: formatted,
+            stats: result.stats || calculateStats(formatted),
+          };
+        }
+
+        // Nếu API trả về data rỗng (ví dụ server chưa cấu hình Supabase), thử Direct Client nếu người dùng đã lưu thông tin trong UI
+        const directClient = getDirectSupabaseClient();
+        if (!directClient) {
+          return {
+            data: [],
+            stats: result.stats || calculateStats([]),
+            error: result.error,
+          };
+        }
       }
     }
   } catch {}
 
-  // Fallback Direct Client nếu API Server không sẵn sàng (Ví dụ trên AI Studio Preview)
+  // Fallback Direct Client nếu API Server không sẵn sàng (Ví dụ trên AI Studio Preview hoặc chưa cấu hình biến môi trường server)
   const client = getDirectSupabaseClient();
   if (!client) {
     return { 
       ...emptyResult, 
-      error: 'Vui lòng mở cài đặt Supabase SQL và dán URL + Anon Key để kết nối.' 
+      error: undefined // Tránh thông báo lỗi đỏ phiền toái khi người dùng chưa cấu hình Supabase
     };
   }
 
@@ -402,22 +466,35 @@ export async function deleteSingleLogFromSupabase(id: string): Promise<boolean> 
 export function subscribeToSupabaseRealtime(
   _onData?: (data: HealthTelemetry) => void,
   onLog?: (log: TelemetryLog) => void,
-  _targetUserId?: string,
-  _targetUserEmail?: string,
+  targetUserId?: string,
+  targetUserEmail?: string,
   _onDeleteLog?: (deletedId: string) => void
 ): () => void {
   let isCancelled = false;
   let lastSeenId = '';
+  let errorCount = 0;
 
   const poll = async () => {
     if (isCancelled) return;
-    const res = await fetchSupabaseHistory('day');
-    if (res.data && res.data.length > 0) {
-      const latest = res.data[0];
-      if (lastSeenId && latest.id !== lastSeenId && onLog) {
-        onLog(latest);
+    // Giảm tần suất nếu gặp lỗi lặp đi lặp lại để tránh nghẽn mạng
+    if (errorCount >= 2 && Math.random() > 0.3) return;
+
+    try {
+      const res = await fetchSupabaseHistory('day', targetUserId, targetUserEmail);
+      if (res.error) {
+        errorCount++;
+      } else {
+        errorCount = 0;
       }
-      lastSeenId = latest.id;
+      if (res.data && res.data.length > 0) {
+        const latest = res.data[0];
+        if (lastSeenId && latest.id !== lastSeenId && onLog) {
+          onLog(latest);
+        }
+        lastSeenId = latest.id;
+      }
+    } catch {
+      errorCount++;
     }
   };
 

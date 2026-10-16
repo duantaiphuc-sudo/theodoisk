@@ -6,9 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Role Admin strictly based on Firebase Auth Custom Claim (admin: true)
+    // Role Admin strictly based on Firebase Auth Custom Claim (admin: true) or designated admin email
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.admin == true;
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'duantaiphuc@gmail.com'
+      );
     }
 
     function isOwner(userId) {
@@ -79,25 +82,45 @@ service cloud.firestore {
     }
 
     // 4. Hardware Devices & Live Streams (Raspberry Pi 4)
-    // Pi 4 uses firebase-admin SDK (bypasses rules). Client CANNOT write.
-    // Read only allowed for Admin or users paired with this deviceId.
+    // Pi 4 uses firebase-admin SDK (bypasses rules).
+    // Allow authenticated users to read live telemetry streams (dashboard telemetry feed).
+    // Allow Admin to write, test, calibrate, or reset devices.
     match /devices/{deviceId} {
-      allow read: if isAdmin() || isPairedDevice(deviceId);
-      allow write: if false;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+
+      // Cho phép nhân viên gửi lệnh xác thực khuôn mặt SFace (face_commands)
+      match /face_commands/{cmdId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+        allow update, delete: if isAdmin();
+      }
+
+      // Thông tin gán thiết bị độc quyền (Admin gán, người dùng đọc)
+      match /assignment/{docId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
+
+      // Trạng thái phiên làm việc (Session Ver 5)
+      match /session/{docId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
 
       match /{subcollection=**} {
-        allow read: if isAdmin() || isPairedDevice(deviceId);
-        allow write: if false;
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
       }
     }
 
     match /theodoisk/{docId} {
-      allow read: if isAdmin() || isPairedDevice(docId);
-      allow write: if false;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
 
       match /{subcollection=**} {
-        allow read: if isAdmin() || isPairedDevice(docId);
-        allow write: if false;
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
       }
     }
 

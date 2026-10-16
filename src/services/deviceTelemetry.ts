@@ -8,6 +8,7 @@ import {
   limit 
 } from 'firebase/firestore';
 import { getDatabase, ref, onValue } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 import { FirebaseConnectionConfig, HealthTelemetry } from '../types';
 import { initializeFirebaseApp, markQuotaExceeded, checkIsQuotaExceeded, getAppFirestore } from './firebase';
 
@@ -225,14 +226,62 @@ export function subscribeToFirebaseTelemetry(
       return activeTelemetryUnsub;
     } else {
       const db = getAppFirestore(app, config);
+      const auth = getAuth(app);
       const targetCol = config.collectionName || 'devices';
       const docRef = doc(db, targetCol, effectiveDoc);
+
+      // Theo dõi trạng thái phiên xác thực khuôn mặt SFace của trạm Pi
+      let sessionStatus = 'WAIT_LOGIN';
+      let sessionUid: string | null = null;
+      const sessionRef = doc(db, 'devices', effectiveDoc, 'session', 'current');
+      const unsubSession = onSnapshot(
+        sessionRef,
+        snap => {
+          if (snap.exists()) {
+            const sData = snap.data();
+            sessionStatus = String(sData.status || 'WAIT_LOGIN');
+            sessionUid = (sData.uid as string) || null;
+          } else {
+            sessionStatus = 'WAIT_LOGIN';
+            sessionUid = null;
+          }
+        },
+        () => {}
+      );
 
       const unsubDoc = onSnapshot(
         docRef,
         snapshot => {
           if (snapshot.exists()) {
             const raw = snapshot.data();
+            const currentAuthUid = auth.currentUser?.uid;
+
+            // 1. Kiểm tra raw.userId === currentAuthUid: chỉ chấp nhận khi khớp đúng Auth UID của người dùng đang đăng nhập
+            if (raw.userId && currentAuthUid && raw.userId !== currentAuthUid) {
+              return;
+            }
+
+            // 2. Chỉ chấp nhận hiển thị dữ liệu sinh trắc học khi phiên làm việc đã VERIFIED
+            const isVerified = 
+              sessionStatus === 'VERIFIED' || 
+              raw.session_status === 'VERIFIED' || 
+              raw.sessionStatus === 'VERIFIED';
+
+            if (!isVerified) {
+              onData({
+                bpm: 0,
+                spo2: 0,
+                postureStatus: -1,
+                postureLabel: 'Chờ xác thực khuôn mặt SFace (Chưa VERIFIED)',
+                trackingActive: false,
+                inZone: false,
+                timestamp: new Date().toISOString(),
+                source: `Pi 4 - ${effectiveDoc}`,
+                confidence: 0,
+              });
+              return;
+            }
+
             const telemetry = normalizeTelemetry(raw, `Pi 4 - ${effectiveDoc}`);
             onData(telemetry);
           }
@@ -243,8 +292,11 @@ export function subscribeToFirebaseTelemetry(
         }
       );
 
-      activeTelemetryUnsub = unsubDoc;
-      return unsubDoc;
+      activeTelemetryUnsub = () => {
+        unsubSession();
+        unsubDoc();
+      };
+      return activeTelemetryUnsub;
     }
   } catch (error) {
     markQuotaExceeded(error);

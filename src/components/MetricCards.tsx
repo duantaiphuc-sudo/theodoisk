@@ -17,17 +17,28 @@ interface MetricCardsProps {
   telemetry: HealthTelemetry;
   thresholds: AlertThresholds;
   hasData?: boolean;
+  isSessionVerified?: boolean;
 }
 
-export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds, hasData = true }) => {
+export const MetricCards: React.FC<MetricCardsProps> = ({ 
+  telemetry, 
+  thresholds, 
+  hasData = true,
+  isSessionVerified = true
+}) => {
   const { bpm, spo2, postureStatus, postureLabel, trackingActive, inZone } = telemetry;
 
-  // Nếu thực sự chưa có gói tin nào từ Pi thì mới hiện Empty State
+  // Nếu thực sự chưa có gói tin nào từ Pi hoặc chưa đạt phiên VERIFIED thì hiện Empty State với nhãn --
   const isUnassigned = telemetry.postureLabel === 'Tài khoản chưa được gán thiết bị' || telemetry.source === 'Chưa gán thiết bị';
-  const isEmpty = !hasData || isUnassigned;
+  const isUnverified = isSessionVerified === false;
+  const isEmpty = !hasData || isUnassigned || isUnverified;
   if (isEmpty) {
-    const emptySubtext = isUnassigned ? 'Chưa gán thiết bị' : 'Chờ MAX30102';
-    const statusNote = isUnassigned ? 'Cần gán Node' : 'Chưa có dữ liệu';
+    const emptySubtext = isUnverified 
+      ? 'Chờ xác thực SFace' 
+      : (isUnassigned ? 'Chưa gán thiết bị' : 'Chờ MAX30102');
+    const statusNote = isUnverified 
+      ? 'Chưa VERIFIED' 
+      : (isUnassigned ? 'Cần gán Node' : 'Chưa có dữ liệu');
 
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
@@ -100,15 +111,15 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
             </div>
             <div className="mt-2 sm:mt-3">
               <div className={`inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-semibold border whitespace-nowrap ${
-                isUnassigned ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'
+                isUnassigned ? 'bg-amber-50 text-amber-800 border-amber-300' : (isUnverified ? 'bg-sky-50 text-sky-800 border-sky-300' : 'bg-slate-100 text-slate-600 border-slate-200')
               }`}>
-                {isUnassigned ? 'Tài khoản chưa được gán thiết bị' : 'Chờ Camera AI'}
+                {isUnassigned ? 'Tài khoản chưa được gán thiết bị' : (isUnverified ? 'Chờ xác thực SFace' : 'Chờ Camera AI')}
               </div>
             </div>
           </div>
           <div className="mt-2.5 sm:mt-4 flex items-center justify-between pt-2 sm:pt-3 border-t border-slate-100 text-[10px] sm:text-xs text-slate-400">
-            <span>{isUnassigned ? 'Chưa gán Node' : 'Chưa nhận dạng'}</span>
-            <span className="font-mono">--%</span>
+            <span>{isUnassigned ? 'Chưa gán Node' : (isUnverified ? 'Khóa bảo mật' : 'Chưa nhận dạng')}</span>
+            <span className="font-mono">--</span>
           </div>
         </div>
 
@@ -125,13 +136,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ telemetry, thresholds,
             </div>
             <div className="mt-2 sm:mt-4 flex items-baseline gap-2">
               <span className="text-sm sm:text-lg lg:text-xl font-bold tracking-tight text-slate-400 font-sans whitespace-nowrap">
-                {isUnassigned ? 'CHƯA GÁN NODE' : 'CHỜ KẾT NỐI'}
+                {isUnassigned ? 'CHƯA GÁN NODE' : (isUnverified ? 'CHỜ XÁC THỰC' : 'CHỜ KẾT NỐI')}
               </span>
             </div>
           </div>
           <div className="mt-2.5 sm:mt-4 flex items-center justify-between pt-2 sm:pt-3 border-t border-slate-100 text-[10px] sm:text-xs text-slate-400">
-            <span>{isUnassigned ? 'Vui lòng gán thiết bị' : 'Nguồn: Pi 4'}</span>
-            <span className="whitespace-nowrap">{isUnassigned ? 'Chưa kích hoạt' : 'Chưa bắt đầu'}</span>
+            <span>{isUnassigned ? 'Vui lòng gán thiết bị' : (isUnverified ? 'Yêu cầu khuôn mặt' : 'Nguồn: Pi 4')}</span>
+            <span className="whitespace-nowrap">{isUnassigned ? 'Chưa kích hoạt' : (isUnverified ? 'Khóa tạm thời' : 'Chưa bắt đầu')}</span>
           </div>
         </div>
       </div>
