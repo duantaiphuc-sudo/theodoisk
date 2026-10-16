@@ -20,11 +20,19 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
 
   useEffect(() => {
     if (!deviceId) return;
-    const unsub = watchFaceSession(deviceId, data => {
-      setSession(String(data?.status || 'WAIT_LOGIN'));
-      setProgress(String(data?.progress || ''));
-    });
-    return () => { unsub(); watch.current?.(); watch.current = null; };
+    try {
+      const unsub = watchFaceSession(deviceId, data => {
+        setSession(String(data?.status || 'WAIT_LOGIN'));
+        setProgress(String(data?.progress || ''));
+      });
+      return () => {
+        try { unsub(); } catch {}
+        try { watch.current?.(); } catch {}
+        watch.current = null;
+      };
+    } catch (e) {
+      console.warn('FaceControlPanel error:', e);
+    }
   }, [deviceId]);
 
   async function execute(action: Command) {

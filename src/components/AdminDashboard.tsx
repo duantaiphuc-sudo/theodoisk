@@ -883,7 +883,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => {
     const unsub = subscribeToAllUsersTelemetry(firebaseConfig, (map) => {
-      setTelemetryMap(map);
+      setTelemetryMap(map as any);
     });
     return () => unsub();
   }, [firebaseConfig]);

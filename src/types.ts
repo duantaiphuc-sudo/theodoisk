@@ -19,6 +19,7 @@ export interface HealthTelemetry {
   image?: string;
   userId?: string;
   faceVerified?: boolean;
+  updatedAt?: string;
 }
 
 export type UserRole = 'admin' | 'manager' | 'employee';
@@ -83,6 +84,9 @@ export interface EmployeeNodeStatus {
   currentPresence?: string;
   presence?: string;
   sittingMinutes?: number;
+  posture?: string;
+  avatar?: string;
+  alertReason?: string;
 }
 
 export interface HistoricalRecord {
@@ -147,6 +151,7 @@ export interface TelemetryLog {
   userEmail?: string;
   userName?: string;
   device?: string;
+  inZone?: boolean;
 }
 
 export type TelemetryHistoryItem = TelemetryLog;
