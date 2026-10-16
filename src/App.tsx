@@ -59,6 +59,8 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
 import { HealthChatbot } from './components/HealthChatbot';
 import { AdminDashboard } from './components/AdminDashboard';
+import { FaceControlPanel } from './components/FaceControlPanel';
+import { watchFaceSession } from './services/faceCommandService';
 import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
 import { 
   Sparkles, 
@@ -634,7 +636,28 @@ export default function App() {
     }
   }, [firebaseConfig]);
 
-  const assignedDevice = (currentUser?.device ? currentUser.device.trim() : '') || firebaseConfig.documentId || 'pi4_node_1';
+  const userDevice = (currentUser?.deviceId || currentUser?.device || '').trim();
+  const isAdminUser = currentUser?.role === 'admin';
+  const assignedDevice = userDevice || (isAdminUser ? (firebaseConfig.documentId || 'pi4_node_1') : '');
+
+  const [isFaceSessionVerified, setIsFaceSessionVerified] = useState<boolean>(true);
+
+  // Theo dõi trạng thái phiên xác thực khuôn mặt SFace thời gian thực
+  useEffect(() => {
+    if (!assignedDevice || isSimulating) {
+      setIsFaceSessionVerified(true);
+      return;
+    }
+    try {
+      const unsub = watchFaceSession(assignedDevice, data => {
+        const status = String(data?.status || 'WAIT_LOGIN');
+        setIsFaceSessionVerified(status === 'VERIFIED');
+      });
+      return () => unsub();
+    } catch {
+      setIsFaceSessionVerified(true);
+    }
+  }, [assignedDevice, isSimulating]);
 
   // Đồng bộ thời gian thực hồ sơ currentUser (bao gồm cả trường device được Admin gán)
   useEffect(() => {
@@ -1644,12 +1667,18 @@ export default function App() {
                 ))}
               </div>
 
+              {/* Bảng điều khiển xác thực khuôn mặt SFace / YuNet trên Raspberry Pi */}
+              {!isSimulating && (
+                <FaceControlPanel deviceId={assignedDevice} />
+              )}
+
               {/* 1. Metric Cards (Heart Rate, SpO2, Posture, Monitor Zone) */}
               <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
                 <MetricCards 
                   telemetry={telemetry} 
                   thresholds={thresholds} 
                   hasData={hasReceivedData} 
+                  isSessionVerified={isFaceSessionVerified}
                 />
               </div>
 

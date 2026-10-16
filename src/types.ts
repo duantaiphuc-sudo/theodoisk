@@ -17,6 +17,8 @@ export interface HealthTelemetry {
   isStale?: boolean;
   packetAgeSeconds?: number;
   image?: string;
+  userId?: string;
+  faceVerified?: boolean;
 }
 
 export type UserRole = 'admin' | 'manager' | 'employee';

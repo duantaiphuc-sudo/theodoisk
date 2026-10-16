@@ -10,7 +10,8 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.admin == true ||
-        request.auth.token.email == 'duantaiphuc@gmail.com'
+        request.auth.token.email == 'duantaiphuc@gmail.com' ||
+        request.auth.token.email == 'nguyentai51.2k4@gmail.com'
       );
     }
 
@@ -91,8 +92,15 @@ service cloud.firestore {
 
       // Cho phép nhân viên gửi lệnh xác thực khuôn mặt SFace (face_commands)
       match /face_commands/{cmdId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+        allow read: if isAuthenticated() && (
+          isAdmin() ||
+          resource.data.uid == request.auth.uid
+        );
+        allow create: if isAuthenticated() && 
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.device_id == deviceId &&
+          request.resource.data.status == 'PENDING' &&
+          request.resource.data.type in ['ENROLL_FACE', 'VERIFY_FACE', 'LOGOUT_FACE'];
         allow update, delete: if isAdmin();
       }
 

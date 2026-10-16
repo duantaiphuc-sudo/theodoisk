@@ -103,7 +103,10 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
             ) : (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
             )}
-            {session} {progress}
+            <span>
+              {session === 'VERIFIED' ? 'ĐÃ XÁC THỰC' : session === 'WAIT_LOGIN' ? 'CHỜ XÁC THỰC' : session}
+              {progress ? ` (${progress})` : ''}
+            </span>
           </span>
         </div>
       </div>
@@ -129,7 +132,7 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
           type="button"
           disabled={working || !deviceId}
           onClick={() => execute('ENROLL')}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none"
+          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
         >
           <ScanFace className="w-4 h-4 shrink-0" />
           <span>Đăng ký khuôn mặt</span>
@@ -139,7 +142,7 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
           type="button"
           disabled={working || !deviceId}
           onClick={() => execute('VERIFY')}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none"
+          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
         >
           <UserCheck className="w-4 h-4 shrink-0" />
           <span>Xác thực / Đăng nhập</span>
@@ -149,7 +152,7 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
           type="button"
           disabled={working || !deviceId}
           onClick={() => execute('LOGOUT')}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none"
+          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
         >
           <LogOut className="w-4 h-4 shrink-0" />
           <span>Đăng xuất thiết bị</span>

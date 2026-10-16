@@ -168,21 +168,43 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       if (ok) {
         const u = users.find(x => x.id === userId);
         const name = u?.fullName || 'Người dùng';
-        const label = cleanDevice ? cleanDevice : 'Trống';
+        const label = cleanDevice ? cleanDevice : 'Trống (Thu hồi)';
         setNotice(`Đã cập nhật gán thiết bị [${label}] cho: ${name}`);
         setTimeout(() => setNotice(null), 3000);
       } else {
-        setNotice('Không thể cập nhật thiết bị lên Firestore.');
-        setTimeout(() => setNotice(null), 3000);
+        // Hoàn tác cập nhật lạc quan khi thất bại
+        const list = await fetchAllUsers();
+        setUsers(list);
+        setNotice('Lỗi: Gán thiết bị thất bại. Yêu cầu quyền Quản trị viên (admin).');
+        setTimeout(() => setNotice(null), 4000);
       }
     } catch (e) {
       console.error('Error assigning device:', e);
+      const list = await fetchAllUsers();
+      setUsers(list);
+      setNotice('Lỗi hệ thống khi gán thiết bị.');
+      setTimeout(() => setNotice(null), 4000);
     }
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+
+    // Kiểm tra xem trường thiết bị có bị thay đổi không
+    const originalUser = users.find(u => u.id === editingUser.id);
+    const originalDevice = (originalUser?.deviceId || originalUser?.device || '').trim();
+    const newDevice = (editingUser.deviceId || editingUser.device || '').trim();
+
+    if (newDevice !== originalDevice) {
+      const okAssign = await adminAssignDevice(editingUser.id, newDevice);
+      if (!okAssign) {
+        setNotice('Lỗi: Không thể chuyển gán thiết bị qua Firestore Transaction.');
+        setTimeout(() => setNotice(null), 4000);
+        return;
+      }
+    }
+
     const ok = await adminUpdateUser(editingUser);
     if (ok) {
       setUsers(prev => prev.map(u => u.id === editingUser.id ? editingUser : u));

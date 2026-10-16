@@ -179,6 +179,8 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     isStale,
     packetAgeSeconds,
     image,
+    userId: (raw.userId || raw.user_id || raw.uid) ? String(raw.userId || raw.user_id || raw.uid) : undefined,
+    faceVerified: Boolean(raw.face_verified || raw.faceVerified || raw.session_status === 'VERIFIED'),
   };
 }
 
@@ -261,11 +263,12 @@ export function subscribeToFirebaseTelemetry(
               return;
             }
 
-            // 2. Chỉ chấp nhận hiển thị dữ liệu sinh trắc học khi phiên làm việc đã VERIFIED
+            // 2. Chỉ chấp nhận hiển thị dữ liệu sinh trắc học khi phiên làm việc đã VERIFIED cho UID này
             const isVerified = 
-              sessionStatus === 'VERIFIED' || 
-              raw.session_status === 'VERIFIED' || 
-              raw.sessionStatus === 'VERIFIED';
+              (sessionStatus === 'VERIFIED' && (!sessionUid || !currentAuthUid || sessionUid === currentAuthUid)) || 
+              (raw.session_status === 'VERIFIED' && (!raw.userId || !currentAuthUid || raw.userId === currentAuthUid)) || 
+              (raw.sessionStatus === 'VERIFIED' && (!raw.userId || !currentAuthUid || raw.userId === currentAuthUid)) ||
+              raw.face_verified === true;
 
             if (!isVerified) {
               onData({

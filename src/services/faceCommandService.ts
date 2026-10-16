@@ -22,11 +22,14 @@ export async function requestFaceAction(deviceId: string, type: FaceAction): Pro
     getDoc(doc(db, 'devices', deviceId, 'assignment', 'current')),
   ]);
   if (!userDoc.exists() || (userDoc.data().deviceId !== deviceId && userDoc.data().device !== deviceId)) {
-    throw new Error('Quản trị viên chưa gán thiết bị này cho tài khoản.');
+    throw new Error(`Tài khoản chưa được gán thiết bị [${deviceId}]. Vui lòng vào mục Quản lý người dùng để gán thiết bị.`);
   }
   const assignment = assignmentDoc.data();
-  if (assignment?.uid !== uid || !assignment.assignment_id) {
-    throw new Error('Bạn không phải người đang được gán thiết bị này.');
+  if (!assignmentDoc.exists() || !assignment?.assignment_id) {
+    throw new Error(`Trạm [${deviceId}] chưa có bản ghi phân quyền (assignment/current). Hãy gán lại thiết bị trong Quản lý người dùng.`);
+  }
+  if (assignment.uid !== uid) {
+    throw new Error(`Trạm [${deviceId}] hiện đang được gán cho tài khoản khác (UID: ${assignment.uid}). Hãy chuyển quyền gán sang tài khoản này.`);
   }
   const ref = await addDoc(collection(db, 'devices', deviceId, 'face_commands'), {
     uid, device_id: deviceId, assignment_id: assignment.assignment_id,
