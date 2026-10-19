@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   Shield,
   Menu,
-  Sparkles,
   Info,
   Mail,
   KeyRound,
@@ -262,7 +261,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-slate-700 hover:text-emerald-700 hover:bg-slate-100/90 transition cursor-pointer whitespace-nowrap shrink-0"
             >
               <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="whitespace-nowrap">Camera AI Tư thế</span>
+              <span className="whitespace-nowrap">Camera Tư Thế</span>
             </button>
 
             <button
@@ -350,7 +349,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition whitespace-nowrap"
             >
               <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="whitespace-nowrap">Camera AI Tư thế</span>
+              <span className="whitespace-nowrap">Camera Tư Thế</span>
             </button>
 
             <button
@@ -440,7 +439,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <Camera className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <span className="font-bold text-slate-900 block text-[11px] truncate">Camera AI</span>
+                    <span className="font-bold text-slate-900 block text-[11px] truncate">Camera Tư Thế</span>
                     <span className="text-[10px] text-slate-500 block truncate">Tư thế cột sống</span>
                   </div>
                 </button>
@@ -843,10 +842,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
               <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200">
                 <h4 className="font-bold text-sky-900 mb-1 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-sky-600" /> Mục tiêu & Ứng dụng thực tế:
+                  <CheckCircle2 className="w-4 h-4 text-sky-600" /> Mục tiêu & Ứng dụng thực tế:
                 </h4>
                 <p className="text-slate-600">
-                  Hệ thống kết hợp phần cứng biên <b>Raspberry Pi 4 Model B</b>, cảm biến đo thể tích máu <b>MAX30102</b> và mô hình thị giác máy tính <b>MediaPipe AI</b> nhằm bảo vệ toàn diện cột sống, nhịp tim và nồng độ oxy trong máu cho người làm việc văn phòng.
+                  Hệ thống kết hợp phần cứng biên <b>Raspberry Pi 4 Model B</b>, cảm biến đo thể tích máu <b>MAX30102</b> và mô hình thị giác máy tính <b>MediaPipe</b> nhằm bảo vệ toàn diện cột sống, nhịp tim và nồng độ oxy trong máu cho người làm việc văn phòng.
                 </p>
               </div>
 
@@ -864,7 +863,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
                   <div className="flex items-center gap-2 text-emerald-700 font-bold">
                     <Camera className="w-4 h-4" />
-                    <span>Camera AI Tư Thế</span>
+                    <span>Camera Tư Thế</span>
                   </div>
                   <p className="text-slate-600 text-[11px]">
                     Nhận diện 33 điểm mốc sinh trắc 3D theo thời gian thực (30 FPS), tính toán góc gập cổ và độ nghiêng vai để nhắc nhở điều chỉnh tư thế.
@@ -986,7 +985,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   <Camera className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Camera AI Thị Giác Máy Tính & Tư Thế</h3>
+                  <h3 className="text-base font-bold text-slate-900">Camera Giám Sát Tư Thế & Thị Giác Máy Tính</h3>
                   <p className="text-xs text-slate-500">Mô hình MediaPipe Pose 33 điểm mốc công thái học</p>
                 </div>
               </div>
@@ -1078,7 +1077,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <p className="text-slate-500 text-[10px]">RAM</p>
                   <p className="font-bold text-slate-900">4GB LPDDR4-3200</p>
-                  <p className="text-slate-600 text-[10px]">Tối ưu cho mô hình AI</p>
+                  <p className="text-slate-600 text-[10px]">Tối ưu cho thị giác máy tính</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">

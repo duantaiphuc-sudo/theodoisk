@@ -33,6 +33,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Upload face embedding template to Firestore")
     parser.add_argument("--uid", required=True, help="User UID trên Firebase Authentication")
     parser.add_argument("--template", required=True, help="Đường dẫn file JSON chứa vector embedding (128 số)")
+    parser.add_argument("--image", default=None, help="Đường dẫn file ảnh chân dung (.jpg, .png) để hiển thị lên Web Dashboard (tùy chọn)")
     parser.add_argument("--key", default="serviceAccountKey.json", help="Đường dẫn file serviceAccountKey.json (mặc định: serviceAccountKey.json)")
     parser.add_argument("--model", default="opencv_sface_2021dec", help="Tên model nhận diện (mặc định: opencv_sface_2021dec)")
     return parser.parse_args()
@@ -66,6 +67,17 @@ def load_template(json_path: str):
     return embedding, data
 
 
+def load_image_base64(image_path: str):
+    if not image_path or not os.path.isfile(image_path):
+        return None
+    import base64
+    with open(image_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    ext = os.path.splitext(image_path)[1].lower().replace(".", "")
+    mime = "jpeg" if ext in ["jpg", "jpeg"] else ext
+    return f"data:image/{mime};base64,{encoded}"
+
+
 def init_firebase(key_path: str):
     if not firebase_admin._apps:
         if not os.path.isfile(key_path):
@@ -83,6 +95,7 @@ def main():
     print("=" * 60)
     print(f"• Target UID     : {args.uid}")
     print(f"• Template File  : {args.template}")
+    print(f"• Image File     : {args.image or 'Không truyền file ảnh'}")
     print(f"• Model Name     : {args.model}")
 
     try:
@@ -91,6 +104,10 @@ def main():
 
         print(f"• Số chiều vector: {len(embedding)} dimensions")
         print(f"• Giá trị mẫu [0..3]: {[round(x, 4) for x in embedding[:4]]} ...")
+
+        image_b64 = load_image_base64(args.image) if args.image else None
+        if image_b64:
+            print(f"• Ảnh khuôn mặt : Đã mã hóa Base64 ({len(image_b64)} chars) cho Web Dashboard")
 
         db = init_firebase(args.key)
         doc_ref = db.collection("face_templates").document(args.uid)
@@ -105,9 +122,23 @@ def main():
             "updated_at": firestore.SERVER_TIMESTAMP,
         }
 
+        if image_b64:
+            payload["image"] = image_b64
+            payload["snapshot"] = image_b64
+
         doc_ref.set(payload, merge=True)
 
-        print("\n✅ THÀNH CÔNG: Đã lưu mẫu khuôn mặt vào Firestore!")
+        if image_b64:
+            try:
+                db.collection("users").document(args.uid).set({
+                    "avatar": image_b64,
+                    "faceSnapshot": image_b64,
+                    "hasFaceEnrolled": True,
+                }, merge=True)
+            except Exception:
+                pass
+
+        print("\n✅ THÀNH CÔNG: Đã lưu mẫu khuôn mặt (và ảnh hiển thị) vào Firestore!")
         print(f"   Collection : face_templates")
         print(f"   Document ID: {args.uid}")
         print("   Raspberry Pi có thể query mẫu theo UID để xác thực người dùng.\n")

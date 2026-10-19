@@ -384,7 +384,8 @@ export function subscribeToUsers(
             const isAdmin = data.role === 'admin' || data.role === 'manager';
 
           const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-          const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < 30 * 1000) : false;
+          const HEARTBEAT_WINDOW_MS = 60 * 1000; // 60 giây (1 phút): tab chạy nền vẫn ping đều, rời web sau 1 phút chuyển offline
+          const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < HEARTBEAT_WINDOW_MS) : false;
           const isLiveHeartbeatActive = Boolean(data.isOnline) && isRecentPing;
 
           const rawPostureText = data.currentPostureText || '';

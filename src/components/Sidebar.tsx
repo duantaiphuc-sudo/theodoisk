@@ -9,7 +9,7 @@ import {
   Activity,
   Wifi,
   WifiOff,
-  Sparkles,
+  FlaskConical,
   LogOut,
   User,
   Shield,
@@ -358,7 +358,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : ''}`}>
-                <Sparkles className={`w-4 h-4 shrink-0 ${isSimulating ? 'text-amber-600' : 'text-slate-400'}`} />
+                <FlaskConical className={`w-4 h-4 shrink-0 ${isSimulating ? 'text-amber-600' : 'text-slate-400'}`} />
                 {isExpanded && <span>Chế độ giả lập</span>}
               </div>
               {isExpanded ? (

@@ -27,7 +27,7 @@ export function generateSimulatedTelemetry(
       bpm: 0,
       spo2: 0,
       postureStatus: -1,
-      postureLabel: 'Lỗi AI (Mất Camera)',
+      postureLabel: 'Lỗi Camera (Mất Kết Nối)',
       trackingActive: false,
       inZone: false,
       angleNeck: 0,
@@ -81,7 +81,7 @@ export function generateSimulatedTelemetry(
       trackingActive: false,
       inZone: false,
       angleNeck: 0,
-      postureWarning: 'Không phát hiện người trong vùng quan sát của Camera AI',
+      postureWarning: 'Không phát hiện người trong vùng quan sát của Camera',
       source: 'Raspberry Pi 4 (Giả Lập - Vắng Mặt)',
       confidence: 0,
     };

@@ -65,6 +65,8 @@ export interface FaceTemplate {
   embedding: number[];
   enabled: boolean;
   updated_at?: any;
+  image?: string;
+  snapshot?: string;
 }
 
 export interface EmployeeNodeStatus {
@@ -175,12 +177,6 @@ export interface SupabaseConnectionConfig {
   isConnected?: boolean;
 }
 
-export interface ChatMessage {
-  id: string;
-  sender: 'user' | 'bot';
-  text: string;
-  time: string;
-}
 
 export type NotificationType = 'task' | 'health_alert' | 'general';
 export type NotificationPriority = 'normal' | 'high' | 'urgent';

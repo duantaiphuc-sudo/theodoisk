@@ -10,12 +10,9 @@ import {
   Calendar, 
   Clock, 
   Filter, 
-  Sparkles,
   Database,
   FileText,
-  UserCheck,
-  Unplug,
-  Plug
+  UserCheck
 } from 'lucide-react';
 import { TelemetryLog, AuthUser, SupabaseConnectionConfig } from '../types';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
@@ -313,32 +310,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             </button>
           )}
 
-          {/* Supabase Quick Disconnect / Reconnect Toggle (Test Mode) */}
-          <button
-            onClick={handleToggleSupabase}
-            title={
-              isSupaConnected
-                ? 'Supabase đang lưu dữ liệu. Bấm để NGẮT KẾT NỐI (Chuyển sang chế độ Test thử nghiệm, KHÔNG lưu dữ liệu vào database)'
-                : 'Đang ở chế độ Test thử nghiệm (Đã ngắt lưu DB). Bấm để KẾT NỐI LẠI Supabase và tự động lưu dữ liệu'
-            }
-            className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold whitespace-nowrap shadow-2xs cursor-pointer transition ${
-              isSupaConnected
-                ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
-                : 'bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100'
-            }`}
-          >
-            {isSupaConnected ? (
-              <>
-                <Unplug className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>Ngắt kết nối Supa (Test)</span>
-              </>
-            ) : (
-              <>
-                <Plug className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Kết nối lại Supa (Lưu DB)</span>
-              </>
-            )}
-          </button>
+
 
           {/* Sync Button */}
           {onRefreshHistory && (
@@ -677,7 +649,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                         </span>
                       </div>
                       <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                        <span className="text-[10px] text-slate-500 block mb-0.5">Vùng AI</span>
+                        <span className="text-[10px] text-slate-500 block mb-0.5">Vùng Quan Sát</span>
                         <span className="text-[11px] font-semibold text-slate-700">
                           {item.trackingActive ? 'Trong vùng' : 'Vắng'}
                         </span>

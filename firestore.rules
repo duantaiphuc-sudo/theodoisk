@@ -49,8 +49,9 @@ service cloud.firestore {
       // User can update profile info, but cannot self-assign admin role or alter deviceId
       allow update: if isAdmin() || (
         isOwner(userId) &&
-        (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
-        (!('deviceId' in request.resource.data) || request.resource.data.deviceId == resource.data.deviceId)
+        (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role) &&
+        (!('deviceId' in request.resource.data) || !('deviceId' in resource.data) || request.resource.data.deviceId == resource.data.deviceId || request.resource.data.deviceId == '' || request.resource.data.deviceId == null) &&
+        (!('device' in request.resource.data) || !('device' in resource.data) || request.resource.data.device == resource.data.device || request.resource.data.device == '' || request.resource.data.device == null)
       );
       allow delete: if isAdmin();
 

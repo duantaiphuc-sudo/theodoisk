@@ -78,10 +78,26 @@ async function verifyAuthToken(req: Request, res: Response): Promise<AuthContext
 
   try {
     const decoded = await getAdminAuth().verifyIdToken(idToken);
-    const isAdminUser = Boolean(
+    let isAdminUser = Boolean(
       decoded.admin === true || 
-      decoded.email?.toLowerCase() === 'duantaiphuc@gmail.com'
+      decoded.email?.toLowerCase() === 'duantaiphuc@gmail.com' ||
+      decoded.email?.toLowerCase() === 'nguyentai51.2k4@gmail.com'
     );
+
+    if (!isAdminUser) {
+      try {
+        const userDoc = await getAdminFirestore().collection('users').doc(decoded.uid).get();
+        if (userDoc.exists) {
+          const role = userDoc.data()?.role;
+          if (role === 'admin' || role === 'manager') {
+            isAdminUser = true;
+          }
+        }
+      } catch (err) {
+        // Fallback: check email domain or ignore
+      }
+    }
+
     return {
       uid: decoded.uid,
       email: decoded.email,

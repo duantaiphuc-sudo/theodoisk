@@ -7,7 +7,7 @@ import {
   Volume2, 
   VolumeX, 
   Settings,
-  Sparkles,
+  FlaskConical,
   Shield,
   User,
   Users,
@@ -184,36 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Supabase Connection & Disconnect / Test Toggle Button */}
-          {supabaseConfig && (
-            <button
-              onClick={onToggleSupabaseConnection}
-              title={
-                supabaseConfig.isConnected !== false
-                  ? 'Supabase: Đang kết nối và lưu dữ liệu. Bấm để NGẮT KẾT NỐI (Chuyển sang chế độ Test thử nghiệm, không lưu DB)'
-                  : 'Supabase: ĐÃ NGẮT KẾT NỐI (Chế độ Test - KHÔNG lưu DB). Bấm để KẾT NỐI LẠI và tự động lưu dữ liệu'
-              }
-              className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                supabaseConfig.isConnected !== false
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
-                  : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-xs'
-              }`}
-            >
-              {supabaseConfig.isConnected !== false ? (
-                <>
-                  <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="whitespace-nowrap">Supa: Lưu DB</span>
-                  <span className="text-emerald-600 text-[10px]">●</span>
-                </>
-              ) : (
-                <>
-                  <Unplug className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span className="whitespace-nowrap font-bold">Supa: Test (Ngắt DB)</span>
-                  <span className="text-amber-600 text-[10px]">○</span>
-                </>
-              )}
-            </button>
-          )}
+
 
           {/* Simulation Toggle */}
           <button
@@ -225,7 +196,7 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <FlaskConical className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span className="whitespace-nowrap">{isSimulating ? 'Đang giả lập' : 'Giả lập Pi 4'}</span>
           </button>
 
@@ -559,32 +530,7 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Supabase Connection & Test Toggle on Mobile */}
-            {supabaseConfig && (
-              <button
-                onClick={() => {
-                  if (onToggleSupabaseConnection) onToggleSupabaseConnection();
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center justify-center gap-1.5 p-2.5 rounded-lg border font-semibold cursor-pointer ${
-                  supabaseConfig.isConnected !== false
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-amber-50 text-amber-900 border-amber-300'
-                }`}
-              >
-                {supabaseConfig.isConnected !== false ? (
-                  <>
-                    <Database className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Supa: Đang lưu DB</span>
-                  </>
-                ) : (
-                  <>
-                    <Unplug className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Supa: Test (Đã ngắt)</span>
-                  </>
-                )}
-              </button>
-            )}
+
 
             {/* Simulation Toggle */}
             <button
@@ -598,7 +544,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
               <span>{isSimulating ? 'Tắt Giả Lập' : 'Bật Giả Lập'}</span>
             </button>
 

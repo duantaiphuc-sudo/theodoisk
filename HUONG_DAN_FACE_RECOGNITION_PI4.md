@@ -19,6 +19,8 @@ Hệ thống Cloud và Web đã chuẩn bị xong 100% hạ tầng cho tính nă
     "schema_version": 1,
     "sample_count": 5,
     "embedding": [-0.0412, 0.0891, ..., 0.0521], // Mảng 128 số float32
+    "image": "data:image/jpeg;base64,...",        // Chuỗi ảnh JPEG Base64 để hiển thị lên Web Dashboard
+    "snapshot": "data:image/jpeg;base64,...",
     "enabled": true,
     "updated_at": "Timestamp"
   }
@@ -31,7 +33,7 @@ Hệ thống Cloud và Web đã chuẩn bị xong 100% hạ tầng cho tính nă
 - Nghiêm cấm client thông thường liệt kê (list) hoặc quét trộm vector khuôn mặt của tài khoản khác.
 
 ### 3. Công cụ Script có sẵn trong repo: `scripts/upload_face_template.py`
-Công cụ viết bằng Python giúp đọc file `test_user.json` (chứa 128 số) và tự động đẩy lên Firestore collection `face_templates/{userId}` chỉ bằng 1 dòng lệnh.
+Công cụ viết bằng Python giúp đọc file `test_user.json` (chứa 128 số) và file ảnh chân dung `test_user.jpg`, tự động mã hóa Base64 và đẩy lên Firestore collection `face_templates/{userId}` chỉ bằng 1 dòng lệnh.
 
 ### 4. Đã fix lỗi ngắt kết nối Camera trên Web Dashboard
 Khi rút camera USB trên Pi 4, Pi gửi mã `-1` (`STATUS_UNKNOWN`) và nhãn `"Lỗi AI"`. Web hiện tại đã nhận diện đúng trạng thái lỗi phần cứng (`Lỗi kết nối Camera AI`) mà **không bị mất kết nối** hay nhảy về trạng thái chờ rỗng.
@@ -52,13 +54,14 @@ Quy trình gồm 4 bước cụ thể sau:
 
 ---
 
-### BƯỚC 2: Đẩy file mẫu `test_user.json` lên Firestore
-Trên Raspberry Pi (hoặc máy tính có sẵn file `serviceAccountKey.json`), mở terminal chạy lệnh sau:
+### BƯỚC 2: Đẩy file mẫu `test_user.json` và ảnh chân dung lên Firestore
+Trên Raspberry Pi (hoặc máy tính có sẵn file `serviceAccountKey.json`), mở terminal chạy lệnh sau (kèm cờ `--image` để web lập tức hiển thị được ảnh đại diện):
 
 ```bash
 python3 scripts/upload_face_template.py \
   --uid "DIEN_UID_LAY_O_BUOC_1_VAO_DAY" \
   --template "/home/admin/Desktop/office_health/face/templates/test_user.json" \
+  --image "/home/admin/Desktop/office_health/face/templates/test_user.jpg" \
   --key "serviceAccountKey.json"
 ```
 
@@ -69,13 +72,15 @@ THEODOISK - ĐỒNG BỘ MẪU KHUÔN MẶT LÊN FIRESTORE
 ============================================================
 • Target UID     : dK8z91La0...
 • Template File  : .../test_user.json
+• Image File     : .../test_user.jpg
 • Số chiều vector: 128 dimensions
-✅ THÀNH CÔNG: Đã lưu mẫu khuôn mặt vào Firestore!
+• Ảnh khuôn mặt : Đã mã hóa Base64 cho Web Dashboard
+✅ THÀNH CÔNG: Đã lưu mẫu khuôn mặt (và ảnh hiển thị) vào Firestore!
    Collection : face_templates
    Document ID: dK8z91La0...
 ```
 
-Sau bước này, trên Firestore đã có sẵn vector mẫu của người dùng.
+Sau bước này, trên Firestore đã có cả vector mẫu và ảnh khuôn mặt để Web hiển thị ngay lập tức.
 
 ---
 

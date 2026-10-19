@@ -30,7 +30,9 @@ import {
   Clock,
   User,
   Radio,
-  FileText
+  FileText,
+  Bot,
+  Eye
 } from 'lucide-react';
 import { 
   fetchAllUsers, 
@@ -54,6 +56,7 @@ interface UserManagementModalProps {
   onClose: () => void;
   currentUser: AuthUser;
   firebaseConfig?: FirebaseConnectionConfig;
+  onQueryUserChatbot?: (userId: string) => void;
 }
 
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({
@@ -61,9 +64,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   onClose,
   currentUser,
   firebaseConfig,
+  onQueryUserChatbot,
 }) => {
   const config = firebaseConfig || getSavedFirebaseConfig();
-  const [activeTab, setActiveTab] = useState<'accounts' | 'tasks'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'tasks' | 'biometrics_query'>('accounts');
 
   // Users state
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -388,6 +392,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab('biometrics_query')}
+            className={`pb-3 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
+              activeTab === 'biometrics_query'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-emerald-600" />
+            <span>Truy Vấn Sức Khỏe Thành Viên</span>
+          </button>
         </div>
 
         {/* Notice Message */}
@@ -571,6 +587,22 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   >
                                     <Send className="w-3.5 h-3.5 text-sky-600" />
                                     <span>Giao việc</span>
+                                  </button>
+                                )}
+
+                                {/* Direct Ask AI / Query Health */}
+                                {onQueryUserChatbot && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onQueryUserChatbot(u.id);
+                                      onClose();
+                                    }}
+                                    title={`Mở Trợ lý AI để truy vấn và phân tích sức khỏe của ${u.fullName}`}
+                                    className="h-8 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 transition cursor-pointer text-xs font-bold active:scale-95 shadow-2xs"
+                                  >
+                                    <Bot className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>Hỏi AI</span>
                                   </button>
                                 )}
 
@@ -896,6 +928,128 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: BIOMETRICS & ERGONOMIC QUERY CONSOLE FOR ADMIN */}
+        {activeTab === 'biometrics_query' && (
+          <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+            {/* Header Toolbar */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Tra cứu thành viên theo tên, email, phòng ban..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-2xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-semibold">
+                  Tổng số: <b className="text-slate-900 font-mono">{filteredUsers.length}</b> thành viên
+                </span>
+                <button
+                  onClick={loadUsers}
+                  disabled={isLoading}
+                  className="flex items-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Members Biometric Grid */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              {filteredUsers.length === 0 ? (
+                <div className="py-16 text-center text-slate-500">
+                  <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p className="text-xs">Không tìm thấy thành viên nào phù hợp.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {filteredUsers.map(u => {
+                    const hM = (u.height || 170) / 100;
+                    const bmi = ((u.weight || 65) / (hM * hM)).toFixed(1);
+
+                    return (
+                      <div 
+                        key={u.id}
+                        className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between gap-3"
+                      >
+                        {/* Member Card Header */}
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center font-bold text-slate-700 text-sm shadow-2xs">
+                            {u.avatar ? (
+                              <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              u.fullName.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{u.fullName}</h4>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                u.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                {u.role === 'admin' ? 'Admin' : 'Nhân viên'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-mono truncate">{u.email}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">{u.department || 'Văn Phòng IoT'} • Node: <span className="font-mono font-semibold text-slate-600">{u.device || 'Chưa gán'}</span></p>
+                          </div>
+                        </div>
+
+                        {/* Health Specs */}
+                        <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-center text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-400 block uppercase font-semibold">Thể trạng</span>
+                            <span className="font-mono font-bold text-slate-800">{u.height || 170}cm / {u.weight || 65}kg</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 block uppercase font-semibold">Chỉ số BMI</span>
+                            <span className="font-mono font-bold text-indigo-700">{bmi}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 block uppercase font-semibold">Mục tiêu ngồi</span>
+                            <span className="font-mono font-bold text-emerald-700">{u.maxSittingHours || 6}h/ngày</span>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                          {onQueryUserChatbot && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onQueryUserChatbot(u.id);
+                                onClose();
+                              }}
+                              className="flex-1 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                            >
+                              <Bot className="w-3.5 h-3.5" />
+                              <span>Hỏi AI về người này</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAssignTaskShortcut(u)}
+                            className="h-8 px-2.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-xs flex items-center gap-1 transition cursor-pointer active:scale-95"
+                            title="Gửi thông báo / giao việc nhắc nhở"
+                          >
+                            <Send className="w-3 h-3 text-sky-600" />
+                            <span>Nhắc nhở</span>
+                          </button>
                         </div>
                       </div>
                     );

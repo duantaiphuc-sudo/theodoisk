@@ -17,7 +17,6 @@ import {
   Save, 
   CheckCircle2, 
   Users, 
-  Sparkles,
   Radio
 } from 'lucide-react';
 import { syncUserProfileToFirestore, saveCurrentUser } from '../services/authService';
@@ -125,12 +124,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="p-4 rounded-xl bg-gradient-to-r from-sky-50/70 via-indigo-50/40 to-slate-50 border border-sky-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5 min-w-0">
               {formData.avatar ? (
-                <img 
-                  src={formData.avatar} 
-                  alt="avatar" 
-                  className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
-                  referrerPolicy="no-referrer" 
-                />
+                <div className="relative group shrink-0">
+                  <img 
+                    src={formData.avatar} 
+                    alt="avatar" 
+                    className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm"
+                    referrerPolicy="no-referrer" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, avatar: '' }))}
+                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-xs transition cursor-pointer"
+                    title="Xóa ảnh này khỏi ảnh đại diện (Dùng chữ cái viết tắt mặc định)"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               ) : (
                 <div className="w-14 h-14 rounded-full bg-sky-600 text-white font-bold text-xl flex items-center justify-center shadow-sm shrink-0">
                   {formData.fullName?.charAt(0) || 'U'}
@@ -141,6 +150,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                     {formData.fullName || 'Chưa đặt tên'}
                   </h4>
+                  {formData.avatar && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, avatar: '' }))}
+                      className="text-[11px] text-rose-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      (Xóa ảnh đại diện)
+                    </button>
+                  )}
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                     isAdmin 
                       ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 

@@ -43,7 +43,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
               <span>Mô Hình & Chẩn Đoán Tư Thế</span>
-              <span className="text-[11px] sm:text-xs font-normal text-slate-500">AI Skeleton Analysis</span>
+              <span className="text-[11px] sm:text-xs font-normal text-slate-500">Phân Tích Cột Sống & Khung Xương</span>
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Trực quan hóa tư thế cột sống & góc nghiêng cổ từ camera</p>
           </div>
@@ -56,9 +56,9 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-2xs">
             <CameraOff className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-bold text-slate-800">Chưa có dữ liệu tư thế từ Camera AI</h3>
+          <h3 className="text-sm font-bold text-slate-800">Chưa có dữ liệu tư thế từ Camera</h3>
           <p className="text-xs text-slate-500 max-w-sm mt-1">
-            Hệ thống đang chờ nhận diện tư thế từ Raspberry Pi 4 (YOLO11n-Pose ONNX). Khung xương và phân tích công thái học sẽ xuất hiện ngay khi có dữ liệu.
+            Hệ thống đang chờ nhận diện tư thế từ Raspberry Pi 4. Khung xương và phân tích công thái học sẽ xuất hiện ngay khi có dữ liệu.
           </p>
         </div>
 
@@ -73,14 +73,14 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
   // Ergonomic advice mapping
   const adviceMap: Record<string, { title: string; desc: string; tip: string; color: string }> = {
     camera_error: {
-      title: '⚠️ Cảnh báo: Camera AI ngắt kết nối!',
+      title: '⚠️ Cảnh báo: Camera ngắt kết nối!',
       desc: 'Hệ thống trên Raspberry Pi 4 không tìm thấy thiết bị USB Camera hoặc camera bị rút ra đột ngột. Vẫn duy trì cập nhật dữ liệu sinh trắc học (Nhịp tim & SpO2).',
       tip: 'Vui lòng kiểm tra lại dây cáp kết nối USB của Camera trên Pi 4.',
       color: 'rose',
     },
     verifying: {
-      title: 'Hệ thống AI đang tích lũy & xác nhận tư thế',
-      desc: 'Mô hình YOLO11n-Pose ONNX và bộ lọc thời gian trên Pi 4 đang phân tích chuỗi khung hình để lọc nhiễu trước khi đưa ra kết luận chuẩn xác.',
+      title: 'Hệ thống đang tích lũy & xác nhận tư thế',
+      desc: 'Mô hình phân tích tư thế và bộ lọc thời gian trên Pi 4 đang xử lý chuỗi khung hình để lọc nhiễu trước khi đưa ra kết luận chuẩn xác.',
       tip: 'Hãy ngồi thoải mái tự nhiên, trạng thái tư thế chuẩn sẽ được xác nhận sau vài giây.',
       color: 'sky',
     },
@@ -116,7 +116,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
     },
     2: {
       title: 'Chưa phát hiện nhân viên trong vùng giám sát',
-      desc: 'Camera AI chưa nhận diện được người ngồi trong khung hình Monitor Zone. Không có người ở bàn làm việc.',
+      desc: 'Camera chưa nhận diện được người ngồi trong khung hình Monitor Zone. Không có người ở bàn làm việc.',
       tip: 'Vui lòng ngồi vào vị trí làm việc trước camera để bắt đầu theo dõi tư thế tự động.',
       color: 'slate',
     },
@@ -138,7 +138,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
         <div>
           <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
             <span>Mô Hình & Chẩn Đoán Tư Thế</span>
-            <span className="text-[11px] sm:text-xs font-normal text-slate-500">AI Skeleton Analysis</span>
+            <span className="text-[11px] sm:text-xs font-normal text-slate-500">Phân Tích Cột Sống</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">Phân tích góc nghiêng cột sống và khoảng cách thị giác theo thời gian thực</p>
         </div>
@@ -158,7 +158,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             <button
               type="button"
               onClick={() => setViewMode('camera')}
-              title="Xem hình ảnh trực tiếp từ Camera AI"
+              title="Xem hình ảnh trực tiếp từ Camera Pi 4"
               className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'camera' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -208,7 +208,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
               <>
                 <img
                   src={image}
-                  alt="Pi 4 Camera AI Frame"
+                  alt="Pi 4 Camera Frame"
                   className="w-full h-full object-contain bg-black"
                 />
                 <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[10px] font-mono text-emerald-400 z-10 whitespace-nowrap">
@@ -231,7 +231,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                 <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 mb-2.5">
                   <CameraOff className="w-6 h-6 text-slate-400" />
                 </div>
-                <h4 className="text-xs font-bold text-slate-200">{isCameraError ? 'Camera AI ngắt kết nối' : 'Chưa nhận được khung ảnh từ Pi 4'}</h4>
+                <h4 className="text-xs font-bold text-slate-200">{isCameraError ? 'Camera ngắt kết nối' : 'Chưa nhận được khung ảnh từ Pi 4'}</h4>
                 <p className="text-[11px] text-slate-400 mt-1 max-w-[240px] leading-relaxed">
                   {isCameraError ? 'Hãy kiểm tra lại cáp kết nối USB của Camera trên Raspberry Pi 4.' : 'Raspberry Pi 4 gửi dữ liệu khung ảnh trực tiếp qua Firebase.'}
                 </p>
@@ -430,7 +430,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
               </div>
               <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
-                <span className="text-slate-700">Camera AI: Quét tìm đối tượng</span>
+                <span className="text-slate-700">Camera: Quét tìm đối tượng</span>
               </div>
             </div>
           ) : (

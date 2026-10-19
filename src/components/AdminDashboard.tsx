@@ -14,7 +14,6 @@ import {
   Activity, 
   Heart, 
   Wind, 
-  Sparkles, 
   AlertTriangle, 
   CheckCircle2, 
   Search, 
@@ -31,7 +30,9 @@ import {
   FileText, 
   BarChart3, 
   X,
-  BellRing
+  BellRing,
+  Camera,
+  Maximize2
 } from 'lucide-react';
 import { fetchAllUsers, isUserAdmin, adminDeleteUser, adminAssignDevice } from '../services/authService';
 import { 
@@ -40,6 +41,7 @@ import {
   subscribeToUsers,
   clearAllTelemetryDataFromFirebase 
 } from '../services/firebase';
+import { fetchFaceTemplate } from '../services/faceService';
 import { fetchSupabaseHistory, TimeRangeFilter, deleteSingleLogFromSupabase } from '../services/supabaseService';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
 
@@ -475,7 +477,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                   <div className="shrink-0 flex flex-col items-end gap-1">
                     {isUserSimulating ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">
-                        <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                         Mô phỏng
                       </span>
                     ) : isOnline ? (
@@ -660,6 +662,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isLoadingDetailLogs, setIsLoadingDetailLogs] = useState(false);
   const [detailActiveTab, setDetailActiveTab] = useState<'metrics' | 'history'>('metrics');
   const [detailHistoryFilter, setDetailHistoryFilter] = useState<'all' | 'bad_posture' | 'alerts'>('all');
+  const [detailFaceImage, setDetailFaceImage] = useState<string | null>(null);
+  const [hasDetailFaceTemplate, setHasDetailFaceTemplate] = useState<boolean | null>(null);
+  const [isDetailImageZoomed, setIsDetailImageZoomed] = useState(false);
 
   const [activeAdminTab, setActiveAdminTab] = useState<'live' | 'supabase_query'>('live');
 
@@ -901,6 +906,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => {
     if (!selectedUserForDetail) {
+      setDetailFaceImage(null);
+      setHasDetailFaceTemplate(null);
+      return;
+    }
+    fetchFaceTemplate(selectedUserForDetail.id).then(tmpl => {
+      if (tmpl && tmpl.enabled) {
+        setHasDetailFaceTemplate(true);
+        const img = tmpl.image || tmpl.snapshot;
+        if (img && typeof img === 'string') {
+          const formatted = img.startsWith('data:image') || img.startsWith('http') ? img : `data:image/jpeg;base64,${img}`;
+          setDetailFaceImage(formatted);
+        } else {
+          setDetailFaceImage(null);
+        }
+      } else {
+        setHasDetailFaceTemplate(false);
+        setDetailFaceImage(null);
+      }
+    }).catch(() => {
+      setHasDetailFaceTemplate(null);
+      setDetailFaceImage(null);
+    });
+  }, [selectedUserForDetail]);
+
+  useEffect(() => {
+    if (!selectedUserForDetail) {
       setDetailUserLogs([]);
       return;
     }
@@ -947,8 +978,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const totalUsersCount = users.length;
 
   const usersWithTelemetry: EmployeeListItem[] = useMemo(() => {
-    const HEARTBEAT_TIMEOUT_MS = 30 * 1000;
-
+    const HEARTBEAT_TIMEOUT_MS = 60 * 1000; // 60 giây (1 phút): phát hiện offline nhanh chóng khi người dùng đóng tab / rời web
+ 
     return users.map(u => {
       const isCurrentActiveUser = currentUser && (
         u.id === currentUser.id ||
@@ -959,15 +990,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const live = (isCurrentActiveUser && currentTelemetry) ? currentTelemetry : remoteLive;
 
       let telemetryTime = 0;
+      if (u.lastActive) {
+        const t = new Date(u.lastActive).getTime();
+        if (!isNaN(t)) telemetryTime = Math.max(telemetryTime, t);
+      }
       if (live?.timestamp) {
         const t = new Date(live.timestamp).getTime();
-        if (!isNaN(t)) telemetryTime = t;
-      } else if (live?.updatedAt) {
+        if (!isNaN(t)) telemetryTime = Math.max(telemetryTime, t);
+      }
+      if (live?.updatedAt) {
         const t = new Date(live.updatedAt).getTime();
-        if (!isNaN(t)) telemetryTime = t;
-      } else if (u.lastActive) {
-        const t = new Date(u.lastActive).getTime();
-        if (!isNaN(t)) telemetryTime = t;
+        if (!isNaN(t)) telemetryTime = Math.max(telemetryTime, t);
       }
 
       const isHeartbeatValid = telemetryTime > 0 && (currentTime - telemetryTime) <= HEARTBEAT_TIMEOUT_MS;
@@ -987,8 +1020,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (isSimulatingActive || isCurrentActiveUser) {
         isOnline = true;
       } else if (u.isOnline && isHeartbeatValid) {
-        isOnline = true;
-      } else if (live && isHeartbeatValid) {
         isOnline = true;
       }
 
@@ -1867,6 +1898,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </p>
                     )}
                   </div>
+
+                  {/* Face Template Dossier (Admin Visibility) */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-sky-600" />
+                        <span>Mẫu Khuôn Mặt Xác Thực SFace (YuNet):</span>
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        hasDetailFaceTemplate 
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {hasDetailFaceTemplate ? '✓ Đã có mẫu trên hệ thống' : 'Chưa đăng ký mẫu'}
+                      </span>
+                    </div>
+
+                    {detailFaceImage ? (
+                      <div className="flex items-center gap-3 pt-1">
+                        <div 
+                          onClick={() => setIsDetailImageZoomed(true)}
+                          className="w-16 h-16 rounded-xl overflow-hidden border border-sky-400 bg-slate-900 shadow-xs shrink-0 cursor-pointer group relative"
+                          title="Bấm để phóng to ảnh khuôn mặt"
+                        >
+                          <img src={detailFaceImage} alt="Ảnh khuôn mặt thành viên" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <Maximize2 className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-600 space-y-0.5">
+                          <p className="font-semibold text-slate-800">Ảnh trích xuất từ Camera Raspberry Pi 4</p>
+                          <p className="text-[11px] text-slate-500 font-mono">Chuẩn: YuNet Detector + SFace 128D Embedding</p>
+                          <button
+                            type="button"
+                            onClick={() => setIsDetailImageZoomed(true)}
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Phóng to ảnh chất lượng cao</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 italic">
+                        Thành viên này chưa ghi nhận ảnh khuôn mặt qua camera trạm Pi 4 hoặc webcam.
+                      </p>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="space-y-3">
@@ -2029,6 +2108,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <span>Giao Nhiệm Vụ Cho Thành Viên</span>
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Phóng To Ảnh Khuôn Mặt Thành Viên (Dành Cho Admin) */}
+      {isDetailImageZoomed && detailFaceImage && selectedUserForDetail && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-scaleUp">
+            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-sky-400" />
+                <h4 className="text-xs sm:text-sm font-bold tracking-tight">
+                  Ảnh khuôn mặt: {selectedUserForDetail.fullName}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDetailImageZoomed(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 flex flex-col items-center">
+              <div className="w-full max-h-[380px] rounded-xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center shadow-inner">
+                <img 
+                  src={detailFaceImage} 
+                  alt={selectedUserForDetail.fullName} 
+                  className="max-h-[380px] w-auto object-contain"
+                />
+              </div>
+
+              <div className="w-full mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Thành viên:</span>
+                  <span className="font-semibold text-slate-900">{selectedUserForDetail.fullName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mã UID:</span>
+                  <span className="font-mono text-indigo-700 text-[11px] truncate max-w-[200px]">{selectedUserForDetail.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Trạm gán:</span>
+                  <span className="font-mono font-bold text-slate-800">{selectedUserForDetail.device || 'Chưa gán'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mô hình:</span>
+                  <span className="font-mono text-emerald-700">YuNet Detector + SFace 128D</span>
+                </div>
+              </div>
+
+              <div className="w-full mt-3 flex items-center justify-end gap-2">
+                <a
+                  href={detailFaceImage}
+                  download={`khuon-mat-${selectedUserForDetail.fullName}.jpg`}
+                  className="px-3.5 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải ảnh về máy</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setIsDetailImageZoomed(false)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-300 transition cursor-pointer"
+                >
+                  Đóng
+                </button>
               </div>
             </div>
           </div>

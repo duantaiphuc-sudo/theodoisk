@@ -244,22 +244,20 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                   <button
                     type="button"
                     onClick={handleDisconnect}
-                    className="px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                    className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold transition cursor-pointer"
                     title="Ngắt kết nối để chỉ test mà không lưu vào database"
                   >
-                    <Unplug className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Ngắt kết nối (Test)</span>
+                    Ngắt kết nối (Test)
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={handleReconnect}
                     disabled={isTesting}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition cursor-pointer"
                     title="Bật lại kết nối và tự động lưu dữ liệu"
                   >
-                    <Plug className="w-3.5 h-3.5" />
-                    <span>Kết nối lại DB</span>
+                    Kết nối lại
                   </button>
                 )}
 

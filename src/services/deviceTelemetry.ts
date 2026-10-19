@@ -84,7 +84,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
   }
 
   const postureLabels: Record<number, string> = {
-    [-1]: isCameraError ? 'Lỗi kết nối Camera AI' : 'Đang xác nhận tư thế',
+    [-1]: isCameraError ? 'Lỗi kết nối Camera' : 'Đang xác nhận tư thế',
     0: 'Tư thế ĐÚNG',
     1: 'Tư thế SAI (Cúi gù)',
     2: 'NGOÀI VÙNG CAMERA',
@@ -116,7 +116,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
 
   let timestampStr = new Date().toISOString();
   let packetAgeSeconds: number | undefined = undefined;
-  const rawTime = raw.timestamp || raw.updated_at || raw.time || raw.created_at;
+  const rawTime = raw.timestamp || raw.lastActive || raw.updatedAt || raw.updated_at || raw.time || raw.created_at;
 
   if (rawTime) {
     if (typeof rawTime === 'object' && rawTime.toDate) {
@@ -158,7 +158,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
 
   if (isCameraError) {
     if (!resolvedLabel || resolvedLabel.toLowerCase() === 'lỗi ai' || resolvedLabel.toLowerCase() === 'lỗi' || resolvedLabel.toLowerCase() === 'error') {
-      resolvedLabel = 'Lỗi kết nối Camera AI';
+      resolvedLabel = 'Lỗi kết nối Camera';
     }
   }
 

@@ -63,7 +63,7 @@ import { FaceControlPanel } from './components/FaceControlPanel';
 import { watchFaceSession } from './services/faceCommandService';
 import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
 import { 
-  Sparkles, 
+  Activity,
   AlertTriangle, 
   Radio, 
   Trash2, 
@@ -89,6 +89,8 @@ export default function App() {
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [targetChatbotMemberId, setTargetChatbotMemberId] = useState<string>('all');
 
   // 1. Firebase Configuration State
   const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConnectionConfig>(getSavedFirebaseConfig());
@@ -125,8 +127,7 @@ export default function App() {
         sittingMinutes: 0,
         bpm: 0,
         spo2: 0,
-        hasAlert: false,
-        device: user.device || ''
+        hasAlert: false
       }).catch(() => {});
     }
   };
@@ -406,7 +407,7 @@ export default function App() {
     setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
     setIsConnected(true);
 
-    // Save to historical records repository for chatbot data retrieval
+    // Lưu vào kho nhật ký lịch sử
     appendTelemetryToHistory(data);
 
     // Evaluate for immediate alerts
@@ -700,26 +701,59 @@ export default function App() {
         isOnline: online,
         lastActive: new Date().toISOString(),
         currentPresence: online ? 'Present' : 'Away',
-        device: activeUser.device || ''
       }).catch(() => {});
     };
 
     // Gửi tín hiệu ngay lập tức khi đăng nhập/vào ứng dụng
     pushPresence(true);
 
-    // Chu kỳ heartbeat 20 giây giúp AdminDashboard luôn thấy tài khoản Trực Tuyến
+    // Sử dụng Web Worker chạy nền để browser không bóp nghẹt timer khi người dùng chuyển sang tab khác làm việc
+    let bgWorker: Worker | null = null;
+    try {
+      const workerBlob = new Blob([
+        `setInterval(function() { postMessage('heartbeat'); }, 12000);`
+      ], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(workerBlob);
+      bgWorker = new Worker(workerUrl);
+      bgWorker.onmessage = () => {
+        pushPresence(true);
+      };
+    } catch {
+      // Fallback nếu môi trường không cho phép tạo blob worker
+    }
+
+    // Chu kỳ heartbeat 12 giây bằng setInterval thông thường
     const heartbeatTimer = setInterval(() => {
       pushPresence(true);
-    }, 20000);
+    }, 12000);
+
+    // Khi người dùng chuyển tab hoặc quay lại tab, lập tức gia hạn timestamp trực tuyến
+    const onVisibilityChange = () => {
+      pushPresence(true);
+    };
+
+    const onFocus = () => {
+      pushPresence(true);
+    };
 
     const onUnload = () => {
       pushPresence(false);
     };
 
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onFocus);
     window.addEventListener('beforeunload', onUnload);
+    window.addEventListener('pagehide', onUnload);
+
     return () => {
+      if (bgWorker) {
+        bgWorker.terminate();
+      }
       clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('beforeunload', onUnload);
+      window.removeEventListener('pagehide', onUnload);
     };
   }, [currentUser?.id, firebaseConfig]);
 
@@ -1438,7 +1472,7 @@ export default function App() {
                             {telemetry.isStale 
                               ? 'Bản Ghi Lưu Trên Firebase' 
                               : isTelemetryCameraError 
-                              ? 'Cảnh Báo: Camera AI Đang Ngắt Kết Nối' 
+                              ? 'Cảnh Báo: Camera Đang Ngắt Kết Nối' 
                               : 'Dữ Liệu Trực Tuyến Từ Firebase'}
                           </span>
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
@@ -1539,7 +1573,7 @@ export default function App() {
                 <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-amber-900 shadow-xs space-y-2.5">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                      <Activity className="w-4 h-4 text-amber-600 shrink-0" />
                       <span className="text-xs sm:text-sm font-semibold text-slate-800">
                         <b>Chế độ giả lập Pi 4 đang bật:</b> Thử nghiệm các trạng thái tư thế và cảm biến đo đạc.
                       </span>
@@ -1984,19 +2018,24 @@ export default function App() {
         </footer>
       </div>
 
-      {/* Floating AI Ergonomic Health Chatbot with Data Retrieval */}
-      <HealthChatbot
-        telemetry={telemetry}
-        role={currentUser.role}
-        sittingSeconds={timeStats.sittingSeconds}
-        badPostureSeconds={timeStats.badPostureSeconds}
-        hasData={hasReceivedData}
-        userName={currentUser.fullName}
-        userId={currentUser.id}
-        history={history}
-        timeStats={timeStats}
-        allUsers={allRegisteredUsers}
-      />
+      {/* Floating Ergonomic Health Assistant Chatbot */}
+      {currentUser && (
+        <HealthChatbot
+          telemetry={telemetry}
+          role={currentUser.role}
+          sittingSeconds={timeStats.sittingSeconds}
+          badPostureSeconds={timeStats.badPostureSeconds}
+          hasData={hasReceivedData}
+          userName={currentUser.fullName}
+          userId={currentUser.id}
+          history={history}
+          timeStats={timeStats}
+          allUsers={allRegisteredUsers}
+          isOpen={isChatbotOpen}
+          onOpenChange={setIsChatbotOpen}
+          initialSelectedMemberId={targetChatbotMemberId}
+        />
+      )}
 
       {/* On-screen Realtime Task & Broadcast Notification Banner */}
       <UserTaskAlertBanner
@@ -2024,6 +2063,10 @@ export default function App() {
           onClose={() => setIsUserManagementOpen(false)}
           currentUser={currentUser}
           firebaseConfig={firebaseConfig}
+          onQueryUserChatbot={(uid) => {
+            setTargetChatbotMemberId(uid);
+            setIsChatbotOpen(true);
+          }}
         />
       )}
 
