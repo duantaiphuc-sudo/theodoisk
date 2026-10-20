@@ -130,7 +130,8 @@ export interface AlertThresholds {
   incorrectPostureSec: number;
   longIncorrectSec: number;
   longSittingSec: number;
-  standingTargetSec: number; // Ngưỡng thời gian đứng khuyến nghị (giây, mặc định 300s = 5 phút)
+  standingTargetSec: number; // Mục tiêu đứng (giây)
+  standingResetSec?: number; // Đứng liên tục đủ thời gian này mới reset chu kỳ ngồi
   soundEnabled: boolean;
   voiceAlertEnabled: boolean; // Phát âm thanh giọng nói tiếng Việt nhắc nhở
   outOfZoneAlertEnabled: boolean; // Nhắc nhở bằng giọng nói khi rời ngoài vùng quan sát

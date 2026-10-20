@@ -8,7 +8,7 @@ interface AlertSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   thresholds: AlertThresholds;
-  onSave: (newThresholds: AlertThresholds) => void;
+  onSave: (newThresholds: AlertThresholds) => Promise<void> | void;
 }
 
 export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
@@ -23,6 +23,8 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
     browserNotificationEnabled: true,
     ...thresholds 
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [testPlaying, setTestPlaying] = useState<string | null>(null);
   const [notifPermission, setNotifPermission] = useState<string>(() => notificationManager.getPermission());
   const [testNotifSent, setTestNotifSent] = useState(false);
@@ -36,6 +38,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
         ...thresholds 
       });
       setTestPlaying(null);
+      setSaveError('');
       setNotifPermission(notificationManager.getPermission());
       setTestNotifSent(false);
     }
@@ -68,6 +71,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
       longIncorrectSec: 120,
       longSittingSec: 3600,
       standingTargetSec: 300,
+      standingResetSec: 300,
       soundEnabled: true,
       voiceAlertEnabled: true,
       outOfZoneAlertEnabled: true,
@@ -100,9 +104,26 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
     }
   };
 
-  const handleSave = () => {
-    onSave(local);
-    onClose();
+  const handleSave = async () => {
+    if (isSaving) return;
+    const standReset = Number(local.standingResetSec ?? 300);
+    if (local.hrMin >= local.hrMax ||
+        local.longIncorrectSec < local.incorrectPostureSec ||
+        !Number.isFinite(standReset) || standReset < 5 || standReset > 3600 ||
+        !Number.isFinite(local.longSittingSec) || local.longSittingSec < 300) {
+      setSaveError('Ngưỡng không hợp lệ: HR min phải thấp hơn HR max, thời gian sai tư thế lâu phải lớn hơn ngưỡng cảnh báo, và thời gian đứng reset từ 5–3600 giây.');
+      return;
+    }
+    setSaveError('');
+    setIsSaving(true);
+    try {
+      await onSave({ ...local, standingResetSec: standReset });
+      onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -221,6 +242,22 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
               />
               <span className="text-[10px] text-indigo-600 font-medium mt-0.5 block">{Math.floor((local.standingTargetSec || 300) / 60)} phút (Sit-Stand)</span>
             </div>
+          </div>
+
+          {/* Ngưỡng mới: đứng đủ thời gian mới đặt lại ngồi liên tục */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block text-indigo-900 font-semibold mb-1">
+              Đứng liên tục để đặt lại thời gian ngồi (giây):
+            </label>
+            <input
+              type="number" min="5" max="3600" step="5"
+              value={local.standingResetSec ?? 300}
+              onChange={e => setLocal({ ...local, standingResetSec: Number(e.target.value) })}
+              className="w-full px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 font-mono text-xs focus:outline-none focus:border-indigo-500"
+            />
+            <span className="text-[10px] text-slate-500 mt-1 block">
+              Đứng ít hơn ngưỡng sẽ tạm dừng, không xóa chu kỳ ngồi. Đứng đủ ngưỡng mới reset thời gian ngồi liên tục; tổng thời gian trong ngày vẫn được giữ.
+            </span>
           </div>
 
           {/* Sound and Voice toggles */}
@@ -385,6 +422,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
           </div>
         </div>
 
+        {saveError && <div role="alert" className="mt-3 text-xs text-rose-700 font-semibold">{saveError}</div>}
         <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-100">
           <button
             type="button"
@@ -406,9 +444,10 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
+              disabled={isSaving}
               className="px-4 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-xs cursor-pointer"
             >
-              Lưu Cài Đặt
+              {isSaving ? 'Đang đồng bộ Pi...' : 'Lưu Cài Đặt'}
             </button>
           </div>
         </div>

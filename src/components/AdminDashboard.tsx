@@ -911,7 +911,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
     fetchFaceTemplate(selectedUserForDetail.id).then(tmpl => {
-      if (tmpl && tmpl.enabled) {
+      const hasValidTemplate = Boolean(
+        tmpl && 
+        tmpl.enabled && 
+        ((Array.isArray(tmpl.embedding) && tmpl.embedding.length === 128) || Boolean(tmpl.image || tmpl.snapshot))
+      );
+      if (hasValidTemplate && tmpl) {
         setHasDetailFaceTemplate(true);
         const img = tmpl.image || tmpl.snapshot;
         if (img && typeof img === 'string') {
@@ -925,7 +930,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setDetailFaceImage(null);
       }
     }).catch(() => {
-      setHasDetailFaceTemplate(null);
+      setHasDetailFaceTemplate(false);
       setDetailFaceImage(null);
     });
   }, [selectedUserForDetail]);
@@ -1940,9 +1945,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </button>
                         </div>
                       </div>
+                    ) : hasDetailFaceTemplate ? (
+                      <p className="text-xs text-emerald-800 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200">
+                        Đã ghi nhận vector 128 chiều SFace trên trạm Pi 4 (chưa lưu kèm ảnh xem trước).
+                      </p>
                     ) : (
                       <p className="text-xs text-slate-500 italic">
-                        Thành viên này chưa ghi nhận ảnh khuôn mặt qua camera trạm Pi 4 hoặc webcam.
+                        Thành viên này chưa đăng ký mẫu khuôn mặt qua camera trạm Pi 4.
                       </p>
                     )}
                   </div>

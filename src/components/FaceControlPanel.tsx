@@ -80,11 +80,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
   const [isResetting, setIsResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
 
-  // Tham chiếu tự động xác thực và đăng xuất
-  const lastAutoVerifyAttemptRef = useRef<number>(0);
-  const lastAutoLogoutAttemptRef = useRef<number>(0);
-  const consecutiveAbsentTicksRef = useRef<number>(0);
-  const isAutoExecutingRef = useRef<boolean>(false);
+
 
   const watch = useRef<Unsubscribe | null>(null);
   const currentUser = getCurrentUser();
@@ -141,19 +137,18 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
     }
   }, [deviceId]);
 
-  const execute = useCallback(async (action: Command, isAuto = false) => {
+  const execute = useCallback(async (action: Command) => {
     if (!deviceId || working) return;
     setWorking(true);
-    isAutoExecutingRef.current = isAuto;
-    if (!isAuto) {
-      setError('');
-      setSuccessNotice('');
-    }
-    setCommandStatus(isAuto ? `Đang tự động ${action === 'VERIFY' ? 'xác thực...' : 'đăng xuất...'}` : 'PENDING');
+    setError('');
+    setSuccessNotice('');
+    setCommandStatus('PENDING');
     
     try {
-      const commandId = action === 'ENROLL' ? await requestFaceEnrollment(deviceId)
-        : action === 'VERIFY' ? await requestFaceVerification(deviceId)
+      const commandId = action === 'ENROLL' 
+        ? await requestFaceEnrollment(deviceId)
+        : action === 'VERIFY' 
+        ? await requestFaceVerification(deviceId)
         : await requestFaceLogout(deviceId);
       
       watch.current?.();
@@ -170,30 +165,19 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
 
         if (status === 'FAILED' || status === 'SUCCEEDED') {
           setWorking(false);
-          isAutoExecutingRef.current = false;
           
           if (status === 'FAILED') {
             const rawErr = String(data?.error || '');
-            if (!isAuto) {
-              setError(formatFaceError(rawErr));
-            } else {
-              // Trong chế độ tự động, chỉ ghi nhận nhẹ nhàng không làm phiền người dùng
-              if (rawErr.includes('NO_FACE')) {
-                setProgress('Đang chờ người dùng trước camera Pi 4...');
-              } else if (rawErr.includes('VERIFY_FAILED')) {
-                setProgress('Đang chờ khuôn mặt khớp với tài khoản...');
-              }
-            }
+            setError(formatFaceError(rawErr));
           } else if (status === 'SUCCEEDED') {
             if (action === 'ENROLL') {
-              setSuccessNotice('Đăng ký khuôn mặt thành công trên Pi 4! Đã lưu vector 128 chiều SFace và ảnh chụp. Bạn có thể bấm "Xem ảnh đã chụp" để kiểm tra ảnh.');
+              setSuccessNotice('Đăng ký khuôn mặt thành công trên Pi 4! Đã lưu vector 128 chiều SFace và ảnh chụp. Hãy nhìn vào camera Pi 4 để kích hoạt phiên làm việc.');
               refreshTemplateStatus();
               setIsFaceViewerOpen(true);
             } else if (action === 'VERIFY') {
-              setSuccessNotice(isAuto ? '⚡ Đã tự động nhận diện khuôn mặt và kích hoạt phiên làm việc!' : 'Xác thực khuôn mặt thành công! Phiên làm việc đã kích hoạt.');
-              setError('');
+              setSuccessNotice('Xác thực khuôn mặt thành công! Phiên làm việc đã kích hoạt.');
             } else if (action === 'LOGOUT') {
-              setSuccessNotice(isAuto ? '⚡ Đã tự động đăng xuất thiết bị do người dùng vắng mặt.' : 'Đã đăng xuất thiết bị an toàn.');
+              setSuccessNotice('Đã đăng xuất thiết bị an toàn.');
             }
           }
           watch.current?.();
@@ -201,76 +185,15 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
         }
       });
     } catch (e) {
-      if (!isAuto) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
+      setError(e instanceof Error ? e.message : String(e));
       setWorking(false);
-      isAutoExecutingRef.current = false;
     }
   }, [deviceId, working, refreshTemplateStatus]);
 
-  // =========================================================================
-  // TỰ ĐỘNG XÁC THỰC KHI CÓ NGƯỜI & TỰ ĐỘNG ĐĂNG XUẤT KHI VẮNG MẶT
-  // =========================================================================
-  useEffect(() => {
-    if (!deviceId || working || isResetting) return;
-
-    const hasVector = templateStatus?.hasVector === true;
-    const now = Date.now();
-
-    // Xác định trạng thái vắng mặt từ gói telemetry nhận từ Firebase
-    const isExplicitlyAbsent = Boolean(
-      telemetry && (
-        telemetry.postureStatus === 2 || 
-        (telemetry.inZone === false && telemetry.trackingActive === false) ||
-        (telemetry.postureLabel && (
-          telemetry.postureLabel.toLowerCase().includes('vắng') || 
-          telemetry.postureLabel.toLowerCase().includes('ngoài vùng') ||
-          telemetry.postureLabel.toLowerCase().includes('absent')
-        ))
-      )
-    );
-
-    // TRƯỜNG HỢP 1: KHI CÓ NGƯỜI THÌ TỰ ĐỘNG XÁC THỰC
-    // Điều kiện: Phiên chưa VERIFIED, tài khoản đã có mẫu vector SFace 128D, 
-    // và nhận được tín hiệu dữ liệu từ Firebase mà không phải là vắng mặt
-    const isVerifiedSession = session === 'VERIFIED';
-    const isWaitOrReverify = session === 'WAIT_LOGIN' || session === 'REVERIFY_REQUIRED';
-
-    if (isWaitOrReverify && hasVector) {
-      const isPersonDetected = !isExplicitlyAbsent && (
-        hasReceivedData || 
-        (telemetry && (telemetry.bpm > 0 || telemetry.postureStatus >= 0 || telemetry.inZone || telemetry.trackingActive))
-      );
-
-      if (isPersonDetected) {
-        // Giới hạn tần suất thử tự động xác thực: tối thiểu cách nhau 12 giây
-        if (now - lastAutoVerifyAttemptRef.current > 12000) {
-          lastAutoVerifyAttemptRef.current = now;
-          execute('VERIFY', true);
-        }
-      }
-    }
-
-    // TRƯỜNG HỢP 2: KHI VẮNG MẶT THÌ TỰ ĐỘNG ĐĂNG XUẤT
-    // Điều kiện: Phiên đang VERIFIED, nhưng dữ liệu telemetry gửi về liên tục báo vắng mặt
-    if (isVerifiedSession && telemetry) {
-      if (isExplicitlyAbsent) {
-        consecutiveAbsentTicksRef.current += 1;
-        // Xác nhận vắng mặt liên tục qua 3 nhịp cập nhật (~5-8 giây) để tránh giật lag khi đổi tư thế
-        if (consecutiveAbsentTicksRef.current >= 3) {
-          if (now - lastAutoLogoutAttemptRef.current > 15000) {
-            lastAutoLogoutAttemptRef.current = now;
-            consecutiveAbsentTicksRef.current = 0;
-            execute('LOGOUT', true);
-          }
-        }
-      } else {
-        // Người dùng đã quay lại hoặc đang ngồi đúng vị trí
-        consecutiveAbsentTicksRef.current = 0;
-      }
-    }
-  }, [deviceId, session, telemetry, hasReceivedData, templateStatus?.hasVector, working, isResetting, execute]);
+  // PI_AUTHORITATIVE_AUTO_FACE_V2
+  // Khong gui VERIFY_FACE / LOGOUT_FACE tu trinh duyet.
+  // Raspberry Pi doc camera, khoa phien va tu xac thuc lai.
+  // Web chi lang nghe devices/{deviceId}/session/current.
 
   async function handleExecuteReset() {
     const targetUid = getEffectiveUid();
@@ -343,7 +266,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
             className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border whitespace-nowrap ${
               isVerified
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : isWaitLogin
+                : isWaitLogin || session === 'REVERIFY_REQUIRED'
                 ? 'bg-amber-50 text-amber-800 border-amber-200'
                 : 'bg-slate-100 text-slate-700 border-slate-200'
             }`}
@@ -351,13 +274,19 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
           >
             {isVerified ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : isWaitLogin ? (
+            ) : isWaitLogin || session === 'REVERIFY_REQUIRED' ? (
               <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
             ) : (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
             )}
             <span>
-              {session === 'VERIFIED' ? 'ĐÃ XÁC THỰC' : session === 'WAIT_LOGIN' ? 'CHỜ XÁC THỰC' : session}
+              {session === 'VERIFIED' 
+                ? 'ĐÃ XÁC THỰC' 
+                : session === 'REVERIFY_REQUIRED'
+                ? 'TẠM KHÓA (CHỜ QUAY LẠI)'
+                : session === 'WAIT_LOGIN' 
+                ? 'CHỜ XÁC THỰC' 
+                : session}
               {progress ? ` (${progress})` : ''}
             </span>
           </span>
@@ -431,26 +360,28 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
             type="button"
             onClick={() => setIsExplanationOpen(prev => !prev)}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition cursor-pointer min-h-11 min-w-11 flex items-center justify-center"
-            title="Xem cơ chế lưu và tự động xác thực"
+            title="Xem cơ chế nhận diện tự động từ Pi 4"
           >
             <Info className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* THANH CHỈ BÁO CƠ CHẾ TỰ ĐỘNG THÔNG MINH */}
+      {/* THANH CHỈ BÁO CƠ CHẾ TỰ ĐỘNG THÔNG MINH (PI AUTHORITATIVE V2) */}
       <div className="mt-2.5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-5 h-5 rounded-md bg-sky-100 text-sky-700">
             <Zap className="w-3.5 h-3.5" />
           </div>
-          <span className="font-bold text-slate-800">Cơ chế tự động:</span>
+          <span className="font-bold text-slate-800">Cơ chế tự động Pi 4:</span>
           <span className="text-slate-600">
             {isVerified
-              ? 'Tự động duy trì phiên & tự động đăng xuất khi vắng mặt'
+              ? 'Pi 4 tự động duy trì phiên & tự khóa khi đứng dậy (>4s) hoặc vắng mặt (>6s)'
+              : session === 'REVERIFY_REQUIRED'
+              ? 'Tạm khóa • Ngồi trước camera Pi 4 để tự động mở khóa'
               : hasVector
-              ? 'Tự động quét & xác thực ngay khi có người ngồi trước camera'
-              : 'Đăng ký khuôn mặt trước để kích hoạt cơ chế tự động'}
+              ? 'Tự động quét & xác thực ngay khi có người ngồi trước camera Pi 4'
+              : 'Đăng ký khuôn mặt trước để kích hoạt nhận diện tự động'}
           </span>
         </div>
 
@@ -461,7 +392,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
               : 'bg-amber-50 text-amber-800 border-amber-200'
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${isVerified ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-            {isVerified ? 'Đã kết nối phiên' : 'Chờ người trước camera'}
+            {isVerified ? 'Đã kết nối phiên' : session === 'REVERIFY_REQUIRED' ? 'Chờ ngồi lại' : 'Chờ người trước camera'}
           </span>
         </div>
       </div>

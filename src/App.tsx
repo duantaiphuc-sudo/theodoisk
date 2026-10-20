@@ -42,6 +42,7 @@ import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { SupabaseModal } from './components/SupabaseModal';
 import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
+import { savePiSettings, watchPiSettings, watchPiTimeStats, DEFAULT_PI_THRESHOLDS } from './services/piSettingsService';
 import { 
   insertTelemetryToSupabase, 
   subscribeToSupabaseRealtime,
@@ -196,7 +197,7 @@ export default function App() {
   // 3. Alert Thresholds State
   const [thresholds, setThresholds] = useState<AlertThresholds>(() => {
     try {
-      const saved = localStorage.getItem('theodoisk_thresholds');
+      const saved = localStorage.getItem(`theodoisk_thresholds_${currentUser?.id || 'anonymous'}`);
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
@@ -216,6 +217,7 @@ export default function App() {
       longIncorrectSec: 120,
       longSittingSec: 3600,
       standingTargetSec: 300,
+      standingResetSec: 300,
       soundEnabled: true,
       voiceAlertEnabled: true,
       outOfZoneAlertEnabled: false,
@@ -333,6 +335,8 @@ export default function App() {
   currentUserRef.current = currentUser;
   const timeStatsRef = useRef(timeStats);
   timeStatsRef.current = timeStats;
+  const piTimeSourceReadyRef = useRef(false);
+  const lastPiTimeRef = useRef<{uid:string; day:string; sitting:number; standing:number; bad:number} | null>(null);
   const isSimulatingRef = useRef(isSimulating);
   isSimulatingRef.current = isSimulating;
   const lastProcessedPacketTimestampRef = useRef<string>('');
@@ -349,9 +353,85 @@ export default function App() {
 
   // Save thresholds & zone when changed
   useEffect(() => {
-    localStorage.setItem('theodoisk_thresholds', JSON.stringify(thresholds));
-  }, [thresholds]);
+    localStorage.setItem(`theodoisk_thresholds_${currentUser?.id || 'anonymous'}`, JSON.stringify(thresholds));
+  }, [thresholds, currentUser?.id]);
 
+  // Load the saved settings for the Firebase Auth UID (not global localStorage).
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const uid = currentUser.id;
+    const stop = watchPiSettings(uid, saved => {
+      setThresholds(prev => ({ ...prev, ...DEFAULT_PI_THRESHOLDS, ...saved }));
+    }, err => console.warn('[PI SETTINGS]', err.message));
+    return stop;
+  }, [currentUser?.id]);
+
+  const saveThresholdsForPi = async (newThresholds: AlertThresholds) => {
+    const uid = currentUserRef.current?.id;
+    if (!uid) throw new Error('Cần đăng nhập để đồng bộ ngưỡng với Raspberry Pi.');
+    await savePiSettings(uid, newThresholds);
+    setThresholds(newThresholds);
+  };
+
+  // Pi is the source of truth for activity durations, separate from Face session.
+  // Read-only owner-scoped history is retained even when Face is WAIT_LOGIN.
+  useEffect(() => {
+    piTimeSourceReadyRef.current = false;
+    lastPiTimeRef.current = null;
+    // Prevent transient display of the previous signed-in user's counters.
+    setTimeStats({sittingSeconds:0, standingSeconds:0, movingSeconds:0,
+      badPostureSeconds:0, continuousSittingSeconds:0, continuousStandingSeconds:0});
+    const deviceForTime = (currentUser?.deviceId || currentUser?.device || '').trim();
+    if (!currentUser?.id || !deviceForTime || isSimulating) return;
+    const uid = currentUser.id;
+    return watchPiTimeStats(uid, snap => {
+      if (!snap || snap.deviceId !== deviceForTime) return;
+      const counters = snap.counters;
+      const prev = lastPiTimeRef.current;
+      const currentThresholds = thresholdsRef.current;
+      if (prev && prev.uid === uid && prev.day === snap.dateKey) {
+        if (prev.bad < currentThresholds.incorrectPostureSec &&
+            counters.badPostureSeconds >= currentThresholds.incorrectPostureSec) {
+          if (currentThresholds.soundEnabled || currentThresholds.voiceAlertEnabled)
+            playErgonomicVoiceAlert('long_incorrect', {
+              playChime: currentThresholds.soundEnabled,
+              playVoice: currentThresholds.voiceAlertEnabled,
+            });
+          if (currentThresholds.browserNotificationEnabled) {
+            notificationManager.sendNotification({title:'⚠️ Sai tư thế kéo dài',body:'Vui lòng điều chỉnh tư thế ngồi.',tag:'pi-bad-posture'});
+          }
+        }
+        if (prev.sitting < currentThresholds.longSittingSec &&
+            counters.continuousSittingSeconds >= currentThresholds.longSittingSec) {
+          if (currentThresholds.soundEnabled || currentThresholds.voiceAlertEnabled) playErgonomicVoiceAlert('sit_to_stand_prompt', {
+            playChime: currentThresholds.soundEnabled,
+            playVoice: currentThresholds.voiceAlertEnabled,
+          });
+          if (currentThresholds.browserNotificationEnabled) {
+            notificationManager.sendNotification({title:'⏰ Đã ngồi quá lâu',body:'Hãy đứng lên và vận động để giảm áp lực cột sống.',tag:'pi-long-sitting'});
+          }
+        }
+        if (prev.standing < currentThresholds.standingTargetSec &&
+            counters.continuousStandingSeconds >= currentThresholds.standingTargetSec) {
+          if (currentThresholds.soundEnabled || currentThresholds.voiceAlertEnabled) playErgonomicVoiceAlert('standing_goal_reached', {
+            playChime: currentThresholds.soundEnabled,
+            playVoice: currentThresholds.voiceAlertEnabled,
+          });
+          if (currentThresholds.browserNotificationEnabled) {
+            notificationManager.sendNotification({title:'🎉 Đạt mục tiêu đứng',body:'Bạn đã hoàn thành thời gian đứng được khuyến nghị.',tag:'pi-standing-goal'});
+          }
+        }
+      }
+      lastPiTimeRef.current = {
+        uid, day:snap.dateKey,
+        sitting:counters.continuousSittingSeconds,
+        standing:counters.continuousStandingSeconds,
+        bad:counters.badPostureSeconds,
+      };
+      piTimeSourceReadyRef.current = true;
+      setTimeStats(old => ({ ...old, ...counters }));
+    }, err => console.warn('[PI TIME]', err.message));
+  }, [currentUser?.id, currentUser?.deviceId, currentUser?.device, isSimulating]);
 
   // Persist history records to localStorage on every state change (strictly scoped per user)
   useEffect(() => {
@@ -903,6 +983,9 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeStats(prev => {
+        // When connected to Pi's durable time counter, do not also advance
+        // a second, browser-only clock (which resets on Face lock/reload).
+        if (!isSimulatingRef.current && piTimeSourceReadyRef.current) return prev;
         const current = telemetryRef.current;
         const currentThresh = thresholdsRef.current;
 
@@ -2117,7 +2200,7 @@ export default function App() {
             isOpen={isSettingsModalOpen}
             onClose={() => setIsSettingsModalOpen(false)}
             thresholds={thresholds}
-            onSave={setThresholds}
+            onSave={saveThresholdsForPi}
           />
         </>
       )}

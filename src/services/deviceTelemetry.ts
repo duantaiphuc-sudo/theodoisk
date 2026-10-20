@@ -74,6 +74,8 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     postureStatus = 2;
   } else if (rawLabelStr.includes('vắng') || rawLabelStr.includes('vang') || rawLabelStr.includes('absent')) {
     postureStatus = 2;
+  } else if (rawLabelStr.includes('ngồi lâu') || rawLabelStr.includes('ngoi lau') || rawLabelStr.includes('long_sitting') || rawStatusVal === 4 || rawStatusVal === '4') {
+    postureStatus = 4;
   } else if (rawLabelStr.includes('sai lâu') || rawLabelStr.includes('long_incorrect') || rawStatusVal === 3 || rawStatusVal === '3') {
     postureStatus = 3;
   } else if (rawLabelStr.includes('sai') || rawLabelStr.includes('bad') || rawLabelStr.includes('incorrect') || rawLabelStr.includes('cui') || rawLabelStr.includes('gu') || rawStatusVal === 1 || rawStatusVal === '1') {
@@ -111,7 +113,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
   const trackingActive = Boolean(
     rawTracking !== undefined
       ? rawTracking
-      : (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 5 || (inZone && postureStatus !== -1))
+      : (postureStatus === 0 || postureStatus === 1 || postureStatus === 3 || postureStatus === 4 || postureStatus === 5 || (inZone && postureStatus !== -1))
   );
 
   let timestampStr = new Date().toISOString();
@@ -174,7 +176,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     confidence: raw.confidence ? Number(raw.confidence) : 95,
     angleNeck: raw.angle_neck !== undefined ? Number(raw.angle_neck) : undefined,
     postureWarning: raw.posture_warning || raw.postureWarning || (postureStatus === 1 ? 'Cột sống đang bị gù hoặc cúi cổ' : undefined),
-    hasAlert: Boolean(raw.hasAlert || raw.has_alert || postureStatus === 1 || postureStatus === 3),
+    hasAlert: Boolean(raw.hasAlert || raw.has_alert || raw.hr_alert || raw.spo2_alert || raw.bad_posture_alert || raw.long_sitting_alert || postureStatus === 1 || postureStatus === 3 || postureStatus === 4),
     isSimulating: Boolean(raw.isSimulating || raw.is_simulating),
     isStale,
     packetAgeSeconds,

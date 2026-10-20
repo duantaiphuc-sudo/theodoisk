@@ -51,21 +51,15 @@ export async function checkFaceTemplateStatus(userId: string): Promise<FaceTempl
     console.warn('Lỗi kiểm tra chi tiết mẫu khuôn mặt từ Firestore:', err);
   }
 
-  // Fallback kiểm tra ảnh trong cache
-  let cachedImg: string | undefined;
-  try {
-    const cached = localStorage.getItem(SNAPSHOT_STORAGE_PREFIX + userId);
-    if (cached) cachedImg = cached;
-  } catch {}
-
+  // Nếu không có document trong face_templates -> Chưa đăng ký mẫu
   return {
-    hasDoc: Boolean(cachedImg),
+    hasDoc: false,
     hasVector: false,
-    hasImage: Boolean(cachedImg),
+    hasImage: false,
     vectorDim: 0,
     model: 'opencv_sface_2021dec',
-    image: cachedImg,
-    enabled: Boolean(cachedImg),
+    image: undefined,
+    enabled: false,
   };
 }
 
@@ -99,7 +93,7 @@ export async function fetchFaceTemplate(userId: string): Promise<FaceTemplate | 
         schema_version: Number(data.schema_version) || 1,
         sample_count: Number(data.sample_count) || 1,
         embedding: Array.isArray(data.embedding) ? data.embedding : [],
-        enabled: Boolean(data.enabled),
+        enabled: Boolean(data.enabled !== false),
         updated_at: data.updated_at,
         image: data.image || data.photo_url || data.snapshot || undefined,
         snapshot: data.snapshot || data.image || undefined,
@@ -109,9 +103,17 @@ export async function fetchFaceTemplate(userId: string): Promise<FaceTemplate | 
     console.warn('Lỗi tải mẫu khuôn mặt từ Firestore:', err);
   }
 
-  // Nếu chưa có ảnh trong face_templates, thử tìm trong users/{userId}
-  let fallbackImage: string | undefined = templateData?.image;
-  if (!fallbackImage) {
+  // Nếu người dùng KHÔNG có document face_templates trong Firestore -> Chưa có mẫu khuôn mặt!
+  // Tuyệt đối KHÔNG lấy avatar (ảnh đại diện người dùng) để thay thế!
+  if (!templateData) {
+    return null;
+  }
+
+  // Nếu có document face_templates nhưng trường image/snapshot bị trống,
+  // chỉ kiểm tra xem users/{userId} có lưu ảnh trích xuất chuyên dụng `faceSnapshot` hay không.
+  // Tuyệt đối không lấy `avatar` (ảnh đại diện cá nhân)!
+  let faceImage = templateData.image || templateData.snapshot;
+  if (!faceImage) {
     try {
       const config = getSavedFirebaseConfig();
       const app = initializeFirebaseApp(config);
@@ -120,52 +122,24 @@ export async function fetchFaceTemplate(userId: string): Promise<FaceTemplate | 
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const udata = userSnap.data();
-        if (udata.avatar && typeof udata.avatar === 'string' && udata.avatar.length > 50) {
-          fallbackImage = udata.avatar;
-        } else if (udata.faceSnapshot && typeof udata.faceSnapshot === 'string') {
-          fallbackImage = udata.faceSnapshot;
+        if (udata.faceSnapshot && typeof udata.faceSnapshot === 'string') {
+          faceImage = udata.faceSnapshot;
         }
       }
     } catch {}
   }
 
-  // Fallback cuối cùng: localStorage
-  if (!fallbackImage) {
-    try {
-      const cached = localStorage.getItem(SNAPSHOT_STORAGE_PREFIX + userId);
-      if (cached) fallbackImage = cached;
-    } catch {}
-  }
-
-  if (templateData) {
-    return {
-      userId: templateData.userId || userId,
-      model: templateData.model || 'opencv_sface_2021dec',
-      schema_version: templateData.schema_version || 1,
-      sample_count: templateData.sample_count || 1,
-      embedding: templateData.embedding || [],
-      enabled: templateData.enabled !== undefined ? templateData.enabled : true,
-      updated_at: templateData.updated_at,
-      image: fallbackImage,
-      snapshot: fallbackImage,
-    };
-  }
-
-  // Nếu không có document face_templates nhưng có ảnh lưu trữ fallback
-  if (fallbackImage) {
-    return {
-      userId,
-      model: 'opencv_sface_2021dec',
-      schema_version: 1,
-      sample_count: 1,
-      embedding: [],
-      enabled: true,
-      image: fallbackImage,
-      snapshot: fallbackImage,
-    };
-  }
-
-  return null;
+  return {
+    userId: templateData.userId || userId,
+    model: templateData.model || 'opencv_sface_2021dec',
+    schema_version: templateData.schema_version || 1,
+    sample_count: templateData.sample_count || 1,
+    embedding: templateData.embedding || [],
+    enabled: templateData.enabled !== undefined ? templateData.enabled : true,
+    updated_at: templateData.updated_at,
+    image: faceImage,
+    snapshot: faceImage,
+  };
 }
 
 /**
@@ -214,7 +188,7 @@ export async function saveFaceSnapshot(
     const rawAuth = localStorage.getItem(AUTH_STORAGE_KEY);
     if (rawAuth) {
       const u: AuthUser = JSON.parse(rawAuth);
-      if (u && (u.id === userId || !u.avatar)) {
+      if (u && !u.avatar) {
         u.avatar = imageBase64;
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(u));
       }
@@ -241,16 +215,20 @@ export async function saveFaceSnapshot(
       updated_at: serverTimestamp(),
     }, { merge: true });
 
-    // 2. Đồng bộ vào collection users để profile hiển thị ngay
+    // 2. Đồng bộ vào collection users (Lưu riêng faceSnapshot, không ghi đè avatar đã có của người dùng)
     try {
       const usersDb = getFirestore(app);
       const userRef = doc(usersDb, 'users', userId);
-      await setDoc(userRef, {
-        avatar: imageBase64,
+      const userSnap = await getDoc(userRef);
+      const userUpdate: Record<string, any> = {
         faceSnapshot: imageBase64,
         hasFaceEnrolled: true,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+      if (userSnap.exists() && !userSnap.data()?.avatar) {
+        userUpdate.avatar = imageBase64;
+      }
+      await setDoc(userRef, userUpdate, { merge: true });
     } catch (userSyncErr) {
       console.warn('Cảnh báo đồng bộ avatar user:', userSyncErr);
     }

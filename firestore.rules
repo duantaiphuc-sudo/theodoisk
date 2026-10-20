@@ -184,6 +184,16 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() || isOwner(userId);
     }
 
+    // Activity history is written exclusively by the Pi via Admin SDK.
+    match /office_health_time/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+      match /days/{dayId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
     // 8. Global Safety Net - Default Deny
     match /{document=**} {
       allow read, write: if false;
