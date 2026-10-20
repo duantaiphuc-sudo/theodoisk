@@ -62,6 +62,7 @@ import { HealthChatbot } from './components/HealthChatbot';
 import { AdminDashboard } from './components/AdminDashboard';
 import { FaceControlPanel } from './components/FaceControlPanel';
 import { watchFaceSession } from './services/faceCommandService';
+import { watchDeviceAssignment, pushWebTftAlert, calculateTftStatusCode } from './services/webTftAlertService';
 import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
 import { 
   Activity,
@@ -752,6 +753,91 @@ export default function App() {
       setIsFaceSessionVerified(true);
     }
   }, [assignedDevice, isSimulating]);
+
+  // Theo dõi assignment_id của thiết bị trạm (Dành cho đồng bộ cảnh báo màn hình TFT Pi 4)
+  const [currentAssignment, setCurrentAssignment] = useState<{ uid: string; assignment_id: string } | null>(null);
+
+  useEffect(() => {
+    if (!assignedDevice || isSimulating) {
+      setCurrentAssignment(null);
+      return;
+    }
+    const unsub = watchDeviceAssignment(assignedDevice, data => {
+      setCurrentAssignment(data);
+    });
+    return () => unsub();
+  }, [assignedDevice, isSimulating]);
+
+  // Đồng bộ cảnh báo tư thế thời gian thực Web -> TFT Pi 4 (Mã 3: Sai tư thế lâu, Mã 4: Ngồi quá lâu)
+  useEffect(() => {
+    if (!assignedDevice || !currentUser?.id || !currentAssignment?.assignment_id || isSimulating) {
+      return;
+    }
+
+    // Chỉ đồng bộ khi thiết bị trạm đang được gán đúng cho tài khoản đang đăng nhập
+    if (currentAssignment.uid !== currentUser.id) {
+      return;
+    }
+
+    const currentThresh = thresholds;
+    const isSeated = telemetry.trackingActive && telemetry.postureStatus !== -1 && telemetry.postureStatus !== 2 && telemetry.postureStatus !== 5;
+    const isBad = isSeated && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
+
+    const { status_code, base_posture_status } = calculateTftStatusCode(
+      isSeated,
+      isBad,
+      timeStats.badPostureSeconds,
+      timeStats.continuousSittingSeconds,
+      currentThresh.incorrectPostureSec,
+      currentThresh.longSittingSec
+    );
+
+    // Gửi tín hiệu ngay lập tức lên Firestore devices/{deviceId}/web_display/current
+    pushWebTftAlert(assignedDevice, {
+      uid: currentUser.id,
+      assignment_id: currentAssignment.assignment_id,
+      status_code,
+      base_posture_status,
+    });
+
+    // Heartbeat định kỳ 7 giây nếu đang có cảnh báo để duy trì trong khung TTL 18s của Pi
+    let heartbeatTimer: any = null;
+    if (status_code !== 0) {
+      heartbeatTimer = setInterval(() => {
+        pushWebTftAlert(assignedDevice, {
+          uid: currentUser.id,
+          assignment_id: currentAssignment.assignment_id,
+          status_code,
+          base_posture_status,
+        });
+      }, 7000);
+    }
+
+    return () => {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      // Khi thoát trạng thái hoặc unmount, xóa mã cảnh báo về 0
+      if (status_code !== 0) {
+        pushWebTftAlert(assignedDevice, {
+          uid: currentUser.id,
+          assignment_id: currentAssignment.assignment_id,
+          status_code: 0,
+          base_posture_status: 0,
+        }).catch(() => {});
+      }
+    };
+  }, [
+    assignedDevice,
+    currentUser?.id,
+    currentAssignment?.assignment_id,
+    currentAssignment?.uid,
+    isSimulating,
+    telemetry.trackingActive,
+    telemetry.postureStatus,
+    timeStats.badPostureSeconds,
+    timeStats.continuousSittingSeconds,
+    thresholds.incorrectPostureSec,
+    thresholds.longSittingSec,
+  ]);
 
   // Đồng bộ thời gian thực hồ sơ currentUser (bao gồm cả trường device được Admin gán hoặc thu hồi)
   useEffect(() => {
