@@ -5,31 +5,76 @@ import { FaceTemplate, AuthUser } from '../types';
 const SNAPSHOT_STORAGE_PREFIX = 'theodoisk_face_snapshot_';
 const AUTH_STORAGE_KEY = 'theodoisk_authenticated_user_v1';
 
+export interface FaceTemplateStatus {
+  hasDoc: boolean;
+  hasVector: boolean;
+  hasImage: boolean;
+  vectorDim: number;
+  model: string;
+  image?: string;
+  enabled: boolean;
+}
+
 /**
- * Kiểm tra tài khoản đã đăng ký mẫu khuôn mặt (YuNet + SFace) chưa
+ * Kiểm tra chi tiết trạng thái mẫu khuôn mặt: đã có vector 128D hay chỉ có ảnh chụp
  */
-export async function checkHasFaceTemplate(userId: string): Promise<boolean> {
-  if (!userId) return false;
+export async function checkFaceTemplateStatus(userId: string): Promise<FaceTemplateStatus> {
+  if (!userId) {
+    return { hasDoc: false, hasVector: false, hasImage: false, vectorDim: 0, model: '', enabled: false };
+  }
+
   try {
     const config = getSavedFirebaseConfig();
     const app = initializeFirebaseApp(config);
     const db = getAppFirestore(app, config);
     const docRef = doc(db, 'face_templates', userId);
     const snap = await getDoc(docRef);
-    if (snap.exists() && Boolean(snap.data()?.enabled)) {
-      return true;
+
+    if (snap.exists()) {
+      const data = snap.data();
+      const embedding = Array.isArray(data.embedding) ? data.embedding : [];
+      const img = data.image || data.photo_url || data.snapshot || undefined;
+      const hasVector = embedding.length === 128;
+      const enabled = Boolean(data.enabled !== false);
+
+      return {
+        hasDoc: true,
+        hasVector,
+        hasImage: Boolean(img),
+        vectorDim: embedding.length,
+        model: String(data.model || 'opencv_sface_2021dec'),
+        image: img,
+        enabled,
+      };
     }
   } catch (err) {
-    console.warn('Lỗi kiểm tra mẫu khuôn mặt từ Firestore:', err);
+    console.warn('Lỗi kiểm tra chi tiết mẫu khuôn mặt từ Firestore:', err);
   }
 
-  // Fallback cache
+  // Fallback kiểm tra ảnh trong cache
+  let cachedImg: string | undefined;
   try {
     const cached = localStorage.getItem(SNAPSHOT_STORAGE_PREFIX + userId);
-    if (cached) return true;
+    if (cached) cachedImg = cached;
   } catch {}
 
-  return false;
+  return {
+    hasDoc: Boolean(cachedImg),
+    hasVector: false,
+    hasImage: Boolean(cachedImg),
+    vectorDim: 0,
+    model: 'opencv_sface_2021dec',
+    image: cachedImg,
+    enabled: Boolean(cachedImg),
+  };
+}
+
+/**
+ * Kiểm tra tài khoản đã đăng ký mẫu khuôn mặt (YuNet + SFace) chưa
+ */
+export async function checkHasFaceTemplate(userId: string): Promise<boolean> {
+  const status = await checkFaceTemplateStatus(userId);
+  return status.hasDoc && status.enabled;
 }
 
 /**

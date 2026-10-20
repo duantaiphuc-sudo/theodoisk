@@ -232,7 +232,39 @@ export function subscribeToFirebaseTelemetry(
       const targetCol = config.collectionName || 'devices';
       const docRef = doc(db, targetCol, effectiveDoc);
 
-      // Theo dõi trạng thái phiên xác thực khuôn mặt SFace của trạm Pi
+      // 1. Theo dõi bản ghi phân công quyền sở hữu độc quyền của trạm (Assignment)
+      let assignedUid: string | null = null;
+      const assignmentRef = doc(db, 'devices', effectiveDoc, 'assignment', 'current');
+      const unsubAssignment = onSnapshot(
+        assignmentRef,
+        snap => {
+          if (snap.exists()) {
+            const aData = snap.data();
+            assignedUid = (aData.uid as string) || null;
+          } else {
+            assignedUid = null;
+          }
+
+          const currentAuthUid = auth.currentUser?.uid;
+          // Nếu thiết bị đã gán cho tài khoản khác, lập tức ngắt hiển thị trên client tài khoản cũ
+          if (assignedUid && currentAuthUid && assignedUid !== currentAuthUid) {
+            onData({
+              bpm: 0,
+              spo2: 0,
+              postureStatus: -1,
+              postureLabel: 'Thiết bị đã được phân công cho tài khoản khác',
+              trackingActive: false,
+              inZone: false,
+              timestamp: new Date().toISOString(),
+              source: `Pi 4 - ${effectiveDoc}`,
+              confidence: 0,
+            });
+          }
+        },
+        () => {}
+      );
+
+      // 2. Theo dõi trạng thái phiên xác thực khuôn mặt SFace của trạm Pi
       let sessionStatus = 'WAIT_LOGIN';
       let sessionUid: string | null = null;
       const sessionRef = doc(db, 'devices', effectiveDoc, 'session', 'current');
@@ -251,6 +283,7 @@ export function subscribeToFirebaseTelemetry(
         () => {}
       );
 
+      // 3. Lắng nghe dữ liệu cảm biến đo đạc từ trạm Pi
       const unsubDoc = onSnapshot(
         docRef,
         snapshot => {
@@ -258,24 +291,46 @@ export function subscribeToFirebaseTelemetry(
             const raw = snapshot.data();
             const currentAuthUid = auth.currentUser?.uid;
 
-            // 1. Kiểm tra raw.userId === currentAuthUid: chỉ chấp nhận khi khớp đúng Auth UID của người dùng đang đăng nhập
-            if (raw.userId && currentAuthUid && raw.userId !== currentAuthUid) {
-              return;
-            }
-
-            // 2. Chỉ chấp nhận hiển thị dữ liệu sinh trắc học khi phiên làm việc đã VERIFIED cho UID này
-            const isVerified = 
-              (sessionStatus === 'VERIFIED' && (!sessionUid || !currentAuthUid || sessionUid === currentAuthUid)) || 
-              (raw.session_status === 'VERIFIED' && (!raw.userId || !currentAuthUid || raw.userId === currentAuthUid)) || 
-              (raw.sessionStatus === 'VERIFIED' && (!raw.userId || !currentAuthUid || raw.userId === currentAuthUid)) ||
-              raw.face_verified === true;
-
-            if (!isVerified) {
+            // KIỂM TRA BẢO MẬT & PHÂN QUYỀN TRẠM ĐỘC QUYỀN:
+            // A. Nếu trạm đã phân công cho UID khác (ví dụ user2), tài khoản cũ (user1) bị tước quyền ngay lập tức
+            if (assignedUid && currentAuthUid && assignedUid !== currentAuthUid) {
               onData({
                 bpm: 0,
                 spo2: 0,
                 postureStatus: -1,
-                postureLabel: 'Chờ xác thực khuôn mặt SFace (Chưa VERIFIED)',
+                postureLabel: 'Thiết bị đã được phân công cho tài khoản khác',
+                trackingActive: false,
+                inZone: false,
+                timestamp: new Date().toISOString(),
+                source: `Pi 4 - ${effectiveDoc}`,
+                confidence: 0,
+              });
+              return;
+            }
+
+            // B. Nếu payload telemetry chỉ định cụ thể userId khác UID đăng nhập -> không nạp
+            if (raw.userId && currentAuthUid && raw.userId !== currentAuthUid) {
+              return;
+            }
+
+            // C. Chỉ hiển thị dữ liệu sinh trắc học khi:
+            // - Trạm gán đúng cho UID này
+            // - VÀ phiên SFace xác thực cho đúng UID này
+            const isAssignedToCurrent = !assignedUid || !currentAuthUid || assignedUid === currentAuthUid;
+            const isVerifiedForCurrent = sessionStatus === 'VERIFIED' && (!sessionUid || !currentAuthUid || sessionUid === currentAuthUid);
+            const isPayloadForCurrent = !raw.userId || !currentAuthUid || raw.userId === currentAuthUid;
+
+            const isVerified = isAssignedToCurrent && isVerifiedForCurrent && isPayloadForCurrent;
+
+            if (!isVerified) {
+              const label = (!isAssignedToCurrent)
+                ? 'Thiết bị đã được phân công cho tài khoản khác'
+                : 'Chờ xác thực khuôn mặt SFace (Chưa VERIFIED)';
+              onData({
+                bpm: 0,
+                spo2: 0,
+                postureStatus: -1,
+                postureLabel: label,
                 trackingActive: false,
                 inZone: false,
                 timestamp: new Date().toISOString(),
@@ -296,6 +351,7 @@ export function subscribeToFirebaseTelemetry(
       );
 
       activeTelemetryUnsub = () => {
+        unsubAssignment();
         unsubSession();
         unsubDoc();
       };

@@ -138,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium whitespace-nowrap">
-                <span>MAX30102 & AI Camera</span>
+                <span>MAX30102 & Camera</span>
               </p>
             </div>
           </button>
@@ -657,9 +657,9 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-slate-500 text-[10px]">Thị giác máy tính AI</p>
+                  <p className="text-slate-500 text-[10px]">Thị giác máy tính & Tư thế</p>
                   <p className="font-bold text-slate-900">MediaPipe Pose (33 points)</p>
-                  <p className="text-slate-600 text-[10px]">30 FPS Edge AI</p>
+                  <p className="text-slate-600 text-[10px]">30 FPS Edge Processing</p>
                 </div>
               </div>
 

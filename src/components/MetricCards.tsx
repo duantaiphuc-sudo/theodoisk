@@ -113,7 +113,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
               <div className={`inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-semibold border whitespace-nowrap ${
                 isUnassigned ? 'bg-amber-50 text-amber-800 border-amber-300' : (isUnverified ? 'bg-sky-50 text-sky-800 border-sky-300' : 'bg-slate-100 text-slate-600 border-slate-200')
               }`}>
-                {isUnassigned ? 'Tài khoản chưa được gán thiết bị' : (isUnverified ? 'Chờ xác thực SFace' : 'Chờ Camera AI')}
+                {isUnassigned ? 'Tài khoản chưa được gán thiết bị' : (isUnverified ? 'Chờ xác thực SFace' : 'Chờ Camera')}
               </div>
             </div>
           </div>
@@ -199,8 +199,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
     postureBadgeStyle = 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
     postureIcon = <CameraOff className="w-5 h-5 text-rose-600" />;
     displayedPostureLabel = postureLabel && postureLabel.toLowerCase().includes('lỗi')
-      ? (postureLabel.toLowerCase() === 'lỗi ai' ? 'Lỗi kết nối Camera AI' : postureLabel)
-      : 'Lỗi kết nối Camera AI';
+      ? (postureLabel.toLowerCase() === 'lỗi ai' ? 'Lỗi kết nối Camera' : postureLabel)
+      : 'Lỗi kết nối Camera';
   } else if (isStanding) {
     postureCardBg = 'bg-indigo-50/50 border-indigo-200';
     postureBadgeStyle = 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold';
@@ -360,7 +360,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         <div className="mt-2.5 sm:mt-4 flex items-center justify-between pt-2 sm:pt-3 border-t border-slate-100 text-[10px] sm:text-xs text-slate-500">
-          <span className="truncate">{isCameraError ? 'Lỗi phần cứng' : isAbsent ? 'Ngoài vùng' : (telemetry.angleNeck !== undefined ? `Góc: ${telemetry.angleNeck}°` : 'AI Vision')}</span>
+          <span className="truncate">{isCameraError ? 'Lỗi phần cứng' : isAbsent ? 'Ngoài vùng' : (telemetry.angleNeck !== undefined ? `Góc: ${telemetry.angleNeck}°` : 'Thị giác máy tính')}</span>
           <span className={`font-mono whitespace-nowrap font-medium ${isCameraError ? 'text-rose-600' : isAbsent ? 'text-slate-500' : 'text-emerald-700'}`}>
             {isCameraError ? 'CAM_ERR' : isAbsent ? 'Ghế trống' : `${telemetry.confidence ?? 95}%`}
           </span>

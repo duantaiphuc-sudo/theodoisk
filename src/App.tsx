@@ -542,23 +542,34 @@ export default function App() {
       device: activeUser?.device || ''
     };
 
-    // Add to local history (deduplicating rapid identical samples within 2 seconds)
-    setHistory(prev => {
-      const active = currentUserRef.current;
-      const userOnlyPrev = active 
-        ? prev.filter(l => !l.userId || l.userId === active.id || (l.userEmail && l.userEmail.toLowerCase() === active.email.toLowerCase()))
-        : prev;
+    // === BỎ QUA GHI NHẬT KÝ KHI ĐANG CHỜ XÁC THỰC KHUÔN MẶT ===
+    const pStatus = Number(data.postureStatus ?? -1);
+    const pLabel = String(data.postureLabel || '').toLowerCase();
+    const isWaitingFaceAuth = 
+      pStatus === -1 || 
+      pLabel.includes('chờ xác thực') || 
+      pLabel.includes('chưa verified') || 
+      pLabel.includes('phân công cho tài khoản khác');
 
-      if (userOnlyPrev.length > 0) {
-        const first = userOnlyPrev[0];
-        const sameMetrics = first.bpm === newEntry.bpm && first.spo2 === newEntry.spo2 && first.postureStatus === newEntry.postureStatus;
-        const timeDiff = Math.abs(new Date(newEntry.timestamp).getTime() - new Date(first.timestamp).getTime());
-        if (sameMetrics && timeDiff < 2000) {
-          return userOnlyPrev;
+    // Chỉ ghi vào nhật ký lịch sử cục bộ khi ĐÃ XÁC THỰC thành công
+    if (!isWaitingFaceAuth) {
+      setHistory(prev => {
+        const active = currentUserRef.current;
+        const userOnlyPrev = active 
+          ? prev.filter(l => !l.userId || l.userId === active.id || (l.userEmail && l.userEmail.toLowerCase() === active.email.toLowerCase()))
+          : prev;
+
+        if (userOnlyPrev.length > 0) {
+          const first = userOnlyPrev[0];
+          const sameMetrics = first.bpm === newEntry.bpm && first.spo2 === newEntry.spo2 && first.postureStatus === newEntry.postureStatus;
+          const timeDiff = Math.abs(new Date(newEntry.timestamp).getTime() - new Date(first.timestamp).getTime());
+          if (sameMetrics && timeDiff < 2000) {
+            return userOnlyPrev;
+          }
         }
-      }
-      return [newEntry, ...userOnlyPrev.slice(0, 299)];
-    });
+        return [newEntry, ...userOnlyPrev.slice(0, 299)];
+      });
+    }
 
     // Realtime broadcast to Firestore directly on every telemetry update (Fast-path, eliminates latency)
     const hasLiveSignal = Boolean(
@@ -622,8 +633,8 @@ export default function App() {
     const hasValidMetrics = data.bpm > 0 || data.spo2 > 0 || (data.postureStatus !== undefined && data.postureStatus >= 0);
 
     // Ghi vào Supabase PostgreSQL:
-    // - Tự động đồng bộ liên tục: Khi có cảnh báo, tư thế đổi, nhịp tim/SpO2 biến thiên, hoặc mỗi 5 giây
-    const shouldSaveSupabase = activeUser && hasValidMetrics && !isStale && (
+    // - Tự động đồng bộ liên tục: Khi có cảnh báo, tư thế đổi, nhịp tim/SpO2 biến thiên, hoặc mỗi 5 giây (chỉ khi đã xác thực khuôn mặt)
+    const shouldSaveSupabase = activeUser && !isWaitingFaceAuth && hasValidMetrics && !isStale && (
       hasAlert || 
       postureChanged || 
       metricsChanged || 
@@ -639,7 +650,9 @@ export default function App() {
 
   const userDevice = (currentUser?.deviceId || currentUser?.device || '').trim();
   const isAdminUser = currentUser?.role === 'admin';
-  const assignedDevice = userDevice || (isAdminUser ? (firebaseConfig.documentId || 'pi4_node_1') : '');
+  // Ràng buộc nghiêm ngặt: Mỗi tài khoản (kể cả Admin) chỉ kết nối trạm được phân công đích danh cho mình.
+  // Không tự ý fallback sang pi4_node_1 khi bị tước quyền gán trạm.
+  const assignedDevice = userDevice;
 
   const [isFaceSessionVerified, setIsFaceSessionVerified] = useState<boolean>(true);
 
@@ -660,7 +673,7 @@ export default function App() {
     }
   }, [assignedDevice, isSimulating]);
 
-  // Đồng bộ thời gian thực hồ sơ currentUser (bao gồm cả trường device được Admin gán)
+  // Đồng bộ thời gian thực hồ sơ currentUser (bao gồm cả trường device được Admin gán hoặc thu hồi)
   useEffect(() => {
     if (!currentUser?.id) return;
     try {
@@ -672,7 +685,7 @@ export default function App() {
         if (snap.exists()) {
           const data = snap.data();
           const latestDevice = (data.device !== undefined ? data.device : (data.deviceId || '')).trim();
-          if (latestDevice !== (currentUser.device || '')) {
+          if (latestDevice !== (currentUser.device || '') || latestDevice !== (currentUser.deviceId || '')) {
             setCurrentUser(prev => {
               if (!prev) return null;
               const updated = { ...prev, device: latestDevice, deviceId: latestDevice };
@@ -688,7 +701,7 @@ export default function App() {
     } catch (e) {
       console.warn('Error listening to currentUser doc:', e);
     }
-  }, [currentUser?.id, currentUser?.device]);
+  }, [currentUser?.id, currentUser?.device, currentUser?.deviceId]);
 
   // Heartbeat định kỳ duy trì trạng thái Trực Tuyến (Online Presence) liên tục cho tài khoản đang đăng nhập
   useEffect(() => {

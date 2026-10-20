@@ -75,21 +75,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Edit / Add modal states
+  // Edit modal states
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null);
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newUserForm, setNewUserForm] = useState<Partial<AuthUser>>({
-    fullName: '',
-    email: '',
-    username: '',
-    role: 'employee',
-    department: 'Văn Phòng IoT',
-    age: 28,
-    gender: 'male',
-    height: 170,
-    weight: 65,
-    maxSittingHours: 6,
-  });
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -218,50 +205,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     }
   };
 
-  const handleCreateNew = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUserForm.email || !newUserForm.fullName) return;
 
-    const newId = `usr-${Date.now()}`;
-    const user: AuthUser = {
-      id: newId,
-      username: newUserForm.email.split('@')[0],
-      email: newUserForm.email,
-      fullName: newUserForm.fullName,
-      role: newUserForm.role || 'employee',
-      department: newUserForm.department || 'Văn Phòng IoT',
-      age: Number(newUserForm.age) || 28,
-      gender: (newUserForm.gender as any) || 'male',
-      height: Number(newUserForm.height) || 170,
-      weight: Number(newUserForm.weight) || 65,
-      maxSittingHours: Number(newUserForm.maxSittingHours) || 6,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-      status: 'active',
-      device: newUserForm.device || '',
-      deviceId: newUserForm.device || '',
-      createdAt: new Date().toISOString(),
-    };
-
-    const ok = await adminCreateUser(user);
-    if (ok) {
-      setUsers(prev => [...prev, user]);
-      setIsAddingNew(false);
-      setNewUserForm({
-        fullName: '',
-        email: '',
-        role: 'employee',
-        department: 'Văn Phòng IoT',
-        age: 28,
-        gender: 'male',
-        height: 170,
-        weight: 65,
-        maxSittingHours: 6,
-        device: '',
-      });
-      setNotice(`Đã tạo mới thành công tài khoản ${user.fullName}`);
-      setTimeout(() => setNotice(null), 3500);
-    }
-  };
 
   const handleAssignTaskShortcut = (user: AuthUser) => {
     setActiveTab('tasks');
@@ -439,14 +383,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 >
                   <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
                   <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
-                </button>
-
-                <button
-                  onClick={() => setIsAddingNew(true)}
-                  className="flex items-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-xs cursor-pointer active:scale-95"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Thêm Tài Khoản</span>
                 </button>
               </div>
             </div>
@@ -1184,137 +1120,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
         </div>
       )}
 
-      {/* Sub-modal: Add New User */}
-      {isAddingNew && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4 text-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-4 h-4 text-indigo-600" />
-                <span>Thêm Tài Khoản Theo Dõi Sức Khỏe Mới</span>
-              </h4>
-              <button
-                onClick={() => setIsAddingNew(false)}
-                className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateNew} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Họ và Tên *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ví dụ: Hoàng Minh Đức"
-                  value={newUserForm.fullName}
-                  onChange={e => setNewUserForm({ ...newUserForm, fullName: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Email Đăng Nhập *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="hoangduc@example.com"
-                  value={newUserForm.email}
-                  onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Độ Tuổi</label>
-                  <input
-                    type="number"
-                    value={newUserForm.age || 28}
-                    onChange={e => setNewUserForm({ ...newUserForm, age: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Giới Tính</label>
-                  <select
-                    value={newUserForm.gender || 'male'}
-                    onChange={e => setNewUserForm({ ...newUserForm, gender: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200"
-                  >
-                    <option value="male">Nam</option>
-                    <option value="female">Nữ</option>
-                    <option value="other">Khác</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Chiều Cao (cm)</label>
-                  <input
-                    type="number"
-                    value={newUserForm.height || 170}
-                    onChange={e => setNewUserForm({ ...newUserForm, height: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Cân Nặng (kg)</label>
-                  <input
-                    type="number"
-                    value={newUserForm.weight || 65}
-                    onChange={e => setNewUserForm({ ...newUserForm, weight: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Phòng Ban</label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: Phòng Kế Toán / Thiết Kế"
-                  value={newUserForm.department || ''}
-                  onChange={e => setNewUserForm({ ...newUserForm, department: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Gán Thiết Bị IoT (Device)</label>
-                <select
-                  value={newUserForm.device || newUserForm.deviceId || ''}
-                  onChange={e => setNewUserForm({ ...newUserForm, deviceId: e.target.value, device: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 font-mono"
-                >
-                  <option value="">Trống (Chưa gán)</option>
-                  <option value="pi4_node_1">pi4_node_1</option>
-                  <option value="pi4_node_2">pi4_node_2</option>
-                </select>
-                <p className="text-[10px] text-slate-500 mt-1">Gán node thiết bị tương ứng để đồng bộ dữ liệu thời gian thực</p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAddingNew(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-                >
-                  Thêm Tài Khoản
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -22,10 +22,25 @@ import {
   initializeFirebaseApp, 
   getHistoryCollectionName, 
   markQuotaExceeded,
-  getAppFirestore
+  getAppFirestore,
+  getSavedFirebaseConfig
 } from './firebase';
+import { supabase } from './supabaseService';
+import { getAuth } from 'firebase/auth';
 
 const STORAGE_KEY = 'theodoisk_historical_records_v1';
+
+async function getAuthTokenSafe(): Promise<string | null> {
+  try {
+    const config = getSavedFirebaseConfig();
+    const app = initializeFirebaseApp(config);
+    const auth = getAuth(app);
+    if (!auth.currentUser) return null;
+    return await auth.currentUser.getIdToken();
+  } catch {
+    return null;
+  }
+}
 
 function formatDate(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -58,8 +73,88 @@ export function saveHistoricalRecords(records: HistoricalRecord[]): void {
   }
 }
 
+/**
+ * Lấy lịch sử dữ liệu an toàn từ API server (/api/telemetry/history)
+ * Đảm bảo bắt lỗi 500 và các lỗi kết nối mạng, trả về mảng rỗng [] thay vì bắn unhandled error
+ */
+export async function fetchTelemetryHistory(
+  userId?: string, 
+  timeRange: string = 'day', 
+  limit = 200
+): Promise<TelemetryLog[]> {
+  try {
+    const params = new URLSearchParams();
+    params.set('timeRange', timeRange);
+    if (userId && userId !== 'all') params.set('userId', userId);
+    params.set('limit', String(limit));
+
+    const token = await getAuthTokenSafe();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`/api/telemetry/history?${params.toString()}`, { headers });
+    
+    // Nếu API server trả về lỗi 500 hoặc không thành công
+    if (!res.ok) {
+      console.warn(`[HistoryService] API /api/telemetry/history trả về mã lỗi ${res.status}. Fallback sang singleton supabase.`);
+      // Thử dùng singleton supabase duy nhất nếu có
+      if (supabase) {
+        try {
+          let q = supabase.from('telemetry_logs').select('*').order('created_at', { ascending: false }).limit(limit);
+          if (userId && userId !== 'all') q = q.eq('user_id', userId);
+          const { data, error } = await q;
+          if (!error && Array.isArray(data)) {
+            return data
+              .filter(item => {
+                const st = Number(item.posture_status ?? -1);
+                const lb = String(item.posture_label || '').toLowerCase();
+                return st !== -1 && !lb.includes('chờ xác thực') && !lb.includes('chưa verified');
+              })
+              .map(item => normalizeHistoryLog(item.id || String(Date.now()), item));
+          }
+        } catch {}
+      }
+      return [];
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await res.json();
+      const rawData = json?.data || [];
+      if (Array.isArray(rawData)) {
+        return rawData
+          .filter(item => {
+            const st = Number(item.posture_status ?? item.postureStatus ?? -1);
+            const lb = String(item.posture_label || item.postureLabel || '').toLowerCase();
+            return st !== -1 && !lb.includes('chờ xác thực') && !lb.includes('chưa verified');
+          })
+          .map(item => normalizeHistoryLog(item.id || String(Date.now()), item));
+      }
+    }
+    return [];
+  } catch (err) {
+    // try...catch an toàn tuyệt đối, trả về mảng rỗng [] thay vì bắn unhandled error ra console
+    console.warn('[HistoryService] Lỗi kết nối /api/telemetry/history, fallback trả về mảng rỗng []:', err);
+    return [];
+  }
+}
+
 export function appendTelemetryToHistory(telemetry: HealthTelemetry): void {
-  if (!telemetry || (telemetry.bpm <= 0 && telemetry.spo2 <= 0 && (telemetry.postureStatus === undefined || telemetry.postureStatus === -1))) {
+  if (!telemetry) return;
+
+  // CHẶN GHI NHẬT KÝ KHI ĐANG CHỜ XÁC THỰC KHUÔN MẶT
+  const pStatus = Number(telemetry.postureStatus ?? -1);
+  const pLabel = String(telemetry.postureLabel || '').toLowerCase();
+  if (
+    pStatus === -1 || 
+    pLabel.includes('chờ xác thực') || 
+    pLabel.includes('chưa verified') || 
+    pLabel.includes('phân công cho tài khoản khác')
+  ) {
+    return;
+  }
+
+  if (telemetry.bpm <= 0 && telemetry.spo2 <= 0 && pStatus === -1) {
     return;
   }
 

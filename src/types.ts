@@ -46,6 +46,7 @@ export interface AuthUser {
   deviceId?: string;
   isOnline?: boolean;
   lastActive?: string;
+  updatedAt?: string;
   currentPresence?: 'Present' | 'Away' | string;
   currentPosture?: string;
   currentPostureText?: string;

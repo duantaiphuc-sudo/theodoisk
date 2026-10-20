@@ -343,17 +343,34 @@ export async function adminAssignDevice(userId: string, device: string): Promise
 
     // Cập nhật bộ nhớ đệm cục bộ
     const list = getLocalUsersCache();
+    
+    // 1. Tước thiết bị khỏi bất kỳ tài khoản nào trước đó đang giữ cleanDevice
+    if (cleanDevice) {
+      list.forEach((u, i) => {
+        if (u.id !== userId && (u.device === cleanDevice || u.deviceId === cleanDevice)) {
+          list[i] = { ...u, device: '', deviceId: '' };
+        }
+      });
+    }
+
+    // 2. Gán cho userId mới
     const idx = list.findIndex(u => u.id === userId);
     if (idx >= 0) {
       list[idx] = { ...list[idx], device: cleanDevice, deviceId: cleanDevice };
     }
     saveLocalUsersCache(list);
 
-    // Nếu người dùng hiện tại đang đăng nhập là userId này, cập nhật phiên đăng nhập ngay
+    // 3. Đồng bộ phiên đăng nhập hiện tại nếu bị ảnh hưởng
     const current = getCurrentUser();
-    if (current && current.id === userId) {
-      const updatedCurrent = { ...current, device: cleanDevice, deviceId: cleanDevice };
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedCurrent));
+    if (current) {
+      if (current.id === userId) {
+        const updatedCurrent = { ...current, device: cleanDevice, deviceId: cleanDevice };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedCurrent));
+      } else if (cleanDevice && (current.device === cleanDevice || current.deviceId === cleanDevice)) {
+        // Tài khoản hiện tại bị tước quyền gán thiết bị
+        const updatedCurrent = { ...current, device: '', deviceId: '' };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedCurrent));
+      }
     }
 
     return true;

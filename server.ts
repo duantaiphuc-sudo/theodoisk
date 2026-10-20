@@ -1244,7 +1244,10 @@ async function startServer() {
   if (isDev) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: false
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -1255,8 +1258,16 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
+  const server = app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT} (0.0.0.0)`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`Port ${PORT} is already in use. Existing process is serving requests.`);
+    } else {
+      console.error('Server error:', err);
+    }
   });
 }
 

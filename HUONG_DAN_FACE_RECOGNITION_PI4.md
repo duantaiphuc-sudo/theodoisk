@@ -165,6 +165,36 @@ class FaceTemplateManager:
         is_match = score >= threshold
 
         return is_match, score
+
+    def save_enrolled_template(self, user_uid: str, face_img_bgr, embedding_list: list):
+        """
+        Lưu mẫu vector 128D và chuỗi ảnh JPEG Base64 lên Firestore.
+        Web Dashboard sẽ tự động hiển thị bức ảnh này cho người dùng xem lại.
+        """
+        import base64
+        import cv2
+
+        try:
+            # Mã hóa ảnh sang JPEG chất lượng 85%
+            _, buf = cv2.imencode('.jpg', face_img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            image_b64 = "data:image/jpeg;base64," + base64.b64encode(buf).decode('utf-8')
+
+            self.db.collection("face_templates").document(user_uid).set({
+                "userId": user_uid,
+                "model": "opencv_sface_2021dec",
+                "schema_version": 1,
+                "sample_count": 1,
+                "embedding": [float(x) for x in embedding_list],
+                "image": image_b64,
+                "snapshot": image_b64,
+                "enabled": True,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+            print(f"[FACE] ✅ Đã lưu vector 128D và ảnh mẫu chụp từ Camera Pi lên Firestore cho UID: {user_uid}")
+            return True
+        except Exception as e:
+            print(f"[FACE] ❌ Lỗi lưu mẫu khuôn mặt: {e}")
+            return False
 ```
 
 ---
