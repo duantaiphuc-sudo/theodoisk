@@ -1716,7 +1716,11 @@ export default function App() {
 
               {/* Bảng điều khiển xác thực khuôn mặt SFace / YuNet trên Raspberry Pi */}
               {!isSimulating && (
-                <FaceControlPanel deviceId={assignedDevice} />
+                <FaceControlPanel 
+                  deviceId={assignedDevice} 
+                  telemetry={telemetry}
+                  hasReceivedData={hasReceivedData}
+                />
               )}
 
               {/* 1. Metric Cards (Heart Rate, SpO2, Posture, Monitor Zone) */}

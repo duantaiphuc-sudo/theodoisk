@@ -8,14 +8,9 @@ import {
 } from '../services/faceCommandService';
 import { checkFaceTemplateStatus, deleteFaceTemplate, FaceTemplateStatus } from '../services/faceService';
 import { getCurrentUser } from '../services/authService';
+import type { HealthTelemetry } from '../types';
 import { 
   ScanFace, 
-  UserCheck, 
-  LogOut, 
-  Loader2, 
-  AlertCircle, 
-  CheckCircle2, 
-  ShieldAlert,
   RotateCcw,
   HelpCircle,
   X,
@@ -26,10 +21,21 @@ import {
   ChevronUp,
   AlertTriangle,
   Info,
-  Maximize2
+  Maximize2,
+  CheckCircle2,
+  ShieldAlert,
+  Loader2,
+  AlertCircle,
+  Zap
 } from 'lucide-react';
 
 type Command = 'ENROLL' | 'VERIFY' | 'LOGOUT';
+
+interface FaceControlPanelProps {
+  deviceId: string;
+  telemetry?: HealthTelemetry;
+  hasReceivedData?: boolean;
+}
 
 function formatFaceError(rawError: string): string {
   const err = (rawError || '').toUpperCase();
@@ -54,7 +60,7 @@ function formatFaceError(rawError: string): string {
   return rawError || 'Thao tác khuôn mặt thất bại';
 }
 
-export function FaceControlPanel({ deviceId }: { deviceId: string }) {
+export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceControlPanelProps) {
   const [session, setSession] = useState('WAIT_LOGIN');
   const [progress, setProgress] = useState('');
   const [commandStatus, setCommandStatus] = useState('');
@@ -73,6 +79,12 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
   
   const [isResetting, setIsResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+
+  // Tham chiếu tự động xác thực và đăng xuất
+  const lastAutoVerifyAttemptRef = useRef<number>(0);
+  const lastAutoLogoutAttemptRef = useRef<number>(0);
+  const consecutiveAbsentTicksRef = useRef<number>(0);
+  const isAutoExecutingRef = useRef<boolean>(false);
 
   const watch = useRef<Unsubscribe | null>(null);
   const currentUser = getCurrentUser();
@@ -115,7 +127,8 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
     if (!deviceId) return;
     try {
       const unsub = watchFaceSession(deviceId, data => {
-        setSession(String(data?.status || 'WAIT_LOGIN'));
+        const currentSession = String(data?.status || 'WAIT_LOGIN');
+        setSession(currentSession);
         setProgress(String(data?.progress || ''));
       });
       return () => {
@@ -128,16 +141,21 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
     }
   }, [deviceId]);
 
-  async function execute(action: Command) {
+  const execute = useCallback(async (action: Command, isAuto = false) => {
     if (!deviceId || working) return;
     setWorking(true);
-    setError('');
-    setSuccessNotice('');
-    setCommandStatus('PENDING');
+    isAutoExecutingRef.current = isAuto;
+    if (!isAuto) {
+      setError('');
+      setSuccessNotice('');
+    }
+    setCommandStatus(isAuto ? `Đang tự động ${action === 'VERIFY' ? 'xác thực...' : 'đăng xuất...'}` : 'PENDING');
+    
     try {
       const commandId = action === 'ENROLL' ? await requestFaceEnrollment(deviceId)
         : action === 'VERIFY' ? await requestFaceVerification(deviceId)
         : await requestFaceLogout(deviceId);
+      
       watch.current?.();
       watch.current = watchFaceCommand(deviceId, commandId, data => {
         const status = String(data?.status || 'PENDING');
@@ -152,19 +170,30 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
 
         if (status === 'FAILED' || status === 'SUCCEEDED') {
           setWorking(false);
+          isAutoExecutingRef.current = false;
+          
           if (status === 'FAILED') {
             const rawErr = String(data?.error || '');
-            setError(formatFaceError(rawErr));
+            if (!isAuto) {
+              setError(formatFaceError(rawErr));
+            } else {
+              // Trong chế độ tự động, chỉ ghi nhận nhẹ nhàng không làm phiền người dùng
+              if (rawErr.includes('NO_FACE')) {
+                setProgress('Đang chờ người dùng trước camera Pi 4...');
+              } else if (rawErr.includes('VERIFY_FAILED')) {
+                setProgress('Đang chờ khuôn mặt khớp với tài khoản...');
+              }
+            }
           } else if (status === 'SUCCEEDED') {
             if (action === 'ENROLL') {
-              setSuccessNotice('Đăng ký khuôn mặt thành công trên Pi 4! Đã lưu vector 128 chiều SFace và ảnh chụp. Bạn có thể bấm "Xem khuôn mặt" để kiểm tra ảnh.');
+              setSuccessNotice('Đăng ký khuôn mặt thành công trên Pi 4! Đã lưu vector 128 chiều SFace và ảnh chụp. Bạn có thể bấm "Xem ảnh đã chụp" để kiểm tra ảnh.');
               refreshTemplateStatus();
-              // Tự động mở khung xem ảnh để người dùng xem lại ảnh vừa chụp trên Pi
               setIsFaceViewerOpen(true);
             } else if (action === 'VERIFY') {
-              setSuccessNotice('Xác thực khuôn mặt thành công! Phiên làm việc đã kích hoạt.');
+              setSuccessNotice(isAuto ? '⚡ Đã tự động nhận diện khuôn mặt và kích hoạt phiên làm việc!' : 'Xác thực khuôn mặt thành công! Phiên làm việc đã kích hoạt.');
+              setError('');
             } else if (action === 'LOGOUT') {
-              setSuccessNotice('Đã đăng xuất thiết bị an toàn.');
+              setSuccessNotice(isAuto ? '⚡ Đã tự động đăng xuất thiết bị do người dùng vắng mặt.' : 'Đã đăng xuất thiết bị an toàn.');
             }
           }
           watch.current?.();
@@ -172,10 +201,76 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
         }
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!isAuto) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
       setWorking(false);
+      isAutoExecutingRef.current = false;
     }
-  }
+  }, [deviceId, working, refreshTemplateStatus]);
+
+  // =========================================================================
+  // TỰ ĐỘNG XÁC THỰC KHI CÓ NGƯỜI & TỰ ĐỘNG ĐĂNG XUẤT KHI VẮNG MẶT
+  // =========================================================================
+  useEffect(() => {
+    if (!deviceId || working || isResetting) return;
+
+    const hasVector = templateStatus?.hasVector === true;
+    const now = Date.now();
+
+    // Xác định trạng thái vắng mặt từ gói telemetry nhận từ Firebase
+    const isExplicitlyAbsent = Boolean(
+      telemetry && (
+        telemetry.postureStatus === 2 || 
+        (telemetry.inZone === false && telemetry.trackingActive === false) ||
+        (telemetry.postureLabel && (
+          telemetry.postureLabel.toLowerCase().includes('vắng') || 
+          telemetry.postureLabel.toLowerCase().includes('ngoài vùng') ||
+          telemetry.postureLabel.toLowerCase().includes('absent')
+        ))
+      )
+    );
+
+    // TRƯỜNG HỢP 1: KHI CÓ NGƯỜI THÌ TỰ ĐỘNG XÁC THỰC
+    // Điều kiện: Phiên chưa VERIFIED, tài khoản đã có mẫu vector SFace 128D, 
+    // và nhận được tín hiệu dữ liệu từ Firebase mà không phải là vắng mặt
+    const isVerifiedSession = session === 'VERIFIED';
+    const isWaitOrReverify = session === 'WAIT_LOGIN' || session === 'REVERIFY_REQUIRED';
+
+    if (isWaitOrReverify && hasVector) {
+      const isPersonDetected = !isExplicitlyAbsent && (
+        hasReceivedData || 
+        (telemetry && (telemetry.bpm > 0 || telemetry.postureStatus >= 0 || telemetry.inZone || telemetry.trackingActive))
+      );
+
+      if (isPersonDetected) {
+        // Giới hạn tần suất thử tự động xác thực: tối thiểu cách nhau 12 giây
+        if (now - lastAutoVerifyAttemptRef.current > 12000) {
+          lastAutoVerifyAttemptRef.current = now;
+          execute('VERIFY', true);
+        }
+      }
+    }
+
+    // TRƯỜNG HỢP 2: KHI VẮNG MẶT THÌ TỰ ĐỘNG ĐĂNG XUẤT
+    // Điều kiện: Phiên đang VERIFIED, nhưng dữ liệu telemetry gửi về liên tục báo vắng mặt
+    if (isVerifiedSession && telemetry) {
+      if (isExplicitlyAbsent) {
+        consecutiveAbsentTicksRef.current += 1;
+        // Xác nhận vắng mặt liên tục qua 3 nhịp cập nhật (~5-8 giây) để tránh giật lag khi đổi tư thế
+        if (consecutiveAbsentTicksRef.current >= 3) {
+          if (now - lastAutoLogoutAttemptRef.current > 15000) {
+            lastAutoLogoutAttemptRef.current = now;
+            consecutiveAbsentTicksRef.current = 0;
+            execute('LOGOUT', true);
+          }
+        }
+      } else {
+        // Người dùng đã quay lại hoặc đang ngồi đúng vị trí
+        consecutiveAbsentTicksRef.current = 0;
+      }
+    }
+  }, [deviceId, session, telemetry, hasReceivedData, templateStatus?.hasVector, working, isResetting, execute]);
 
   async function handleExecuteReset() {
     const targetUid = getEffectiveUid();
@@ -336,28 +431,56 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
             type="button"
             onClick={() => setIsExplanationOpen(prev => !prev)}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition cursor-pointer min-h-11 min-w-11 flex items-center justify-center"
-            title="Xem cách lưu và xem lại ảnh chụp trên Pi"
+            title="Xem cơ chế lưu và tự động xác thực"
           >
             <Info className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* KHUNG GIẢI THÍCH CHI TIẾT CÁCH XEM LẠI ẢNH CHỤP TỪ PI (Ẩn/Hiện khi bấm icon Info) */}
+      {/* THANH CHỈ BÁO CƠ CHẾ TỰ ĐỘNG THÔNG MINH */}
+      <div className="mt-2.5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center w-5 h-5 rounded-md bg-sky-100 text-sky-700">
+            <Zap className="w-3.5 h-3.5" />
+          </div>
+          <span className="font-bold text-slate-800">Cơ chế tự động:</span>
+          <span className="text-slate-600">
+            {isVerified
+              ? 'Tự động duy trì phiên & tự động đăng xuất khi vắng mặt'
+              : hasVector
+              ? 'Tự động quét & xác thực ngay khi có người ngồi trước camera'
+              : 'Đăng ký khuôn mặt trước để kích hoạt cơ chế tự động'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+            isVerified 
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+              : 'bg-amber-50 text-amber-800 border-amber-200'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isVerified ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+            {isVerified ? 'Đã kết nối phiên' : 'Chờ người trước camera'}
+          </span>
+        </div>
+      </div>
+
+      {/* KHUNG GIẢI THÍCH CHI TIẾT CÁCH HOẠT ĐỘNG (Ẩn/Hiện khi bấm icon Info) */}
       {isExplanationOpen && (
         <div className="mt-3 p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-950 leading-relaxed animate-fadeIn">
           <div className="flex items-start gap-2">
             <Info className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
             <div className="space-y-1.5 flex-1">
-              <p className="font-bold text-indigo-900">Cách người dùng xem lại ảnh do Raspberry Pi 4 chụp:</p>
+              <p className="font-bold text-indigo-900">Cơ chế nhận diện tự động & lưu ảnh Camera Pi 4:</p>
               <p className="text-slate-700">
-                1. Khi bấm <b>"Đăng ký khuôn mặt (Camera Pi 4)"</b>, camera trên Pi 4 chụp ảnh khuôn mặt của bạn.
+                1. <b>Tự động xác thực:</b> Khi bạn ngồi trước camera Raspberry Pi 4, hệ thống Web nhận diện sự có mặt và tự động kích hoạt nhận dạng khuôn mặt (SFace 128D) để mở khóa phiên làm việc.
               </p>
               <p className="text-slate-700">
-                2. Raspberry Pi 4 tự động mã hóa bức ảnh đó thành chuỗi JPEG Base64 và ghi vào trường <code>image</code> trong document <code>face_templates/{'{userId}'}</code> trên Firestore.
+                2. <b>Tự động đăng xuất:</b> Khi bạn đứng dậy rời khỏi trạm (vắng mặt quá thời gian quy định), hệ thống tự động khóa phiên và ẩn dữ liệu sinh trắc học để bảo mật.
               </p>
               <p className="text-slate-700">
-                3. Ngay lập tức, Web Dashboard đồng bộ bức ảnh này từ Firestore về và hiện nút <b>"Xem ảnh đã chụp"</b> để bạn bấm vào xem lại bất kỳ lúc nào!
+                3. <b>Xem lại ảnh:</b> Ảnh khuôn mặt do camera Pi 4 chụp trong lần đăng ký được lưu tại Firestore và hiển thị qua nút <b>"Xem ảnh đã chụp"</b>.
               </p>
             </div>
             <button
@@ -528,9 +651,9 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
         </div>
       )}
 
-      {/* HÀNG NÚT THAO TÁC CHÍNH VỚI MIN TOUCH TARGET 44PX */}
+      {/* HÀNG NÚT THAO TÁC CÒN LẠI (ĐÃ BỎ CÁC NÚT THỦ CÔNG XÁC THỰC/ĐĂNG XUẤT) */}
       <div className="mt-3.5 flex flex-wrap gap-2.5 sm:gap-3">
-        {/* Nút đăng ký chính qua Camera Pi 4 */}
+        {/* Nút đăng ký chính qua Camera Pi 4 (Giữ lại để đăng ký mẫu ban đầu) */}
         <button
           type="button"
           disabled={working || isResetting || !deviceId}
@@ -540,27 +663,6 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
         >
           <ScanFace className="w-4 h-4 shrink-0" />
           <span>Đăng ký khuôn mặt (Camera Pi 4)</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={working || isResetting || !deviceId}
-          onClick={() => execute('VERIFY')}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-          title="Bật camera Pi 4 để nhận diện và xác thực phiên làm việc"
-        >
-          <UserCheck className="w-4 h-4 shrink-0" />
-          <span>Xác thực / Đăng nhập</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={working || isResetting || !deviceId}
-          onClick={() => execute('LOGOUT')}
-          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          <span>Đăng xuất thiết bị</span>
         </button>
 
         {/* Nút đặt lại mẫu khuôn mặt */}
@@ -598,43 +700,33 @@ export function FaceControlPanel({ deviceId }: { deviceId: string }) {
               </button>
             </div>
 
-            <div className="p-4 flex flex-col items-center">
-              <div className="w-full max-h-[380px] rounded-xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center shadow-inner">
+            <div className="p-4 bg-slate-950 flex flex-col items-center justify-center">
+              <div className="max-h-96 w-full rounded-xl overflow-hidden flex items-center justify-center bg-black">
                 <img 
                   src={capturedFaceImage} 
-                  alt="Ảnh khuôn mặt chi tiết từ Pi 4" 
-                  className="max-h-[380px] w-auto object-contain"
+                  alt="Ảnh chi tiết từ Camera Pi 4" 
+                  className="max-h-96 max-w-full object-contain"
                 />
               </div>
+            </div>
 
-              <div className="w-full mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tài khoản:</span>
-                  <span className="font-semibold text-slate-900">{currentUser?.fullName || 'Người dùng'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Camera chụp:</span>
-                  <span className="font-semibold text-sky-700">USB Camera Raspberry Pi 4</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Thuật toán:</span>
-                  <span className="font-mono text-indigo-700">YuNet + SFace 128D</span>
-                </div>
-              </div>
-
-              <div className="w-full mt-3 flex items-center justify-end gap-2">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs text-slate-600">
+                {hasVector ? '✓ Mẫu SFace 128 chiều' : 'Ảnh mẫu Pi 4'}
+              </span>
+              <div className="flex items-center gap-2">
                 <a
                   href={capturedFaceImage}
                   download="anh-khuon-mat-pi4.jpg"
-                  className="min-h-11 px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                  className="min-h-10 px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Tải ảnh về máy</span>
+                  <span>Tải ảnh</span>
                 </a>
                 <button
                   type="button"
                   onClick={() => setIsModalZoomOpen(false)}
-                  className="min-h-11 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-300 transition cursor-pointer"
+                  className="min-h-10 px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold shadow-xs transition cursor-pointer"
                 >
                   Đóng
                 </button>

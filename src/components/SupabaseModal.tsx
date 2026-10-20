@@ -225,7 +225,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                         ? 'bg-amber-200 text-amber-900 border border-amber-300'
                         : 'bg-slate-200 text-slate-700 border border-slate-300'
                   }`}>
-                    {isConnected ? '🟢 Đang lưu DB' : (config.url && config.anonKey) ? '⚪ Test Mode (Không lưu DB)' : 'Chưa cấu hình'}
+                    {isConnected ? ' Đang lưu DB' : (config.url && config.anonKey) ? ' Test Mode (Không lưu DB)' : 'Chưa cấu hình'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
