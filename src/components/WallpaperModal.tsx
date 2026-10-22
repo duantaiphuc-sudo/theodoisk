@@ -105,6 +105,10 @@ interface WallpaperModalProps {
   onChangeBlur: (blur: number) => void;
   overlayOpacity: number;
   onChangeOpacity: (opacity: number) => void;
+  glassTone: 'light' | 'dark';
+  onChangeGlassTone: (tone: 'light' | 'dark') => void;
+  cardOpacity: number;
+  onChangeCardOpacity: (opacity: number) => void;
 }
 
 export const WallpaperModal: React.FC<WallpaperModalProps> = ({
@@ -116,6 +120,10 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
   onChangeBlur,
   overlayOpacity,
   onChangeOpacity,
+  glassTone,
+  onChangeGlassTone,
+  cardOpacity,
+  onChangeCardOpacity,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
   const [customUrl, setCustomUrl] = useState('');
@@ -226,17 +234,19 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
           </div>
 
           {/* Glass & Transparency Adjustments */}
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Sliders className="w-4 h-4 text-teal-300" />
-                <span>Tùy Chỉnh Độ Kính Mờ (Glassmorphism)</span>
+                <span>Tùy Chỉnh Kính Mờ (Glassmorphism & Độ Trong Suốt)</span>
               </span>
               <button
                 type="button"
                 onClick={() => {
                   onChangeBlur(1);
-                  onChangeOpacity(40);
+                  onChangeOpacity(35);
+                  onChangeGlassTone('dark');
+                  onChangeCardOpacity(60);
                 }}
                 className="text-[11px] text-teal-300 hover:underline flex items-center gap-1 cursor-pointer"
               >
@@ -245,17 +255,65 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            {/* 1. Glass Tone Selector (Lớp mờ tông đen vs tông sáng) */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-slate-300">Lựa chọn tông mờ của các thẻ:</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChangeGlassTone('dark')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                    glassTone === 'dark'
+                      ? 'bg-slate-950/80 border-teal-400 text-teal-300 shadow-[0_0_12px_rgba(45,212,191,0.3)]'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Moon className="w-3.5 h-3.5 text-teal-300" />
+                  <span>Kính Mờ Tông Đen (Khuyên dùng)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeGlassTone('light')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                    glassTone === 'light'
+                      ? 'bg-white/80 border-teal-400 text-slate-900 shadow-md'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Sun className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Kính Mờ Tông Sáng</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              {/* Card Opacity Slider */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px] text-slate-300">
+                  <span>Độ mờ của thẻ (Card)</span>
+                  <span className="font-mono text-teal-300 font-bold">{cardOpacity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="15"
+                  max="95"
+                  step="5"
+                  value={cardOpacity}
+                  onChange={(e) => onChangeCardOpacity(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                />
+              </div>
+
               {/* Blur Slider */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-300">
-                  <span>Độ nhòe hình nền (Blur)</span>
+                  <span>Độ nhòe ảnh nền (Blur)</span>
                   <span className="font-mono text-teal-300 font-bold">{blurIntensity}px</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max="12"
+                  max="16"
                   step="1"
                   value={blurIntensity}
                   onChange={(e) => onChangeBlur(Number(e.target.value))}
@@ -263,10 +321,10 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                 />
               </div>
 
-              {/* Tint Opacity Slider */}
+              {/* Background Tint Opacity Slider */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-300">
-                  <span>Độ trong suốt nền kính</span>
+                  <span>Lớp phủ nền toàn trang</span>
                   <span className="font-mono text-teal-300 font-bold">{overlayOpacity}%</span>
                 </div>
                 <input

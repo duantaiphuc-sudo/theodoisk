@@ -9,6 +9,8 @@ import {
   AlertCircle, 
   Sparkles,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ListTodo,
   Check
 } from 'lucide-react';
@@ -32,6 +34,7 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
   className,
 }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<'normal' | 'high' | 'urgent'>('normal');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,10 +73,10 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
   };
 
   return (
-    <div className={`rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 shadow-lg p-4 sm:p-5 flex flex-col justify-between h-full ${className || ''}`}>
+    <div className={`rounded-2xl glass-panel bg-white/75 backdrop-blur-xl border border-white/60 shadow-lg p-4 sm:p-5 flex flex-col justify-between transition-all ${className || ''}`}>
       {/* Header */}
       <div>
-        <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100/80">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
               <ListTodo className="w-4 h-4 text-emerald-600" />
@@ -86,20 +89,44 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <div className="flex items-center gap-1.5">
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
               {completedCount}/{totalCount}
             </span>
             <button
               type="button"
-              onClick={() => setIsAdding(!isAdding)}
+              onClick={() => {
+                setIsAdding(!isAdding);
+                if (isCollapsed) setIsCollapsed(false);
+              }}
               className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200 flex items-center justify-center transition cursor-pointer"
               title="Thêm nhiệm vụ mới"
             >
               <Plus className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition cursor-pointer"
+              title={isCollapsed ? "Mở rộng nhiệm vụ" : "Thu gọn nhiệm vụ"}
+            >
+              {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </button>
           </div>
         </div>
+
+        {isCollapsed && myTasks.length > 0 && (
+          <div className="pt-2 text-xs text-slate-500 flex items-center justify-between">
+            <span>Đã hoàn thành {completedCount}/{totalCount} nhiệm vụ</span>
+            <button 
+              type="button" 
+              onClick={() => setIsCollapsed(false)}
+              className="text-emerald-600 font-semibold hover:underline"
+            >
+              Xem chi tiết
+            </button>
+          </div>
+        )}
 
         {/* Inline Add Task Form */}
         {isAdding && (
@@ -145,7 +172,8 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
         )}
 
         {/* Task List */}
-        <div className="mt-3 space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
+        {!isCollapsed && (
+          <div className="mt-3 space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
           {myTasks.length === 0 ? (
             <div className="py-6 text-center space-y-2">
               <p className="text-xs text-slate-500">Chưa có nhiệm vụ nào hôm nay</p>
@@ -240,11 +268,12 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
               );
             })
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Footer Quick Prompt */}
-      {myTasks.length > 0 && (
+      {!isCollapsed && myTasks.length > 0 && (
         <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
           <span className="flex items-center gap-1 text-emerald-600 font-medium">
             <Sparkles className="w-3 h-3" />

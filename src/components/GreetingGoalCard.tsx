@@ -4,11 +4,7 @@ import {
   Calendar, 
   ArrowUpRight, 
   RotateCcw,
-  Flame, 
-  CheckCircle2, 
-  Clock, 
-  Activity,
-  UserCheck
+  Activity
 } from 'lucide-react';
 
 interface GreetingGoalCardProps {
@@ -32,7 +28,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
 }) => {
   const [goalMode, setGoalMode] = useState<'standing' | 'sitting'>('standing');
 
-  // Format date in Vietnamese (e.g. "Thứ Tư, 21/10")
+  // Format date in Vietnamese (e.g. "Thứ Năm, 22/10")
   const today = new Date();
   const dateFormatted = new Intl.DateTimeFormat('vi-VN', {
     weekday: 'long',
@@ -71,87 +67,79 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
   const currentPercent = goalMode === 'standing' ? standingPercent : sittingPercent;
   const strokeDashoffset = circumference - (currentPercent / 100) * circumference;
 
-  // 14-day dots mock activity visualization
-  const pastDays = [
-    true, true, false, true, true, true, false,
-    true, true, true, true, false, true, currentPercent >= 50
-  ];
-
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-slate-700/60 shadow-lg min-h-[290px] flex flex-col justify-between p-5 sm:p-6 lg:p-7 group transition-all text-white ${className || ''}`}>
-      {/* 1. Full Sharp Background Image (Dynamic or /nenweb.png) */}
+    <div className={`relative overflow-hidden rounded-3xl border border-white/40 shadow-xl flex flex-col justify-between p-4 sm:p-5 lg:p-6 group transition-all text-white ${className || ''}`}>
+      {/* 1. 100% Sharp & Crisp Background Image - ZERO blur, ZERO darkening overlay across whole photo */}
       <img 
         src={wallpaperUrl || '/nenweb.png'} 
-        alt="Health Office Ergonomics Background" 
-        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none transition-transform duration-700 group-hover:scale-105"
+        alt="Health Office Background" 
+        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none transition-transform duration-700 group-hover:scale-102"
         onError={(e) => {
           (e.target as HTMLImageElement).src = '/nenweb.png';
         }}
       />
 
-      {/* 2. Rich Dark Translucent Vignette/Gradient Overlay matching reference image */}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/80 to-slate-950/55 pointer-events-none" />
-
-      {/* 3. Main Content Container */}
-      <div className="relative z-10 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
-        {/* Left Section: Date, Greeting, Quote & Quick Actions */}
-        <div className="flex-1 min-w-0 space-y-3.5">
+      {/* 2. Main Content Container (Zero blur overlay - 100% sharp clear background image) */}
+      <div className="relative z-10 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 sm:gap-5 w-full">
+        
+        {/* Left Section: Transparent container with high-contrast text drop shadows */}
+        <div className="flex-1 min-w-0 p-3 sm:p-4 rounded-2xl bg-black/25 sm:bg-black/20 border border-white/20 shadow-lg flex flex-col justify-between space-y-3">
           {/* Date Chip */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/15 text-white/90 text-xs font-semibold shadow-xs">
+          <div className="self-start inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/25 text-white/95 text-xs font-semibold shadow-xs">
             <Calendar className="w-3.5 h-3.5 text-teal-300" />
-            <span>{displayDate}</span>
+            <span className="whitespace-nowrap">{displayDate}</span>
           </div>
 
           {/* Heading */}
           <div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
               {greetingTime},{' '}
-              <span className="text-teal-300 drop-shadow-[0_0_12px_rgba(45,212,191,0.4)]">
+              <span className="text-teal-300 drop-shadow-[0_0_14px_rgba(45,212,191,0.6)]">
                 {userDisplayName}
               </span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300/90 mt-1.5 italic leading-relaxed max-w-lg">
+            <p className="text-xs sm:text-sm text-slate-100 mt-1.5 italic leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]">
               &ldquo;Bạn không cần hoàn hảo, bạn chỉ cần bắt đầu ngồi đúng tư thế hôm nay.&rdquo;
             </p>
           </div>
 
-          {/* Action Buttons matching the reference image style */}
-          <div className="pt-2 flex flex-wrap items-center gap-2.5 sm:gap-3">
+          {/* Action Buttons */}
+          <div className="pt-1 flex flex-wrap items-center gap-2 sm:gap-3">
             {/* Glowing Mint Pill Button */}
             <button
               type="button"
               onClick={() => setGoalMode(prev => prev === 'standing' ? 'sitting' : 'standing')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold bg-teal-400 hover:bg-teal-300 text-slate-950 shadow-[0_0_20px_rgba(45,212,191,0.45)] transition-all cursor-pointer whitespace-nowrap active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold bg-teal-400 hover:bg-teal-300 text-slate-950 shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all cursor-pointer whitespace-nowrap active:scale-95"
             >
               <span>{goalMode === 'standing' ? 'Đổi: Giới hạn ngồi' : 'Đổi: Mục tiêu đứng'}</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
 
-            {/* Dark Glass Pill Button */}
+            {/* Glass Pill Button */}
             {onResetTimers && (
               <button
                 type="button"
                 onClick={onResetTimers}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-white/90 border border-white/15 backdrop-blur-md shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-semibold bg-black/40 hover:bg-black/60 text-white border border-white/25 shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-300" />
+                <RotateCcw className="w-3.5 h-3.5 text-slate-200" />
                 <span>Đặt lại bộ đếm</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Right Section: Circular Donut Countdown Widget matching reference image */}
-        <div className="shrink-0 w-full lg:w-auto flex justify-center lg:justify-end">
-          <div className="w-full sm:w-64 p-4 rounded-3xl bg-slate-950/85 backdrop-blur-md border border-white/10 text-white shadow-xl flex flex-col items-center justify-between text-center">
-            {/* Donut Gauge Header / Mode Indicator */}
+        {/* Right Section: Compact Donut Goal Widget (NO BLUR, ZERO STREAK/DOTS) */}
+        <div className="shrink-0 flex justify-center lg:justify-end">
+          <div className="w-full sm:w-56 p-4 rounded-2xl bg-black/40 border border-white/25 text-white shadow-xl flex flex-col items-center justify-center text-center">
+            {/* Donut Gauge Header */}
             <button
               type="button"
               onClick={() => setGoalMode(prev => prev === 'standing' ? 'sitting' : 'standing')}
-              className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-teal-300 hover:text-teal-200 transition mb-2"
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-teal-300 hover:text-teal-200 transition mb-2 drop-shadow-sm cursor-pointer"
               title="Nhấp để đổi chế độ mục tiêu"
             >
-              <Activity className="w-3 h-3 text-teal-400" />
+              <Activity className="w-3.5 h-3.5 text-teal-400" />
               <span>{goalMode === 'standing' ? 'MỤC TIÊU ĐỨNG' : 'GIỚI HẠN NGỒI'}</span>
             </button>
 
@@ -164,7 +152,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                   cy="50"
                   r={radius}
                   fill="none"
-                  stroke="rgba(255, 255, 255, 0.12)"
+                  stroke="rgba(255, 255, 255, 0.15)"
                   strokeWidth="8"
                 />
                 {/* Progress animated circle */}
@@ -182,55 +170,27 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                 />
               </svg>
 
-              {/* Number in center matching 0 / 30 phút style */}
+              {/* Number in center */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-3xl font-black font-mono tracking-tight text-white leading-none">
                   {goalMode === 'standing' ? standingMinutes : continuousSittingMin}
                 </span>
-                <span className="text-[10px] text-slate-400 font-medium mt-1">
+                <span className="text-[10px] text-slate-300 font-medium mt-1">
                   / {goalMode === 'standing' ? targetStandingMin : maxSittingMin} phút
                 </span>
               </div>
             </div>
 
             {/* Subtitle below donut */}
-            <div className="text-xs font-bold text-slate-200 mt-1">
+            <div className="text-xs font-bold text-slate-200 mt-2">
               Mục tiêu hôm nay
             </div>
-
-            {/* Streak & Weekly Stat Pill */}
-            <div className="w-full mt-2.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-white/10 flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1 font-bold text-amber-400">
-                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                <span>{standingPercent >= 100 ? '1 ngày' : '0 ngày'}</span>
-              </span>
-              <span className="text-slate-400 font-mono text-[10px]">
-                Tuần: {Math.floor((timeStats.standingSeconds || 0) / 60)}/{targetStandingMin * 7}p
-              </span>
-            </div>
-
-            {/* 14 Days Micro Dots Tracker */}
-            <div className="w-full mt-2.5 pt-2 border-t border-white/10 text-left">
-              <div className="text-[10px] text-slate-400 mb-1.5 flex items-center justify-between">
-                <span>14 ngày qua</span>
-                <span className="text-teal-300 font-semibold">{currentPercent}% hôm nay</span>
-              </div>
-              <div className="flex items-center justify-between gap-1">
-                {pastDays.map((active, i) => (
-                  <div
-                    key={i}
-                    className={`h-2 flex-1 rounded-sm transition-all ${
-                      i === 13 
-                        ? (active ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.8)]' : 'bg-slate-700')
-                        : (active ? 'bg-teal-500/80' : 'bg-slate-800')
-                    }`}
-                    title={`Ngày ${i + 1}`}
-                  />
-                ))}
-              </div>
+            <div className="text-[11px] text-teal-300 font-semibold font-mono mt-0.5">
+              {currentPercent}% hoàn thành
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

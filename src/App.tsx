@@ -222,6 +222,37 @@ export default function App() {
     } catch {}
   };
 
+  const [glassTone, setGlassTone] = useState<'light' | 'dark'>(() => {
+    try {
+      return (localStorage.getItem('theodoisk_glass_tone') as 'light' | 'dark') || 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  const [cardOpacity, setCardOpacity] = useState<number>(() => {
+    try {
+      const val = localStorage.getItem('theodoisk_card_opacity');
+      return val !== null ? Number(val) : 80;
+    } catch {
+      return 80;
+    }
+  });
+
+  const handleChangeGlassTone = (tone: 'light' | 'dark') => {
+    setGlassTone(tone);
+    try {
+      localStorage.setItem('theodoisk_glass_tone', tone);
+    } catch {}
+  };
+
+  const handleChangeCardOpacity = (opacity: number) => {
+    setCardOpacity(opacity);
+    try {
+      localStorage.setItem('theodoisk_card_opacity', String(opacity));
+    } catch {}
+  };
+
   // 2.1 Supabase Connection & Test Mode State
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConnectionConfig>(() => getSavedSupabaseConfig());
 
@@ -1614,7 +1645,17 @@ export default function App() {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-100/70 text-slate-900 flex selection:bg-emerald-500 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div 
+      className={`relative min-h-screen text-slate-900 flex selection:bg-emerald-500 selection:text-white w-full max-w-full overflow-x-hidden ${glassTone === 'dark' ? 'theme-dark-glass' : 'theme-light-glass'}`}
+      style={{
+        '--card-glass-bg': glassTone === 'dark' 
+          ? `rgba(15, 23, 42, ${cardOpacity / 100})` 
+          : `rgba(255, 255, 255, ${cardOpacity / 100})`,
+        '--card-glass-border': glassTone === 'dark'
+          ? 'rgba(255, 255, 255, 0.18)'
+          : 'rgba(255, 255, 255, 0.65)',
+      } as React.CSSProperties}
+    >
       {/* 0. 100% Full-bleed Fixed Wallpaper Layer (Glassmorphism Base) */}
       <div className="fixed inset-0 w-full h-full z-0 overflow-hidden pointer-events-none bg-slate-900">
         <img 
@@ -1632,7 +1673,9 @@ export default function App() {
         <div 
           className="absolute inset-0 transition-opacity duration-300"
           style={{
-            backgroundColor: `rgba(248, 250, 252, ${wallpaperOpacity / 100})`,
+            backgroundColor: glassTone === 'dark' 
+              ? `rgba(15, 23, 42, ${wallpaperOpacity / 100})` 
+              : `rgba(248, 250, 252, ${wallpaperOpacity / 100})`,
             backdropFilter: 'blur(0.5px)'
           }}
         />
@@ -2042,43 +2085,48 @@ export default function App() {
               </div>
 
               {/* ==================================================
-                  2. HÀNG DƯỚI (BOTTOM ROW - 3 CỘT BENTO GRID):
-                  - CỘT 1 (BÊN TRÁI): "Mô Hình & Chẩn Đoán Tư Thế"
-                  - CỘT 2 (Ở GIỮA): Cụm 4 Thẻ Sinh Hiệu (2x2 Grid)
-                  - CỘT 3 (BÊN PHẢI): "Nhiệm Vụ Hôm Nay (Daily Tasks)"
+                  2. HÀNG DƯỚI (BOTTOM ROW - BENTO GRID CÂN BẰNG TỶ LỆ):
+                  - CỘT TRÁI (LỚN - 7 CỘT): "Mô Hình & Chẩn Đoán Tư Thế"
+                    (Nhiều nội dung, phân tích cột sống & khung xương, không bị tràn chữ)
+                  - CỘT PHẢI (5 CỘT):
+                    + TRÊN: Cụm 4 Thẻ Sinh Hiệu (Lưới 2x2, chiều cao tự nhiên, hết khoảng trắng dư)
+                    + DƯỚI: "Nhiệm Vụ Hôm Nay (Daily Tasks)" (Có nút thu gọn / mở rộng)
                   ================================================== */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-                {/* CỘT 1 (BÊN TRÁI): Mô Hình & Chẩn Đoán Tư Thế */}
-                <div className={`lg:col-span-4 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:flex' : 'flex'}`}>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
+                {/* CỘT TRÁI (LỚN - 7 CỘT): Mô Hình & Chẩn Đoán Tư Thế */}
+                <div className={`lg:col-span-7 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:flex' : 'flex'}`}>
                   <PostureVisualizer 
                     telemetry={telemetry} 
                     hasData={hasReceivedData} 
-                    className="h-full flex flex-col justify-between"
+                    className="w-full"
                   />
                 </div>
 
-                {/* CỘT 2 (Ở GIỮA): Cụm 4 Thẻ Sinh Hiệu (2x2 Grid) */}
-                <div className={`lg:col-span-4 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:flex' : 'flex'}`}>
-                  <MetricCards 
-                    telemetry={telemetry} 
-                    thresholds={thresholds} 
-                    hasData={hasReceivedData} 
-                    isSessionVerified={isFaceSessionVerified}
-                    gridClassName="grid grid-cols-2 gap-2.5 sm:gap-3.5 h-full"
-                  />
-                </div>
+                {/* CỘT PHẢI (5 CỘT): Cụm 4 Sinh Hiệu + Nhiệm Vụ Hôm Nay */}
+                <div className="lg:col-span-5 flex flex-col gap-4 sm:gap-5">
+                  {/* Cụm 4 Thẻ Sinh Hiệu (2x2 Grid) */}
+                  <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
+                    <MetricCards 
+                      telemetry={telemetry} 
+                      thresholds={thresholds} 
+                      hasData={hasReceivedData} 
+                      isSessionVerified={isFaceSessionVerified}
+                      gridClassName="grid grid-cols-2 gap-2.5 sm:gap-3.5"
+                    />
+                  </div>
 
-                {/* CỘT 3 (BÊN PHẢI): Nhiệm Vụ Hôm Nay (Daily Tasks) */}
-                <div className={`lg:col-span-4 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'tasks' ? 'hidden sm:flex' : 'flex'}`}>
-                  <DailyTasksCard
-                    tasks={taskNotifications}
-                    currentUser={currentUser}
-                    onCompleteTask={handleCompleteTask}
-                    onAcknowledgeTask={handleAcknowledgeTask}
-                    onDeleteTask={handleDeleteTask}
-                    onAddTask={handleAddTask}
-                    className="h-full flex flex-col justify-between"
-                  />
+                  {/* Nhiệm Vụ Hôm Nay (Daily Tasks) */}
+                  <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'tasks' ? 'hidden sm:block' : 'block'}`}>
+                    <DailyTasksCard
+                      tasks={taskNotifications}
+                      currentUser={currentUser}
+                      onCompleteTask={handleCompleteTask}
+                      onAcknowledgeTask={handleAcknowledgeTask}
+                      onDeleteTask={handleDeleteTask}
+                      onAddTask={handleAddTask}
+                      className="w-full"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2451,6 +2499,10 @@ export default function App() {
         onChangeBlur={handleChangeBlur}
         overlayOpacity={wallpaperOpacity}
         onChangeOpacity={handleChangeOpacity}
+        glassTone={glassTone}
+        onChangeGlassTone={handleChangeGlassTone}
+        cardOpacity={cardOpacity}
+        onChangeCardOpacity={handleChangeCardOpacity}
       />
 
       {/* Modals (Only Manager has access) */}

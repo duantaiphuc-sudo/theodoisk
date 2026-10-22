@@ -43,7 +43,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
   const isStandingGoalReached = continuousStandingSeconds >= standingTargetSec;
 
   return (
-    <div className="rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
+    <div className="rounded-2xl glass-panel bg-white/75 backdrop-blur-xl border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">

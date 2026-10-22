@@ -231,7 +231,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;
 
   return (
-    <section className={`rounded-3xl border border-white/60 bg-white/75 backdrop-blur-xl p-4 sm:p-5 shadow-lg transition-all hover:bg-white/85 ${className || ''}`} aria-label="Xác thực khuôn mặt">
+    <section className={`rounded-3xl glass-panel border border-white/60 bg-white/75 backdrop-blur-xl p-4 sm:p-5 shadow-lg transition-all hover:bg-white/85 ${className || ''}`} aria-label="Xác thực khuôn mặt">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-3">
