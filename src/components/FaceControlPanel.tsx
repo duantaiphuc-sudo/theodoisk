@@ -35,6 +35,7 @@ interface FaceControlPanelProps {
   deviceId: string;
   telemetry?: HealthTelemetry;
   hasReceivedData?: boolean;
+  className?: string;
 }
 
 function formatFaceError(rawError: string): string {
@@ -60,7 +61,7 @@ function formatFaceError(rawError: string): string {
   return rawError || 'Thao tác khuôn mặt thất bại';
 }
 
-export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceControlPanelProps) {
+export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, className }: FaceControlPanelProps) {
   const [session, setSession] = useState('WAIT_LOGIN');
   const [progress, setProgress] = useState('');
   const [commandStatus, setCommandStatus] = useState('');
@@ -230,7 +231,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData }: FaceC
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs transition-all hover:border-slate-300" aria-label="Xác thực khuôn mặt">
+    <section className={`rounded-3xl border border-white/60 bg-white/75 backdrop-blur-xl p-4 sm:p-5 shadow-lg transition-all hover:bg-white/85 ${className || ''}`} aria-label="Xác thực khuôn mặt">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-3">

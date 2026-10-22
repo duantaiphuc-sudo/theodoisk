@@ -18,13 +18,15 @@ interface MetricCardsProps {
   thresholds: AlertThresholds;
   hasData?: boolean;
   isSessionVerified?: boolean;
+  gridClassName?: string;
 }
 
 export const MetricCards: React.FC<MetricCardsProps> = ({ 
   telemetry, 
   thresholds, 
   hasData = true,
-  isSessionVerified = true
+  isSessionVerified = true,
+  gridClassName
 }) => {
   const { bpm, spo2, postureStatus, postureLabel, trackingActive, inZone } = telemetry;
 
@@ -41,9 +43,9 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       : (isUnassigned ? 'Cần gán Node' : 'Chưa có dữ liệu');
 
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
+      <div className={gridClassName || "grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5"}>
         {/* 1. Nhịp tim (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
               <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -69,7 +71,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         {/* 2. Nồng độ SpO2 (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
               <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -95,7 +97,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         {/* 3. Tư thế làm việc (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
               <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -124,7 +126,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         {/* 4. Vùng Giám Sát (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
               <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -252,9 +254,9 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
+    <div className={gridClassName || "grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5"}>
       {/* 1. Nhịp tim */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between">
+      <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 hover:border-white/80 transition-all flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-1.5">
             <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -284,7 +286,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* 2. Nồng độ SpO2 */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between">
+      <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 hover:border-white/80 transition-all flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-1.5">
             <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -314,7 +316,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* 3. Tư thế làm việc */}
-      <div className={`relative overflow-hidden rounded-2xl p-3 sm:p-5 lg:p-6 shadow-xs border transition-all flex flex-col justify-between ${postureCardBg}`}>
+      <div className={`relative overflow-hidden rounded-2xl p-3 sm:p-5 lg:p-6 shadow-lg border border-white/60 backdrop-blur-xl transition-all flex flex-col justify-between ${postureCardBg}`}>
         <div>
           <div className="flex items-center justify-between gap-1.5">
             <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap">
@@ -368,7 +370,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* 4. Trạng thái giám sát & Monitor Zone */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-3 sm:p-5 lg:p-6 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between">
+      <div className="relative overflow-hidden rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3 sm:p-5 lg:p-6 shadow-lg hover:bg-white/85 hover:border-white/80 transition-all flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-1.5">
             <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">

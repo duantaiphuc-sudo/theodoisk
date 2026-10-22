@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onMouseLeave={() => {
           if (collapsed) setIsHovered(false);
         }}
-        className={`fixed top-0 bottom-0 left-0 z-40 h-screen bg-white border-r border-slate-200/90 flex flex-col justify-between transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-40 h-screen bg-white/80 backdrop-blur-xl border-r border-white/50 flex flex-col justify-between transition-all duration-300 ease-in-out ${
           mobileOpen
             ? 'translate-x-0 w-64 shadow-2xl'
             : '-translate-x-full lg:translate-x-0 ' +

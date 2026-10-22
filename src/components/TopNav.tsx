@@ -12,7 +12,8 @@ import {
   Shield, 
   LogOut,
   Calendar,
-  Clock
+  Clock,
+  Image as ImageIcon
 } from 'lucide-react';
 import { AuthUser, MainNavTab, SupabaseConnectionConfig } from '../types';
 
@@ -30,6 +31,7 @@ interface TopNavProps {
   onOpenTasks: () => void;
   onOpenProfile: () => void;
   onLogout: () => void;
+  onOpenWallpaper?: () => void;
   supabaseConfig?: SupabaseConnectionConfig;
   onToggleSupabaseConnection?: () => void;
   onOpenSupabaseModal?: () => void;
@@ -49,6 +51,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenTasks,
   onOpenProfile,
   onLogout,
+  onOpenWallpaper,
   supabaseConfig,
   onToggleSupabaseConnection,
   onOpenSupabaseModal
@@ -77,7 +80,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   const currentTabInfo = tabTitles[activeTab] || tabTitles.overview;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 w-full transition-all">
+    <header className="sticky top-0 z-30 bg-white/75 backdrop-blur-xl border-b border-white/50 w-full transition-all shadow-xs">
       <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Left: Mobile Drawer Trigger + Breadcrumb Title */}
         <div className="flex items-center gap-3 min-w-0">
@@ -159,6 +162,17 @@ export const TopNav: React.FC<TopNavProps> = ({
           >
             <FlaskConical className={`w-4 h-4 ${isSimulating ? 'text-amber-600' : ''}`} />
           </button>
+
+          {/* Wallpaper Selector Button */}
+          {onOpenWallpaper && (
+            <button
+              onClick={onOpenWallpaper}
+              title="Đổi hình nền không gian (Glassmorphism)"
+              className="w-9 h-9 rounded-xl bg-white/70 hover:bg-white border border-slate-200 text-teal-700 hover:text-teal-800 flex items-center justify-center transition cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+            >
+              <ImageIcon className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Notifications Bell */}
           <button

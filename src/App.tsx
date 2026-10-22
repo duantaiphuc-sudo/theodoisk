@@ -19,6 +19,8 @@ import {
   deleteSingleTelemetryLogFromFirebase,
   subscribeToTaskNotifications,
   updateTaskStatusInFirebase,
+  deleteTaskFromFirebase,
+  sendTaskNotificationToFirebase,
   updateUserRealtimePresence,
   checkIsQuotaExceeded,
   onQuotaExceededChange,
@@ -61,6 +63,9 @@ import { UserTaskAlertBanner } from './components/UserTaskAlertBanner';
 import { HealthChatbot } from './components/HealthChatbot';
 import { AdminDashboard } from './components/AdminDashboard';
 import { FaceControlPanel } from './components/FaceControlPanel';
+import { GreetingGoalCard } from './components/GreetingGoalCard';
+import { DailyTasksCard } from './components/DailyTasksCard';
+import { WallpaperModal } from './components/WallpaperModal';
 import { watchFaceSession } from './services/faceCommandService';
 import { watchDeviceAssignment, pushWebTftAlert, calculateTftStatusCode } from './services/webTftAlertService';
 import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
@@ -167,6 +172,55 @@ export default function App() {
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isRpiGuideModalOpen, setIsRpiGuideModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
+
+  // 2.0 Wallpaper & Glassmorphism Customization State
+  const [dashboardWallpaper, setDashboardWallpaper] = useState<string>(() => {
+    try {
+      return localStorage.getItem('theodoisk_dashboard_wallpaper') || '/nenweb.png';
+    } catch {
+      return '/nenweb.png';
+    }
+  });
+
+  const [wallpaperBlur, setWallpaperBlur] = useState<number>(() => {
+    try {
+      const val = localStorage.getItem('theodoisk_wallpaper_blur');
+      return val !== null ? Number(val) : 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  const [wallpaperOpacity, setWallpaperOpacity] = useState<number>(() => {
+    try {
+      const val = localStorage.getItem('theodoisk_wallpaper_opacity');
+      return val !== null ? Number(val) : 40;
+    } catch {
+      return 40;
+    }
+  });
+
+  const handleSelectWallpaper = (url: string) => {
+    setDashboardWallpaper(url);
+    try {
+      localStorage.setItem('theodoisk_dashboard_wallpaper', url);
+    } catch {}
+  };
+
+  const handleChangeBlur = (blur: number) => {
+    setWallpaperBlur(blur);
+    try {
+      localStorage.setItem('theodoisk_wallpaper_blur', String(blur));
+    } catch {}
+  };
+
+  const handleChangeOpacity = (opacity: number) => {
+    setWallpaperOpacity(opacity);
+    try {
+      localStorage.setItem('theodoisk_wallpaper_opacity', String(opacity));
+    } catch {}
+  };
 
   // 2.1 Supabase Connection & Test Mode State
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConnectionConfig>(() => getSavedSupabaseConfig());
@@ -257,7 +311,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Mobile quick view filter tab inside overview
-  const [mobileActiveTab, setMobileActiveTab] = useState<'all' | 'biometrics' | 'posture' | 'timers'>('all');
+  const [mobileActiveTab, setMobileActiveTab] = useState<'all' | 'biometrics' | 'posture' | 'timers' | 'tasks'>('all');
 
   // 8. History Log Records with local persistence scoped per user account
   const [history, setHistory] = useState<TelemetryLog[]>(() => {
@@ -1528,13 +1582,62 @@ export default function App() {
     setTaskNotifications(prev => prev.map(t => t.id === taskId ? { ...t, status: 'acknowledged', acknowledgedAt: new Date().toISOString() } : t));
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTaskFromFirebase(firebaseConfig, taskId);
+    } catch {}
+    setTaskNotifications(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const handleAddTask = async (title: string, priority: 'normal' | 'high' | 'urgent' = 'normal') => {
+    if (!currentUser) return;
+    try {
+      const newTask = await sendTaskNotificationToFirebase(firebaseConfig, {
+        targetUserId: currentUser.id,
+        targetUserName: currentUser.fullName,
+        senderId: currentUser.id,
+        senderName: currentUser.fullName,
+        type: 'task',
+        title: title.trim(),
+        content: 'Nhiệm vụ công thái học & bài tập cá nhân',
+        priority,
+      });
+      setTaskNotifications(prev => [newTask, ...prev]);
+    } catch (e) {
+      console.warn('Lỗi thêm nhiệm vụ:', e);
+    }
+  };
+
   // If user is not authenticated, show LoginScreen
   if (!currentUser) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div className="relative min-h-screen bg-slate-100/70 text-slate-900 flex selection:bg-emerald-500 selection:text-white w-full max-w-full overflow-x-hidden">
+      {/* 0. 100% Full-bleed Fixed Wallpaper Layer (Glassmorphism Base) */}
+      <div className="fixed inset-0 w-full h-full z-0 overflow-hidden pointer-events-none bg-slate-900">
+        <img 
+          src={dashboardWallpaper} 
+          alt="Dashboard Ambient Wallpaper" 
+          className="w-full h-full object-cover object-center pointer-events-none scale-105 transition-all duration-700"
+          style={{
+            filter: `blur(${wallpaperBlur}px)`,
+          }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = '/nenweb.png';
+          }}
+        />
+        {/* Semi-transparent frosted backdrop tint for high-contrast glassmorphism */}
+        <div 
+          className="absolute inset-0 transition-opacity duration-300"
+          style={{
+            backgroundColor: `rgba(248, 250, 252, ${wallpaperOpacity / 100})`,
+            backdropFilter: 'blur(0.5px)'
+          }}
+        />
+      </div>
+
       {/* 1. Left Vertical Sidebar: Fixed on desktop, Drawer on mobile */}
       <Sidebar
         activeTab={mainNavTab}
@@ -1563,7 +1666,7 @@ export default function App() {
       />
 
       {/* 2. Main Content Wrapper: Accommodates sidebar width on desktop */}
-      <div className={`flex-1 flex flex-col min-w-0 w-full transition-[padding] duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
+      <div className={`relative z-10 flex-1 flex flex-col min-w-0 w-full transition-[padding] duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
         {/* Top Header Bar */}
         <TopNav
           activeTab={mainNavTab}
@@ -1578,6 +1681,7 @@ export default function App() {
           pendingTasksCount={pendingTasksCount}
           onOpenTasks={() => setMainNavTab('tasks')}
           onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenWallpaper={() => setIsWallpaperModalOpen(true)}
           onLogout={handleLogout}
           supabaseConfig={supabaseConfig}
           onToggleSupabaseConnection={handleToggleSupabaseConnection}
@@ -1865,16 +1969,17 @@ export default function App() {
               <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner scrollbar-none">
                 {[
                   { id: 'all', label: 'Tất Cả' },
-                  { id: 'biometrics', label: 'Chỉ Số' },
                   { id: 'posture', label: 'Tư Thế' },
+                  { id: 'biometrics', label: 'Chỉ Số' },
+                  { id: 'tasks', label: 'Nhiệm Vụ' },
                   { id: 'timers', label: 'Thời Gian' },
                 ].map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setMobileActiveTab(tab.id as any)}
-                    className={`flex-1 min-w-[70px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
+                    className={`flex-1 min-w-[64px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
                       mobileActiveTab === tab.id
-                        ? 'bg-white text-sky-700 shadow-xs border border-slate-200/80'
+                        ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/80'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -1883,46 +1988,117 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Bảng điều khiển xác thực khuôn mặt SFace / YuNet trên Raspberry Pi */}
-              {!isSimulating && (
-                <FaceControlPanel 
-                  deviceId={assignedDevice} 
-                  telemetry={telemetry}
-                  hasReceivedData={hasReceivedData}
-                />
-              )}
+              {/* ==================================================
+                  1. HÀNG TRÊN CÙNG (TOP ROW - 2 CỘT):
+                  - CỘT TRÁI (LỚN): Thẻ "Lời Chào & Mục Tiêu Thời Gian"
+                    + Nền mờ từ /nenweb.png (LoginScreen)
+                    + Lời chào, ngày tháng, nút thao tác
+                    + Widget hình tròn/donut đếm ngược mục tiêu đứng/ngồi
+                  - CỘT PHẢI (NHỎ): Thẻ "Xác Thực Khuôn Mặt Camera Pi 4 (SFace YuNet)"
+                  ================================================== */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+                {/* CỘT TRÁI (LỚN): Lời Chào & Mục Tiêu Thời Gian */}
+                <div className="lg:col-span-7 xl:col-span-8 flex flex-col">
+                  <GreetingGoalCard
+                    currentUser={currentUser}
+                    timeStats={timeStats}
+                    thresholds={thresholds}
+                    onResetTimers={handleResetTimers}
+                    wallpaperUrl={dashboardWallpaper}
+                    className="h-full"
+                  />
+                </div>
 
-              {/* 1. Metric Cards (Heart Rate, SpO2, Posture, Monitor Zone) */}
-              <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
-                <MetricCards 
-                  telemetry={telemetry} 
-                  thresholds={thresholds} 
-                  hasData={hasReceivedData} 
-                  isSessionVerified={isFaceSessionVerified}
-                />
+                {/* CỘT PHẢI (NHỎ): Xác Thực Khuôn Mặt Camera Pi 4 (SFace YuNet) */}
+                <div className="lg:col-span-5 xl:col-span-4 flex flex-col">
+                  {!isSimulating ? (
+                    <FaceControlPanel 
+                      deviceId={assignedDevice} 
+                      telemetry={telemetry}
+                      hasReceivedData={hasReceivedData}
+                      className="h-full flex flex-col justify-between"
+                    />
+                  ) : (
+                    <div className="h-full rounded-3xl border border-white/60 bg-white/75 backdrop-blur-xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+                      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
+                          <Activity className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Chế Độ Giả Lập Dữ Liệu</h3>
+                          <p className="text-xs text-slate-500">Camera Pi 4 tạm tắt khi đang bật chế độ giả lập test</p>
+                        </div>
+                      </div>
+                      <div className="py-4 text-xs text-slate-600 leading-relaxed">
+                        Đang phát dữ liệu mô phỏng để kiểm tra giao diện và chuông cảnh báo. Bấm &quot;Tắt giả lập&quot; ở thanh điều hướng trên cùng để kết nối lại camera Pi 4 thực tế.
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>Trạng thái: Test cục bộ</span>
+                        <span className="font-mono font-bold text-amber-700">SIMULATED</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* 2. Middle Row: Anatomical Posture Visualizer & Trend Chart */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
-                <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:block' : 'block'}`}>
+              {/* ==================================================
+                  2. HÀNG DƯỚI (BOTTOM ROW - 3 CỘT BENTO GRID):
+                  - CỘT 1 (BÊN TRÁI): "Mô Hình & Chẩn Đoán Tư Thế"
+                  - CỘT 2 (Ở GIỮA): Cụm 4 Thẻ Sinh Hiệu (2x2 Grid)
+                  - CỘT 3 (BÊN PHẢI): "Nhiệm Vụ Hôm Nay (Daily Tasks)"
+                  ================================================== */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+                {/* CỘT 1 (BÊN TRÁI): Mô Hình & Chẩn Đoán Tư Thế */}
+                <div className={`lg:col-span-4 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:flex' : 'flex'}`}>
                   <PostureVisualizer 
                     telemetry={telemetry} 
                     hasData={hasReceivedData} 
+                    className="h-full flex flex-col justify-between"
                   />
                 </div>
-                <div className={`lg:col-span-6 ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
-                  <TrendChart
-                    history={history}
-                    hrMin={thresholds.hrMin}
-                    hrMax={thresholds.hrMax}
-                    spo2Min={thresholds.spo2Min}
-                    hasData={hasReceivedData}
+
+                {/* CỘT 2 (Ở GIỮA): Cụm 4 Thẻ Sinh Hiệu (2x2 Grid) */}
+                <div className={`lg:col-span-4 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:flex' : 'flex'}`}>
+                  <MetricCards 
+                    telemetry={telemetry} 
+                    thresholds={thresholds} 
+                    hasData={hasReceivedData} 
+                    isSessionVerified={isFaceSessionVerified}
+                    gridClassName="grid grid-cols-2 gap-2.5 sm:gap-3.5 h-full"
+                  />
+                </div>
+
+                {/* CỘT 3 (BÊN PHẢI): Nhiệm Vụ Hôm Nay (Daily Tasks) */}
+                <div className={`lg:col-span-4 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'tasks' ? 'hidden sm:flex' : 'flex'}`}>
+                  <DailyTasksCard
+                    tasks={taskNotifications}
+                    currentUser={currentUser}
+                    onCompleteTask={handleCompleteTask}
+                    onAcknowledgeTask={handleAcknowledgeTask}
+                    onDeleteTask={handleDeleteTask}
+                    onAddTask={handleAddTask}
+                    className="h-full flex flex-col justify-between"
                   />
                 </div>
               </div>
 
-              {/* 3. Activity Timers (Sitting, Moving, Bad Posture, Continuous) */}
-              <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' ? 'hidden sm:block' : 'block'}`}>
+              {/* ==================================================
+                  3. PHẦN DƯỚI CÙNG (BOTTOM FULL WIDTH):
+                  - Giữ nguyên biểu đồ "Xu Hướng Sinh Trắc Học (HR & SpO2)"
+                  - Kèm Thống kê thời gian hoạt động TimeCounters
+                  ================================================== */}
+              <div className={`w-full ${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
+                <TrendChart
+                  history={history}
+                  hrMin={thresholds.hrMin}
+                  hrMax={thresholds.hrMax}
+                  spo2Min={thresholds.spo2Min}
+                  hasData={hasReceivedData}
+                />
+              </div>
+
+              {/* 4. Activity Timers (Sitting, Moving, Bad Posture, Continuous) */}
+              <div className={`w-full ${mobileActiveTab !== 'all' && mobileActiveTab !== 'timers' ? 'hidden sm:block' : 'block'}`}>
                 <TimeCounters
                   timeStats={timeStats}
                   thresholds={thresholds}
@@ -2263,6 +2439,18 @@ export default function App() {
         currentUser={currentUser}
         onNavigateToAdminQuery={() => setMainNavTab('admin_overview')}
         onConfigSaved={(cfg) => setSupabaseConfig(cfg)}
+      />
+
+      {/* Wallpaper & Glassmorphism Customizer Modal */}
+      <WallpaperModal
+        isOpen={isWallpaperModalOpen}
+        onClose={() => setIsWallpaperModalOpen(false)}
+        currentWallpaperUrl={dashboardWallpaper}
+        onSelectWallpaper={handleSelectWallpaper}
+        blurIntensity={wallpaperBlur}
+        onChangeBlur={handleChangeBlur}
+        overlayOpacity={wallpaperOpacity}
+        onChangeOpacity={handleChangeOpacity}
       />
 
       {/* Modals (Only Manager has access) */}

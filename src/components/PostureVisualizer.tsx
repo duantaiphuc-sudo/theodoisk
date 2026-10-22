@@ -6,9 +6,10 @@ import { playErgonomicVoiceAlert } from '../services/sound';
 interface PostureVisualizerProps {
   telemetry: HealthTelemetry;
   hasData?: boolean;
+  className?: string;
 }
 
-export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry, hasData = true }) => {
+export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry, hasData = true, className }) => {
   const { postureStatus, postureLabel, image, inZone, trackingActive } = telemetry;
   const [viewMode, setViewMode] = useState<'skeleton' | 'camera'>('skeleton');
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
@@ -38,7 +39,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
 
   if (!hasData) {
     return (
-      <div className="rounded-2xl bg-white border border-slate-200 p-3.5 sm:p-5 lg:p-6 shadow-xs">
+      <div className={`rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-3.5 sm:p-5 lg:p-6 shadow-lg ${className || ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-4">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
@@ -133,7 +134,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
   const isSittingLong = !isCameraError && !isAbsent && !isVerifying && postureStatus === 4;
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 lg:p-6 shadow-xs">
+    <div className={`rounded-2xl bg-white/75 backdrop-blur-xl border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg ${className || ''}`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
