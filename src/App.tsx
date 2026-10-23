@@ -253,6 +253,38 @@ export default function App() {
     } catch {}
   };
 
+  const handleResetWallpaperDefaults = () => {
+    setDashboardWallpaper('/nenweb.png');
+    setWallpaperBlur(1);
+    setWallpaperOpacity(40);
+    setGlassTone('light');
+    setCardOpacity(80);
+    try {
+      localStorage.setItem('theodoisk_dashboard_wallpaper', '/nenweb.png');
+      localStorage.setItem('theodoisk_wallpaper_blur', '1');
+      localStorage.setItem('theodoisk_wallpaper_opacity', '40');
+      localStorage.setItem('theodoisk_glass_tone', 'light');
+      localStorage.setItem('theodoisk_card_opacity', '80');
+    } catch {}
+    setClearNotice('Đã khôi phục toàn bộ hình nền & hiệu ứng kính về mặc định.');
+    setTimeout(() => setClearNotice(null), 3000);
+  };
+
+  // Dark glass mode calculation & HTML/Body class synchronization
+  const isNegativeGlass = cardOpacity < 0;
+  const absOpacity = Math.abs(cardOpacity) / 100;
+  const isDarkGlassActive = glassTone === 'dark' || isNegativeGlass;
+
+  useEffect(() => {
+    if (isDarkGlassActive) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('theme-dark-glass');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('theme-dark-glass');
+    }
+  }, [isDarkGlassActive]);
+
   // 2.1 Supabase Connection & Test Mode State
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConnectionConfig>(() => getSavedSupabaseConfig());
 
@@ -1644,16 +1676,28 @@ export default function App() {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // Glass tone calculations with support for negative opacity (smoked dark glass) and zero opacity (crystal glass)
+  const cardGlassBg = cardOpacity === 0
+    ? 'rgba(255, 255, 255, 0)'
+    : isNegativeGlass
+    ? `rgba(15, 23, 42, ${absOpacity})`
+    : glassTone === 'dark'
+    ? `rgba(15, 23, 42, ${absOpacity})`
+    : `rgba(255, 255, 255, ${absOpacity})`;
+  const cardGlassBorder = cardOpacity === 0
+    ? 'rgba(255, 255, 255, 0.45)'
+    : isNegativeGlass || glassTone === 'dark'
+    ? `rgba(255, 255, 255, ${Math.max(0.12, absOpacity * 0.35)})`
+    : `rgba(255, 255, 255, ${Math.max(0.3, absOpacity * 0.75)})`;
+  const cardGlassBlur = `${Math.round(absOpacity * 16)}px`;
+
   return (
     <div 
-      className={`relative min-h-screen text-slate-900 flex selection:bg-emerald-500 selection:text-white w-full max-w-full overflow-x-hidden ${glassTone === 'dark' ? 'theme-dark-glass' : 'theme-light-glass'}`}
+      className={`relative min-h-screen text-slate-900 flex selection:bg-emerald-500 selection:text-white w-full max-w-full overflow-x-hidden ${isDarkGlassActive ? 'theme-dark-glass dark' : 'theme-light-glass'}`}
       style={{
-        '--card-glass-bg': glassTone === 'dark' 
-          ? `rgba(15, 23, 42, ${cardOpacity / 100})` 
-          : `rgba(255, 255, 255, ${cardOpacity / 100})`,
-        '--card-glass-border': glassTone === 'dark'
-          ? 'rgba(255, 255, 255, 0.18)'
-          : 'rgba(255, 255, 255, 0.65)',
+        '--card-glass-bg': cardGlassBg,
+        '--card-glass-border': cardGlassBorder,
+        '--card-glass-blur': cardGlassBlur,
       } as React.CSSProperties}
     >
       {/* 0. 100% Full-bleed Fixed Wallpaper Layer (Glassmorphism Base) */}
@@ -1818,7 +1862,7 @@ export default function App() {
                               : 'Trực tuyến'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-xs text-slate-700 font-medium mt-1 leading-relaxed">
                           {telemetry.isStale
                             ? `Dữ liệu (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi trước đó từ devices/${firebaseConfig.documentId || 'pi4_node_1'}. Bấm nút bên cạnh để đưa màn hình về trạng thái chờ rỗng (--).`
                             : isTelemetryCameraError
@@ -2092,13 +2136,13 @@ export default function App() {
                     + TRÊN: Cụm 4 Thẻ Sinh Hiệu (Lưới 2x2, chiều cao tự nhiên, hết khoảng trắng dư)
                     + DƯỚI: "Nhiệm Vụ Hôm Nay (Daily Tasks)" (Có nút thu gọn / mở rộng)
                   ================================================== */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
-                {/* CỘT TRÁI (LỚN - 7 CỘT): Mô Hình & Chẩn Đoán Tư Thế */}
-                <div className={`lg:col-span-7 flex flex-col ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:flex' : 'flex'}`}>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+                {/* CỘT TRÁI (LỚN - 7 CỘT): Mô Hình & Chẩn Đoán Tư Thế (Cân bằng chiều cao với Cụm 4 ô + Nhiệm vụ) */}
+                <div className={`lg:col-span-7 flex flex-col h-full ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:flex' : 'flex'}`}>
                   <PostureVisualizer 
                     telemetry={telemetry} 
                     hasData={hasReceivedData} 
-                    className="w-full"
+                    className="w-full h-full flex flex-col justify-between"
                   />
                 </div>
 
@@ -2503,6 +2547,7 @@ export default function App() {
         onChangeGlassTone={handleChangeGlassTone}
         cardOpacity={cardOpacity}
         onChangeCardOpacity={handleChangeCardOpacity}
+        onResetDefaults={handleResetWallpaperDefaults}
       />
 
       {/* Modals (Only Manager has access) */}

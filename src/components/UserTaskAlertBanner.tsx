@@ -81,10 +81,10 @@ export const UserTaskAlertBanner: React.FC<UserTaskAlertBannerProps> = ({
     >
       <div className={`rounded-2xl border shadow-xl overflow-hidden backdrop-blur-md transition-all ${
         isUrgent 
-          ? 'bg-rose-50/95 border-rose-300 text-rose-950 shadow-rose-200/50 ring-2 ring-rose-400/40' 
+          ? 'bg-rose-50/95 dark:bg-slate-900/95 border-rose-300 dark:border-rose-800/80 text-rose-950 dark:text-rose-100 shadow-rose-200/50 ring-2 ring-rose-400/40' 
           : isHigh 
-          ? 'bg-amber-50/95 border-amber-300 text-amber-950 shadow-amber-200/50' 
-          : 'bg-white/95 border-sky-300 text-slate-900 shadow-slate-200/80'
+          ? 'bg-amber-50/95 dark:bg-slate-900/95 border-amber-300 dark:border-amber-800/80 text-amber-950 dark:text-amber-100 shadow-amber-200/50' 
+          : 'bg-white/95 dark:bg-slate-900/95 border-sky-300 dark:border-sky-800/80 text-slate-900 dark:text-slate-100 shadow-slate-200/80 dark:shadow-none'
       }`}>
         {/* Top Priority Header */}
         <div className={`px-4 py-2.5 flex items-center justify-between border-b ${

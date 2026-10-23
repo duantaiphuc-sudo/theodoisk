@@ -18,63 +18,288 @@ html, body {
   }
 }
 
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.animate-scaleUp {
+  animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .glass-panel {
-  background-color: var(--card-glass-bg, rgba(255, 255, 255, 0.78));
-  border-color: var(--card-glass-border, rgba(255, 255, 255, 0.65));
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background-color: var(--card-glass-bg, rgba(255, 255, 255, 0.78)) !important;
+  border-color: var(--card-glass-border, rgba(255, 255, 255, 0.65)) !important;
+  backdrop-filter: blur(var(--card-glass-blur, 16px));
+  -webkit-backdrop-filter: blur(var(--card-glass-blur, 16px));
 }
 
 /* =========================================================
-   DARK GLASS TONE (Lớp Mờ Tông Đen & Tùy Chỉnh Độ Trong Suốt)
+   TEXT CONTRAST ENHANCEMENT ON GLASS PANELS (LIGHT MODE)
    ========================================================= */
-.theme-dark-glass {
+.theme-light-glass .glass-panel .text-slate-500 {
+  color: #334155 !important;
+}
+
+.theme-light-glass .glass-panel .text-slate-400 {
+  color: #475569 !important;
+}
+
+.theme-light-glass .glass-panel .text-slate-600 {
+  color: #1e293b !important;
+}
+
+/* =========================================================
+   DARK GLASS TONE (TÔNG ĐEN & ĐỘ TRONG SUỐT ĐỒNG BỘ 100%)
+   Eliminates all unharmonized white patches, light boxes, and glaring backgrounds
+   ========================================================= */
+.theme-dark-glass,
+body.theme-dark-glass {
   color: #f8fafc;
 }
 
-.theme-dark-glass .glass-panel {
-  background-color: var(--card-glass-bg, rgba(15, 23, 42, 0.8)) !important;
+.theme-dark-glass .glass-panel,
+body.theme-dark-glass .glass-panel {
+  background-color: var(--card-glass-bg, rgba(15, 23, 42, 0.82)) !important;
   border-color: var(--card-glass-border, rgba(255, 255, 255, 0.16)) !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
 }
 
-.theme-dark-glass .text-slate-900 {
+/* Typography contrast on dark glass */
+.theme-dark-glass .text-slate-900,
+body.theme-dark-glass .text-slate-900 {
   color: #ffffff !important;
 }
 
-.theme-dark-glass .text-slate-800 {
+.theme-dark-glass .text-slate-800,
+body.theme-dark-glass .text-slate-800 {
   color: #f1f5f9 !important;
 }
 
-.theme-dark-glass .text-slate-700 {
+.theme-dark-glass .text-slate-700,
+body.theme-dark-glass .text-slate-700 {
   color: #e2e8f0 !important;
 }
 
-.theme-dark-glass .text-slate-600 {
+.theme-dark-glass .text-slate-600,
+body.theme-dark-glass .text-slate-600 {
   color: #cbd5e1 !important;
 }
 
-.theme-dark-glass .text-slate-500 {
+.theme-dark-glass .text-slate-500,
+body.theme-dark-glass .text-slate-500 {
   color: #94a3b8 !important;
 }
 
-.theme-dark-glass .border-slate-100,
-.theme-dark-glass .border-slate-200 {
+.theme-dark-glass .text-slate-400,
+body.theme-dark-glass .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Neutral borders in dark glass */
+.theme-dark-glass [class*="border-slate-100"],
+.theme-dark-glass [class*="border-slate-200"],
+.theme-dark-glass [class*="border-slate-300"],
+body.theme-dark-glass [class*="border-slate-100"],
+body.theme-dark-glass [class*="border-slate-200"],
+body.theme-dark-glass [class*="border-slate-300"] {
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-.theme-dark-glass .bg-slate-50,
-.theme-dark-glass .bg-slate-100 {
+/* Neutral inner surfaces & containers (resolves white boxes in cards) */
+.theme-dark-glass [class*="bg-slate-50"],
+.theme-dark-glass [class*="bg-slate-100"],
+body.theme-dark-glass [class*="bg-slate-50"],
+body.theme-dark-glass [class*="bg-slate-100"] {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.theme-dark-glass [class*="bg-slate-200"],
+body.theme-dark-glass [class*="bg-slate-200"] {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Internal white surfaces (nested cards, status boxes) */
+.theme-dark-glass div[class*="bg-white"],
+.theme-dark-glass section[class*="bg-white"],
+.theme-dark-glass p[class*="bg-white"],
+.theme-dark-glass span[class*="bg-white"]:not(.text-white),
+body.theme-dark-glass div[class*="bg-white"],
+body.theme-dark-glass section[class*="bg-white"],
+body.theme-dark-glass p[class*="bg-white"],
+body.theme-dark-glass span[class*="bg-white"]:not(.text-white) {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-.theme-dark-glass .bg-white\/80,
-.theme-dark-glass .bg-white\/90,
-.theme-dark-glass .bg-white {
-  background-color: var(--card-glass-bg, rgba(15, 23, 42, 0.75)) !important;
+/* Buttons that have bg-white or bg-slate-100 */
+.theme-dark-glass button[class*="bg-white"],
+body.theme-dark-glass button[class*="bg-white"] {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
+.theme-dark-glass button[class*="bg-white"]:hover,
+body.theme-dark-glass button[class*="bg-white"]:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.theme-dark-glass button[class*="bg-slate-100"]:not(:hover),
+body.theme-dark-glass button[class*="bg-slate-100"]:not(:hover) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #e2e8f0 !important;
+}
+
+/* Form inputs & dropdowns */
+.theme-dark-glass input[class*="bg-white"],
+.theme-dark-glass select[class*="bg-white"],
+.theme-dark-glass textarea[class*="bg-white"],
+body.theme-dark-glass input[class*="bg-white"],
+body.theme-dark-glass select[class*="bg-white"],
+body.theme-dark-glass textarea[class*="bg-white"] {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Semantic Tinted Boxes (Sky / Cyan) */
+.theme-dark-glass [class*="bg-sky-50"],
+body.theme-dark-glass [class*="bg-sky-50"] {
+  background-color: rgba(14, 165, 233, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-sky-100"],
+body.theme-dark-glass [class*="bg-sky-100"] {
+  background-color: rgba(14, 165, 233, 0.22) !important;
+}
+.theme-dark-glass [class*="border-sky-200"],
+.theme-dark-glass [class*="border-sky-300"],
+body.theme-dark-glass [class*="border-sky-200"],
+body.theme-dark-glass [class*="border-sky-300"] {
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+.theme-dark-glass [class*="text-sky-700"],
+.theme-dark-glass [class*="text-sky-800"],
+.theme-dark-glass [class*="text-sky-900"],
+.theme-dark-glass [class*="text-sky-950"],
+body.theme-dark-glass [class*="text-sky-700"],
+body.theme-dark-glass [class*="text-sky-800"],
+body.theme-dark-glass [class*="text-sky-900"],
+body.theme-dark-glass [class*="text-sky-950"] {
+  color: #7dd3fc !important;
+}
+
+/* Semantic Tinted Boxes (Emerald / Green) */
+.theme-dark-glass [class*="bg-emerald-50"],
+body.theme-dark-glass [class*="bg-emerald-50"] {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-emerald-100"],
+body.theme-dark-glass [class*="bg-emerald-100"] {
+  background-color: rgba(16, 185, 129, 0.22) !important;
+}
+.theme-dark-glass [class*="border-emerald-200"],
+.theme-dark-glass [class*="border-emerald-300"],
+body.theme-dark-glass [class*="border-emerald-200"],
+body.theme-dark-glass [class*="border-emerald-300"] {
+  border-color: rgba(52, 211, 153, 0.35) !important;
+}
+.theme-dark-glass [class*="text-emerald-700"],
+.theme-dark-glass [class*="text-emerald-800"],
+.theme-dark-glass [class*="text-emerald-900"],
+.theme-dark-glass [class*="text-emerald-950"],
+body.theme-dark-glass [class*="text-emerald-700"],
+body.theme-dark-glass [class*="text-emerald-800"],
+body.theme-dark-glass [class*="text-emerald-900"],
+body.theme-dark-glass [class*="text-emerald-950"] {
+  color: #6ee7b7 !important;
+}
+
+/* Semantic Tinted Boxes (Amber / Warning) */
+.theme-dark-glass [class*="bg-amber-50"],
+body.theme-dark-glass [class*="bg-amber-50"] {
+  background-color: rgba(245, 158, 11, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-amber-100"],
+body.theme-dark-glass [class*="bg-amber-100"] {
+  background-color: rgba(245, 158, 11, 0.22) !important;
+}
+.theme-dark-glass [class*="border-amber-200"],
+.theme-dark-glass [class*="border-amber-300"],
+.theme-dark-glass [class*="border-amber-400"],
+body.theme-dark-glass [class*="border-amber-200"],
+body.theme-dark-glass [class*="border-amber-300"],
+body.theme-dark-glass [class*="border-amber-400"] {
+  border-color: rgba(251, 191, 36, 0.35) !important;
+}
+.theme-dark-glass [class*="text-amber-700"],
+.theme-dark-glass [class*="text-amber-800"],
+.theme-dark-glass [class*="text-amber-900"],
+.theme-dark-glass [class*="text-amber-950"],
+body.theme-dark-glass [class*="text-amber-700"],
+body.theme-dark-glass [class*="text-amber-800"],
+body.theme-dark-glass [class*="text-amber-900"],
+body.theme-dark-glass [class*="text-amber-950"] {
+  color: #fcd34d !important;
+}
+
+/* Semantic Tinted Boxes (Rose / Red Danger) */
+.theme-dark-glass [class*="bg-rose-50"],
+body.theme-dark-glass [class*="bg-rose-50"] {
+  background-color: rgba(244, 63, 94, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-rose-100"],
+body.theme-dark-glass [class*="bg-rose-100"] {
+  background-color: rgba(244, 63, 94, 0.22) !important;
+}
+.theme-dark-glass [class*="border-rose-200"],
+.theme-dark-glass [class*="border-rose-300"],
+body.theme-dark-glass [class*="border-rose-200"],
+body.theme-dark-glass [class*="border-rose-300"] {
+  border-color: rgba(251, 113, 133, 0.35) !important;
+}
+.theme-dark-glass [class*="text-rose-700"],
+.theme-dark-glass [class*="text-rose-800"],
+.theme-dark-glass [class*="text-rose-900"],
+.theme-dark-glass [class*="text-rose-950"],
+body.theme-dark-glass [class*="text-rose-700"],
+body.theme-dark-glass [class*="text-rose-800"],
+body.theme-dark-glass [class*="text-rose-900"],
+body.theme-dark-glass [class*="text-rose-950"] {
+  color: #fda4af !important;
+}
+
+/* Semantic Tinted Boxes (Indigo / Purple) */
+.theme-dark-glass [class*="bg-indigo-50"],
+body.theme-dark-glass [class*="bg-indigo-50"] {
+  background-color: rgba(99, 102, 241, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-indigo-100"],
+body.theme-dark-glass [class*="bg-indigo-100"] {
+  background-color: rgba(99, 102, 241, 0.22) !important;
+}
+.theme-dark-glass [class*="border-indigo-200"],
+.theme-dark-glass [class*="border-indigo-300"],
+body.theme-dark-glass [class*="border-indigo-200"],
+body.theme-dark-glass [class*="border-indigo-300"] {
+  border-color: rgba(129, 140, 248, 0.35) !important;
+}
+.theme-dark-glass [class*="text-indigo-700"],
+.theme-dark-glass [class*="text-indigo-800"],
+.theme-dark-glass [class*="text-indigo-900"],
+.theme-dark-glass [class*="text-indigo-950"],
+body.theme-dark-glass [class*="text-indigo-700"],
+body.theme-dark-glass [class*="text-indigo-800"],
+body.theme-dark-glass [class*="text-indigo-900"],
+body.theme-dark-glass [class*="text-indigo-950"] {
+  color: #a5b4fc !important;
+}

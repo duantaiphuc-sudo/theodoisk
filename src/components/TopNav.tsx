@@ -80,7 +80,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   const currentTabInfo = tabTitles[activeTab] || tabTitles.overview;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/75 backdrop-blur-xl border-b border-white/50 w-full transition-all shadow-xs">
+    <header className="sticky top-0 z-30 glass-panel border-b border-white/40 w-full transition-all shadow-xs">
       <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Left: Mobile Drawer Trigger + Breadcrumb Title */}
         <div className="flex items-center gap-3 min-w-0">
@@ -106,7 +106,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 truncate hidden sm:block">
+            <p className="text-xs text-slate-700 font-semibold truncate hidden sm:block">
               {currentTabInfo.subtitle}
             </p>
           </div>

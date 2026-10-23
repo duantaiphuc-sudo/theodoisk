@@ -80,10 +80,10 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
       />
 
       {/* 2. Main Content Container (Zero blur overlay - 100% sharp clear background image) */}
-      <div className="relative z-10 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 sm:gap-5 w-full">
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-3.5 sm:gap-4 w-full items-stretch flex-1">
         
         {/* Left Section: Transparent container with high-contrast text drop shadows */}
-        <div className="flex-1 min-w-0 p-3 sm:p-4 rounded-2xl bg-black/25 sm:bg-black/20 border border-white/20 shadow-lg flex flex-col justify-between space-y-3">
+        <div className="md:col-span-7 lg:col-span-8 p-3.5 sm:p-4 rounded-2xl bg-black/35 border border-white/25 shadow-lg flex flex-col justify-between space-y-3 h-full">
           {/* Date Chip */}
           <div className="self-start inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/25 text-white/95 text-xs font-semibold shadow-xs">
             <Calendar className="w-3.5 h-3.5 text-teal-300" />
@@ -129,60 +129,60 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
           </div>
         </div>
 
-        {/* Right Section: Compact Donut Goal Widget (NO BLUR, ZERO STREAK/DOTS) */}
-        <div className="shrink-0 flex justify-center lg:justify-end">
-          <div className="w-full sm:w-56 p-4 rounded-2xl bg-black/40 border border-white/25 text-white shadow-xl flex flex-col items-center justify-center text-center">
-            {/* Donut Gauge Header */}
-            <button
-              type="button"
-              onClick={() => setGoalMode(prev => prev === 'standing' ? 'sitting' : 'standing')}
-              className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-teal-300 hover:text-teal-200 transition mb-2 drop-shadow-sm cursor-pointer"
-              title="Nhấp để đổi chế độ mục tiêu"
-            >
-              <Activity className="w-3.5 h-3.5 text-teal-400" />
-              <span>{goalMode === 'standing' ? 'MỤC TIÊU ĐỨNG' : 'GIỚI HẠN NGỒI'}</span>
-            </button>
+        {/* Right Section: Compact Donut Goal Widget (NO BLUR, ZERO STREAK/DOTS, EQUAL HEIGHT) */}
+        <div className="md:col-span-5 lg:col-span-4 p-3.5 sm:p-4 rounded-2xl bg-black/35 border border-white/25 text-white shadow-lg flex flex-col items-center justify-between text-center h-full">
+          {/* Donut Gauge Header */}
+          <button
+            type="button"
+            onClick={() => setGoalMode(prev => prev === 'standing' ? 'sitting' : 'standing')}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-teal-300 hover:text-teal-200 transition drop-shadow-sm cursor-pointer"
+            title="Nhấp để đổi chế độ mục tiêu"
+          >
+            <Activity className="w-3.5 h-3.5 text-teal-400" />
+            <span>{goalMode === 'standing' ? 'MỤC TIÊU ĐỨNG' : 'GIỚI HẠN NGỒI'}</span>
+          </button>
 
-            {/* Circular Donut Gauge */}
-            <div className="relative w-28 h-28 my-1 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                {/* Background track circle */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r={radius}
-                  fill="none"
-                  stroke="rgba(255, 255, 255, 0.15)"
-                  strokeWidth="8"
-                />
-                {/* Progress animated circle */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r={radius}
-                  fill="none"
-                  stroke={goalMode === 'standing' ? '#2dd4bf' : (sittingPercent >= 100 ? '#f43f5e' : '#38bdf8')}
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  className="transition-all duration-700 ease-out"
-                />
-              </svg>
+          {/* Circular Donut Gauge */}
+          <div className="relative w-24 h-24 sm:w-28 sm:h-28 my-auto flex items-center justify-center">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+              {/* Background track circle */}
+              <circle
+                cx="50"
+                cy="50"
+                r={radius}
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.15)"
+                strokeWidth="8"
+              />
+              {/* Progress animated circle */}
+              <circle
+                cx="50"
+                cy="50"
+                r={radius}
+                fill="none"
+                stroke={goalMode === 'standing' ? '#2dd4bf' : (sittingPercent >= 100 ? '#f43f5e' : '#38bdf8')}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                className="transition-all duration-700 ease-out"
+              />
+            </svg>
 
-              {/* Number in center */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-3xl font-black font-mono tracking-tight text-white leading-none">
-                  {goalMode === 'standing' ? standingMinutes : continuousSittingMin}
-                </span>
-                <span className="text-[10px] text-slate-300 font-medium mt-1">
-                  / {goalMode === 'standing' ? targetStandingMin : maxSittingMin} phút
-                </span>
-              </div>
+            {/* Number in center */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white leading-none">
+                {goalMode === 'standing' ? standingMinutes : continuousSittingMin}
+              </span>
+              <span className="text-[10px] text-slate-300 font-medium mt-1">
+                / {goalMode === 'standing' ? targetStandingMin : maxSittingMin} phút
+              </span>
             </div>
+          </div>
 
-            {/* Subtitle below donut */}
-            <div className="text-xs font-bold text-slate-200 mt-2">
+          {/* Subtitle below donut */}
+          <div>
+            <div className="text-xs font-bold text-slate-200">
               Mục tiêu hôm nay
             </div>
             <div className="text-[11px] text-teal-300 font-semibold font-mono mt-0.5">

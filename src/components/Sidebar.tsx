@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onMouseLeave={() => {
           if (collapsed) setIsHovered(false);
         }}
-        className={`fixed top-0 bottom-0 left-0 z-40 h-screen bg-white/80 backdrop-blur-xl border-r border-white/50 flex flex-col justify-between transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-40 h-screen glass-panel border-r border-white/40 flex flex-col justify-between transition-all duration-300 ease-in-out ${
           mobileOpen
             ? 'translate-x-0 w-64 shadow-2xl'
             : '-translate-x-full lg:translate-x-0 ' +
@@ -545,13 +545,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom: Connection Status & Current User Card */}
         <div
-          className={`border-t border-slate-200/90 bg-slate-50/60 transition-all duration-300 ${
+          className={`border-t border-white/20 bg-white/10 dark:bg-slate-900/20 backdrop-blur-xs transition-all duration-300 ${
             isExpanded ? 'p-3 space-y-2.5' : 'p-2 space-y-2 flex flex-col items-center'
           }`}
         >
           {/* Live Connection Pill */}
           {isExpanded ? (
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 text-xs">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/40 hover:bg-white/60 dark:bg-slate-800/40 border border-white/30 dark:border-white/10 text-xs backdrop-blur-xs shadow-2xs transition-all">
               <div className="flex items-center gap-2">
                 {isConnected ? (
                   <>
@@ -559,7 +559,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
-                    <span className="font-semibold text-slate-700 text-[11px]">Firebase IoT</span>
+                    <span className="font-semibold text-slate-800 text-[11px]">Firebase IoT</span>
                   </>
                 ) : (
                   <>
@@ -579,7 +579,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <div
               title={isConnected ? "Firebase IoT: Trực tuyến (LIVE)" : "Firebase IoT: Chưa kết nối (OFFLINE)"}
-              className="w-10 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center cursor-help"
+              className="w-10 h-7 rounded-lg bg-white/40 dark:bg-slate-800/40 border border-white/30 dark:border-white/10 flex items-center justify-center cursor-help backdrop-blur-xs"
             >
               {isConnected ? (
                 <span className="relative flex h-2.5 w-2.5">
@@ -595,7 +595,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* User Account Card */}
           {currentUser && (
             isExpanded ? (
-              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/40 hover:bg-white/60 dark:bg-slate-800/40 border border-white/30 dark:border-white/10 shadow-2xs backdrop-blur-xs transition-all">
                 <button
                   onClick={onOpenProfile}
                   className="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80 transition cursor-pointer"

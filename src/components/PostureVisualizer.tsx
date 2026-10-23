@@ -39,7 +39,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
 
   if (!hasData) {
     return (
-      <div className={`rounded-2xl glass-panel bg-white/75 backdrop-blur-xl border border-white/60 p-3.5 sm:p-5 lg:p-6 shadow-lg ${className || ''}`}>
+      <div className={`rounded-2xl glass-panel border border-white/60 p-3.5 sm:p-5 lg:p-6 shadow-lg flex flex-col justify-between ${className || ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-4">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
@@ -53,7 +53,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           </span>
         </div>
 
-        <div className="relative h-[230px] rounded-xl bg-slate-50 border border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center">
+        <div className="relative flex-1 min-h-[220px] rounded-xl bg-slate-50 border border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center">
           <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-2xs">
             <CameraOff className="w-6 h-6" />
           </div>
@@ -134,33 +134,33 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
   const isSittingLong = !isCameraError && !isAbsent && !isVerifying && postureStatus === 4;
 
   return (
-    <div className={`rounded-2xl glass-panel bg-white/75 backdrop-blur-xl border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg ${className || ''}`}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+    <div className={`rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg flex flex-col justify-between ${className || ''}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 mb-3 border-b border-slate-100">
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-            <span>Mô Hình & Chẩn Đoán Tư Thế</span>
-            <span className="text-[11px] sm:text-xs font-normal text-slate-500">Phân Tích Cột Sống</span>
+          <h2 className="text-sm sm:text-base font-bold text-slate-900">
+            Mô Hình & Chẩn Đoán Tư Thế
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">Phân tích góc nghiêng cột sống và khoảng cách thị giác theo thời gian thực</p>
+          <p className="text-xs text-slate-700 font-semibold mt-0.5">Phân tích cột sống & thị giác góc nghiêng thời gian thực</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
             <button
               type="button"
               onClick={() => setViewMode('skeleton')}
               title="Xem mô hình giải phẫu tư thế ngồi"
-              className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-semibold transition flex items-center gap-1 cursor-pointer ${
                 viewMode === 'skeleton' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5 text-sky-600" />
+              <span>Mô hình</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('camera')}
               title="Xem hình ảnh trực tiếp từ Camera Pi 4"
-              className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-semibold transition flex items-center gap-1 cursor-pointer ${
                 viewMode === 'camera' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -175,18 +175,17 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             onClick={handleTestPostureVoice}
             disabled={isPlayingVoice}
             title="Nghe thử âm thanh nhắc nhở khi ngồi sai tư thế"
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
               isPlayingVoice
                 ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
             }`}
           >
             <Volume2 className={`w-3.5 h-3.5 ${isPlayingVoice ? 'text-rose-600' : 'text-slate-500'}`} />
-            <span className="hidden sm:inline">Âm thanh nhắc:</span>
-            <span>Ngồi thẳng lên</span>
+            <span>Thử nhắc</span>
           </button>
 
-          <span className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider border whitespace-nowrap ${
+          <span className={`px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider border whitespace-nowrap ${
             isCameraError ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' :
             isVerifying ? 'bg-sky-100 text-sky-800 border-sky-300 animate-pulse' :
             isAbsent ? 'bg-amber-100 text-amber-800 border-amber-300' :
@@ -196,15 +195,15 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             isSittingLong ? 'bg-amber-100 text-amber-800 border-amber-300' :
             'bg-slate-100 text-slate-600 border-slate-200'
           }`}>
-            {isCameraError ? 'LỖI KẾT NỐI CAMERA' : isVerifying ? 'ĐANG XÁC NHẬN TƯ THẾ' : isAbsent ? 'NGOÀI VÙNG CAMERA' : postureLabel}
+            {isCameraError ? 'LỖI CAMERA' : isVerifying ? 'ĐANG ĐO' : isAbsent ? 'NGOÀI VÙNG' : postureLabel}
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch flex-1">
         {/* Visual Container: SVG Skeleton Animation OR Real Camera Frame */}
         {viewMode === 'camera' ? (
-          <div className="md:col-span-5 flex flex-col items-center justify-center rounded-xl bg-slate-900 border border-slate-200 min-h-[260px] h-[260px] relative overflow-hidden group shadow-inner">
+          <div className="md:col-span-5 flex flex-col items-center justify-center rounded-xl bg-slate-900 border border-slate-200 min-h-[260px] h-full relative overflow-hidden group shadow-inner">
             {image ? (
               <>
                 <img
@@ -248,7 +247,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             )}
           </div>
         ) : (
-          <div className="md:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 border border-slate-200 min-h-[260px] relative overflow-hidden">
+          <div className="md:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 border border-slate-200 min-h-[260px] h-full relative overflow-hidden">
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-60"></div>
 
             {image && (
@@ -377,14 +376,25 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
                 </g>
               )}
             </svg>
+
+            {/* Bottom status bar in visualizer box to ground the illustration */}
+            <div className="relative z-10 w-full pt-2 mt-auto border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-700">
+              <span className="font-bold">
+                {isCameraError ? 'Camera USB: Ngắt kết nối' : isAbsent ? 'Ghế trống: Vắng mặt' : isStanding ? 'Tư thế: Đứng làm việc' : isGood ? 'Đốt sống: Chuẩn S' : 'Cột sống: Sai tư thế'}
+              </span>
+              <span className="font-mono font-extrabold text-slate-800">
+                {telemetry.angleNeck !== undefined ? `${telemetry.angleNeck}° cổ` : '90°'}
+              </span>
+            </div>
           </div>
         )}
 
-        {/* Diagnostic Explanation & Ergonomic Advice */}
-        <div className="md:col-span-7 flex flex-col justify-between space-y-4">
-          <div className="space-y-2">
+        {/* Diagnostic Explanation & Ergonomic Advice (No empty gaps, fills height smoothly) */}
+        <div className="md:col-span-7 flex flex-col gap-2.5 sm:gap-3 h-full">
+          {/* Diagnostic Status Box */}
+          <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 shadow-2xs space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className={`p-1.5 rounded-lg ${
+              <span className={`p-1.5 rounded-lg shrink-0 ${
                 isCameraError ? 'bg-rose-100 text-rose-700' :
                 isAbsent ? 'bg-amber-100 text-amber-700' :
                 isStanding ? 'bg-indigo-100 text-indigo-700' :
@@ -394,19 +404,20 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
               }`}>
                 {isCameraError ? <CameraOff className="w-4 h-4" /> : isAbsent ? <UserX className="w-4 h-4" /> : isStanding ? <UserCheck className="w-4 h-4" /> : isGood ? <CheckCircle className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
               </span>
-              <h3 className="text-sm font-bold text-slate-900">{currentAdvice.title}</h3>
+              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900">{currentAdvice.title}</h3>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <p className="text-xs text-slate-700 leading-relaxed font-medium">
               {currentAdvice.desc}
             </p>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200">
-            <div className="flex items-center gap-1.5 text-sky-800 text-xs font-bold mb-1">
-              <Info className="w-3.5 h-3.5 text-sky-600" />
+          {/* Ergonomic Tip Box - flex-1 fills the vertical height naturally without awkward holes */}
+          <div className="flex-1 p-3.5 sm:p-4 rounded-xl bg-sky-50/80 border border-sky-200/90 shadow-2xs flex flex-col justify-center">
+            <div className="flex items-center gap-1.5 text-sky-900 text-xs font-bold mb-1.5">
+              <Info className="w-4 h-4 text-sky-600 shrink-0" />
               <span>Khuyến nghị từ Chuyên viên Công Thái Học:</span>
             </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
+            <p className="text-xs text-slate-800 leading-relaxed font-medium">
               {currentAdvice.tip}
             </p>
           </div>
@@ -414,35 +425,35 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
           {/* Mini Checklist */}
           {isCameraError ? (
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-rose-50 border border-rose-200">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-rose-50 border border-rose-200 font-bold text-rose-800">
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                <span className="text-rose-800 font-semibold">Cảm biến Camera: Lỗi</span>
+                <span>Cảm biến Camera: Lỗi</span>
               </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 font-bold text-emerald-800">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="text-emerald-800 font-semibold">Luồng Sinh Trắc: Hoạt động</span>
+                <span>Luồng Sinh Trắc: Hoạt động</span>
               </div>
             </div>
           ) : isAbsent ? (
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 font-semibold text-slate-800">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                <span className="text-slate-700">Trạng thái: Tạm dừng đo</span>
+                <span>Trạng thái: Tạm dừng đo</span>
               </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 font-semibold text-slate-800">
                 <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
-                <span className="text-slate-700">Camera: Quét tìm đối tượng</span>
+                <span>Camera: Quét tìm đối tượng</span>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 font-semibold text-slate-800">
                 <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-                <span className="text-slate-700">Góc gập khuỷu tay 90°</span>
+                <span>Góc gập khuỷu tay 90°</span>
               </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 font-semibold text-slate-800">
                 <span className={`w-2 h-2 rounded-full ${isGood ? 'bg-emerald-500' : isBad ? 'bg-rose-500' : 'bg-slate-300'}`}></span>
-                <span className="text-slate-700">Khoảng cách màn hình 50-70cm</span>
+                <span>Khoảng cách màn hình 50-70cm</span>
               </div>
             </div>
           )}

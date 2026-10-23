@@ -44,6 +44,7 @@ import {
 import { fetchFaceTemplate } from '../services/faceService';
 import { fetchSupabaseHistory, TimeRangeFilter, deleteSingleLogFromSupabase } from '../services/supabaseService';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
+import { AdminQueryCharts } from './AdminQueryCharts';
 
 export interface RealtimeMetricsProps {
   bpm: number;
@@ -1565,6 +1566,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-[10px] text-indigo-700 mt-1">Giải lao hoặc đi lại</p>
             </div>
           </div>
+
+          {/* Biểu đồ phân tích trực quan Supabase Time-Series & Phân Bố Tư Thế */}
+          {supabaseQueryResult && (
+            <AdminQueryCharts
+              data={supabaseQueryResult.data}
+              stats={supabaseQueryResult.stats}
+              queryUserScope={queryUserScope}
+              queryRange={queryRange}
+              users={users}
+              memberStats={memberGroupStats}
+              onSelectMember={(uid) => {
+                setQueryUserScope(uid);
+                handleRunSupabaseQuery(uid, queryRange);
+              }}
+            />
+          )}
 
           {queryUserScope === 'all' && memberGroupStats.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm space-y-3">

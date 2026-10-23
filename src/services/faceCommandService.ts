@@ -13,6 +13,29 @@ import { initializeFirebaseApp, getSavedFirebaseConfig, getAppFirestore } from '
 
 export type FaceAction = 'ENROLL_FACE' | 'VERIFY_FACE' | 'LOGOUT_FACE';
 
+export function formatFaceError(rawError: string): string {
+  const err = (rawError || '').toUpperCase();
+  if (err.includes('UNSUPPORTED_FACE_TEMPLATE')) {
+    return 'Lỗi mẫu khuôn mặt (UNSUPPORTED_FACE_TEMPLATE): Chưa có vector đặc trưng 128 chiều (SFace 128D). Hãy ngồi trước Camera Pi 4 để quét khuôn mặt.';
+  }
+  if (err.includes('INVALID_TEMPLATE') || err.includes('VECTOR_DIM')) {
+    return 'Lỗi vector đặc trưng: Dữ liệu mẫu không đúng định dạng 128 chiều SFace của OpenCV. Hãy quét lại trên Pi 4.';
+  }
+  if (err.includes('TEMPLATE_EXISTS')) {
+    return 'Mẫu khuôn mặt đã tồn tại. Để quét mẫu mới, hãy bấm "Đặt lại mẫu khuôn mặt" để xóa trước.';
+  }
+  if (err.includes('VERIFY_FAILED')) {
+    return 'Xác thực không thành công: Khuôn mặt trước camera Pi 4 không khớp với mẫu đã lưu. Hãy nhìn thẳng vào camera.';
+  }
+  if (err.includes('NO_FACE') || err.includes('FACE_NOT_FOUND')) {
+    return 'Camera Pi 4 không tìm thấy khuôn mặt trong khung hình. Hãy ngồi thẳng vào giữa camera.';
+  }
+  if (err.includes('CAMERA_ERROR')) {
+    return 'Lỗi kết nối camera trên Raspberry Pi 4. Hãy kiểm tra lại cáp cắm USB camera.';
+  }
+  return rawError || 'Thao tác khuôn mặt thất bại';
+}
+
 function getFirebaseInstances() {
   const config = getSavedFirebaseConfig();
   const app = initializeFirebaseApp(config);

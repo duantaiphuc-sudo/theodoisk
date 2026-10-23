@@ -32,6 +32,33 @@ export const WALLPAPER_PRESETS: WallpaperOption[] = [
     description: 'Không gian làm việc công thái học chuẩn IoT hiện đại'
   },
   {
+    id: 'sunset-beach',
+    name: 'Bãi Biển Hoàng Hôn Vàng',
+    category: 'Thư giãn',
+    url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=70',
+    theme: 'light',
+    description: 'Bờ biển sóng vỗ ánh hoàng hôn cam ấm áp'
+  },
+  {
+    id: 'fuji-sunset',
+    name: 'Núi Phú Sĩ Hoàng Hôn',
+    category: 'Tĩnh tâm',
+    url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=400&q=70',
+    theme: 'light',
+    description: 'Đỉnh núi tuyết Phú Sĩ soi bóng hồ trong ráng chiều pastel'
+  },
+  {
+    id: 'swiss-alps-lake',
+    name: 'Hồ Nước Alps Thụy Sĩ',
+    category: 'Năng lượng',
+    url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=70',
+    theme: 'light',
+    description: 'Dãy núi đá hùng vĩ và mặt hồ xanh ngọc trong vắt'
+  },
+  {
     id: 'sakura-spring',
     name: 'Hoa Anh Đào',
     category: 'Thư giãn',
@@ -41,22 +68,58 @@ export const WALLPAPER_PRESETS: WallpaperOption[] = [
     description: 'Vườn hoa anh đào mùa xuân Nhật Bản dịu dàng'
   },
   {
-    id: 'zen-garden',
-    name: 'Khu Vườn Zen',
+    id: 'zen-bamboo',
+    name: 'Rừng Trúc Sagano Kyoto',
     category: 'Tĩnh tâm',
     url: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=2000&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=400&q=70',
     theme: 'light',
-    description: 'Rừng trúc xanh mát và sỏi thiền cân bằng cảm xúc'
+    description: 'Rừng trúc xanh mát và không gian thiền định cân bằng mắt'
   },
   {
-    id: 'ocean-waves',
-    name: 'Biển Xanh Nhiệt Đới',
-    category: 'Năng lượng',
-    url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=70',
+    id: 'golden-gate-mist',
+    name: 'Cầu Cổng Vàng Sương Mù',
+    category: 'Tập trung',
+    url: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=400&q=70',
     theme: 'light',
-    description: 'Sóng biển xanh ngọc lam giúp giảm căng thẳng thị giác'
+    description: 'Sương mù bảng lảng sớm mai giúp giảm mỏi mắt khi làm việc'
+  },
+  {
+    id: 'lavender-field',
+    name: 'Cánh Đồng Hoa Oải Hương',
+    category: 'Thư giãn',
+    url: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=70',
+    theme: 'light',
+    description: 'Sắc tím lavender Provence xoa dịu thần kinh căng thẳng'
+  },
+  {
+    id: 'waterfall-nature',
+    name: 'Thác Nước Trong Lành',
+    category: 'Thiên nhiên',
+    url: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=400&q=70',
+    theme: 'light',
+    description: 'Dòng thác mát lành giữa đại ngàn rừng xanh'
+  },
+  {
+    id: 'misty-forest',
+    name: 'Rừng Thông Sương Mù',
+    category: 'Thiên nhiên',
+    url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=400&q=70',
+    theme: 'light',
+    description: 'Không khí trong lành buổi sớm giữa rừng thông bạt ngàn'
+  },
+  {
+    id: 'pastel-sunset-sky',
+    name: 'Hoàng Hôn Tím Pastel',
+    category: 'Chill',
+    url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=2000&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=70',
+    theme: 'dark',
+    description: 'Bầu trời ráng mây tím hồng mộng mơ'
   },
   {
     id: 'aurora-borealis',
@@ -84,15 +147,6 @@ export const WALLPAPER_PRESETS: WallpaperOption[] = [
     thumbnail: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=400&q=70',
     theme: 'dark',
     description: 'Bầu trời sao đêm lấp lánh phản chiếu mặt nước tĩnh lặng'
-  },
-  {
-    id: 'misty-forest',
-    name: 'Rừng Thông Sương Mù',
-    category: 'Thiên nhiên',
-    url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2000&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=400&q=70',
-    theme: 'light',
-    description: 'Không khí trong lành buổi sớm giữa rừng thông bạt ngàn'
   }
 ];
 
@@ -109,6 +163,7 @@ interface WallpaperModalProps {
   onChangeGlassTone: (tone: 'light' | 'dark') => void;
   cardOpacity: number;
   onChangeCardOpacity: (opacity: number) => void;
+  onResetDefaults?: () => void;
 }
 
 export const WallpaperModal: React.FC<WallpaperModalProps> = ({
@@ -124,6 +179,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
   onChangeGlassTone,
   cardOpacity,
   onChangeCardOpacity,
+  onResetDefaults,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
   const [customUrl, setCustomUrl] = useState('');
@@ -168,13 +224,27 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               <p className="text-xs text-slate-400">Chọn ảnh nền tự nhiên để tạo cảm hứng và giảm mỏi mắt khi làm việc</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
-            aria-label="Đóng"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onResetDefaults && (
+              <button
+                type="button"
+                onClick={onResetDefaults}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white border border-white/20 text-xs font-semibold transition cursor-pointer active:scale-95"
+                title="Khôi phục toàn bộ cài đặt hình nền, độ mờ và hiệu ứng kính về ban đầu"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-teal-300" />
+                <span className="hidden sm:inline">Trở về mặc định</span>
+                <span className="sm:hidden">Mặc định</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+              aria-label="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -287,20 +357,27 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              {/* Card Opacity Slider */}
+              {/* Card Opacity Slider - Supports negative for high-contrast dark smoked glass */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-300">
-                  <span>Độ mờ của thẻ (Card)</span>
-                  <span className="font-mono text-teal-300 font-bold">{cardOpacity}%</span>
+                  <span>Độ mờ thẻ (Card Opacity)</span>
+                  <span className="font-mono text-teal-300 font-bold">
+                    {cardOpacity < 0 
+                      ? `${cardOpacity}% (Âm / Kính tối)` 
+                      : cardOpacity === 0 
+                      ? '0% (Trong suốt 100%)' 
+                      : `+${cardOpacity}%`}
+                  </span>
                 </div>
                 <input
                   type="range"
-                  min="15"
-                  max="95"
+                  min="-100"
+                  max="100"
                   step="5"
                   value={cardOpacity}
                   onChange={(e) => onChangeCardOpacity(Number(e.target.value))}
                   className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                  title="Kéo sang trái (< 0%) để tạo lớp kính tối tương phản cao, = 0% để trong suốt hoàn toàn"
                 />
               </div>
 
@@ -329,7 +406,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                 </div>
                 <input
                   type="range"
-                  min="10"
+                  min="0"
                   max="80"
                   step="5"
                   value={overlayOpacity}
@@ -369,10 +446,22 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 sm:px-6 py-3.5 border-t border-white/10 bg-white/5 flex items-center justify-between">
-          <span className="text-[11px] text-slate-400">
-            Lựa chọn được lưu tự động trên trình duyệt của bạn
-          </span>
+        <div className="px-5 sm:px-6 py-3.5 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {onResetDefaults && (
+              <button
+                type="button"
+                onClick={onResetDefaults}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-400/30 text-xs font-semibold transition cursor-pointer active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-teal-300" />
+                <span>Khôi phục mặc định ban đầu</span>
+              </button>
+            )}
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              Lựa chọn được lưu tự động trên trình duyệt của bạn
+            </span>
+          </div>
           <button
             type="button"
             onClick={onClose}
