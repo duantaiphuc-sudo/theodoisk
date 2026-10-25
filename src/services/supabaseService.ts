@@ -258,6 +258,7 @@ export async function insertTelemetryToSupabase(
     in_zone: Boolean((telemetry as any).inZone ?? true),
     tracking_active: Boolean(telemetry.trackingActive ?? true),
     has_alert: Boolean(telemetry.hasAlert),
+    alert_type: (telemetry as TelemetryLog).alertType || null,
     device: user?.deviceId || user?.device || (telemetry as any).source || (telemetry as any).device || 'pi4_node',
   };
 
@@ -402,8 +403,17 @@ export function mapRawDataToTelemetryLogs(rawData: any[]): TelemetryLog[] {
       postureStatus: Number(row.posture_status ?? -1),
       postureLabel: row.posture_label || 'Tư thế ĐÚNG',
       trackingActive: Boolean(row.tracking_active ?? true),
-      hasAlert: Boolean(row.has_alert || row.posture_status === 1 || row.posture_status === 3),
-      alertType: row.alert_type || (row.posture_status === 1 ? 'Cột sống đang bị gù hoặc cúi cổ' : undefined),
+      hasAlert: Boolean(
+        row.has_alert || 
+        row.posture_status === 3 || 
+        (Number(row.bpm) > 0 && (Number(row.bpm) > 100 || Number(row.bpm) < 50)) ||
+        (Number(row.spo2) > 0 && Number(row.spo2) < 95)
+      ),
+      alertType: row.alert_type || (
+        row.posture_status === 3 
+          ? 'Sai tư thế lâu (>2 phút)' 
+          : (Number(row.bpm) > 100 ? 'Nhịp tim nhanh' : Number(row.bpm) > 0 && Number(row.bpm) < 50 ? 'Nhịp tim chậm' : Number(row.spo2) > 0 && Number(row.spo2) < 95 ? 'Thiếu oxy SpO₂' : undefined)
+      ),
       userId: row.user_id,
       userEmail: row.user_email,
       userName: row.user_name,
