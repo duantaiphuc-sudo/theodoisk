@@ -227,13 +227,12 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
 
   const isVerified = session === 'VERIFIED';
   const isWaitLogin = session === 'WAIT_LOGIN';
-  const isAuthFailedOrMismatch = !isVerified && (
+  const isAuthFailedOrMismatch = 
     session === 'REVERIFY_REQUIRED' || 
     session === 'VERIFY_FAILED' || 
     session === 'STRANGER' || 
     session === 'MISMATCH' || 
-    Boolean(progress && progress.includes('0/3'))
-  );
+    Boolean(progress && progress.includes('0/3'));
 
   const hasVector = templateStatus?.hasVector === true;
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;

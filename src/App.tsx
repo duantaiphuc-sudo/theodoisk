@@ -670,15 +670,14 @@ export default function App() {
     const isAbnormalHR = data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax);
     const isAbnormalSpO2 = data.spo2 > 0 && data.spo2 < currentThresholds.spo2Min;
 
-    const isFaceMismatch = !isFaceSessionVerified && (
+    const isFaceMismatch = 
       Boolean(data.faceVerified === false && (data.bpm > 0 || data.inZone || data.postureStatus >= 0)) ||
       Boolean(data.postureLabel && (
         data.postureLabel.toLowerCase().includes('người lạ') ||
         data.postureLabel.toLowerCase().includes('không khớp') ||
         data.postureLabel.toLowerCase().includes('reverify') ||
         data.postureLabel.toLowerCase().includes('sai khuôn mặt')
-      ))
-    );
+      ));
 
     if (isAbnormalHR) {
       hasAlert = true;
@@ -688,25 +687,21 @@ export default function App() {
       alertType = 'Thiếu oxy SpO₂';
     } else if (isFaceMismatch) {
       hasAlert = true;
-      alertType = 'Khuôn mặt không khớp';
+      alertType = 'Khuôn mặt không khớp (Người lạ)';
       setUnauthorizedFaceAlert({
         active: true,
         message: 'Khuôn mặt trước camera Pi 4 không khớp với tài khoản được gán (hoặc phát hiện người lạ).',
         time: new Date().toLocaleTimeString('vi-VN')
       });
-    } else if (data.postureStatus === 3) {
-      // Chỉ khi sai tư thế kéo dài liên tục (>2 phút) mới ghi nhận là một cảnh báo sức khỏe
+    } else if (isBadPosture) {
       hasAlert = true;
-      alertType = 'Sai tư thế lâu (>2 phút)';
+      alertType = data.postureStatus === 3 ? 'Sai tư thế lâu' : 'Sai tư thế';
     } else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
       hasAlert = true;
       alertType = 'Ngoài vùng quan sát';
-    } else {
-      hasAlert = false;
-      alertType = '';
     }
 
-    if ((isFaceSessionVerified || data.faceVerified === true) && !isFaceMismatch) {
+    if (data.faceVerified === true && data.postureStatus !== -1 && !isFaceMismatch) {
       setUnauthorizedFaceAlert(null);
     }
 
@@ -983,12 +978,6 @@ export default function App() {
         const isVerified = status === 'VERIFIED';
         setIsFaceSessionVerified(isVerified);
 
-        // KHI ĐÃ XÁC THỰC THÀNH CÔNG: TẮT NGAY LẬP TỨC MỌI CẢNH BÁO AN NINH
-        if (isVerified) {
-          setUnauthorizedFaceAlert(null);
-          return;
-        }
-
         // Phát hiện khi người khác ngồi vào hoặc quét khuôn mặt thất bại / cần xác thực lại
         const progressStr = String(data?.progress || '');
         const isAuthFailed = 
@@ -999,9 +988,9 @@ export default function App() {
           status === 'UNVERIFIED' ||
           reason === 'OTHER_USER' || 
           reason === 'MISMATCH' || 
-          reason === 'STRANGER' || 
+          reason === 'STRANGER' ||
           reason === 'REVERIFY_REQUIRED' ||
-          (status !== 'WAIT_LOGIN' && progressStr.includes('0/3')) ||
+          progressStr.includes('0/3') ||
           rawErr.toUpperCase().includes('VERIFY_FAILED') ||
           rawErr.toUpperCase().includes('KHÔNG KHỚP') ||
           rawErr.toUpperCase().includes('NGƯỜI LẠ') ||
