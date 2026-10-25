@@ -13,7 +13,8 @@ import {
   LogOut,
   Calendar,
   Clock,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Bot
 } from 'lucide-react';
 import { AuthUser, MainNavTab, SupabaseConnectionConfig } from '../types';
 
@@ -35,6 +36,7 @@ interface TopNavProps {
   supabaseConfig?: SupabaseConnectionConfig;
   onToggleSupabaseConnection?: () => void;
   onOpenSupabaseModal?: () => void;
+  onToggleChatbot?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -54,7 +56,8 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenWallpaper,
   supabaseConfig,
   onToggleSupabaseConnection,
-  onOpenSupabaseModal
+  onOpenSupabaseModal,
+  onToggleChatbot
 }) => {
   const isManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
@@ -187,6 +190,17 @@ export const TopNav: React.FC<TopNavProps> = ({
               </span>
             )}
           </button>
+
+          {/* AI Assistant Quick Button */}
+          {onToggleChatbot && (
+            <button
+              onClick={onToggleChatbot}
+              title="Mở Cửa Sổ Trợ Lý AI"
+              className="w-9 h-9 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 flex items-center justify-center transition cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+            >
+              <Bot className="w-4 h-4 text-teal-600" />
+            </button>
+          )}
 
           {/* Divider */}
           <div className="h-6 w-px bg-slate-200 hidden sm:block mx-0.5" />

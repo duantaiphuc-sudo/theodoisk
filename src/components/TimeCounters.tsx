@@ -193,25 +193,25 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
         </div>
       </div>
 
-      {/* Sit-to-Stand Cycle Live Status Card */}
+      {/* Sit-to-Stand Cycle Live Status Card (Synchronized with Glassmorphism) */}
       <div className={`mt-3.5 p-3.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
         continuousStandingSeconds > 0
           ? isStandingGoalReached
-            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-            : 'bg-slate-100 border-slate-300 text-slate-900'
+            ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 shadow-xs'
+            : 'glass-panel bg-white/50 border-white/40 text-slate-900'
           : continuousSittingSeconds >= thresholds.longSittingSec
-          ? 'bg-amber-50 border-amber-300 text-amber-900 animate-pulse'
-          : 'bg-slate-50 border-slate-200 text-slate-700'
+          ? 'bg-amber-50/80 border-amber-300 text-amber-900 animate-pulse'
+          : 'glass-panel bg-white/50 border-white/30 text-slate-800'
       }`}>
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
             continuousStandingSeconds > 0
               ? isStandingGoalReached
                 ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                : 'bg-white text-slate-700 border-slate-300'
+                : 'bg-white/80 text-slate-700 border-white/40 shadow-2xs'
               : continuousSittingSeconds >= thresholds.longSittingSec
               ? 'bg-amber-100 text-amber-700 border-amber-300'
-              : 'bg-white text-slate-500 border-slate-200'
+              : 'bg-white/80 text-slate-600 border-white/40 shadow-2xs'
           }`}>
             {continuousStandingSeconds > 0 ? (
               isStandingGoalReached ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Footprints className="w-5 h-5 text-slate-700" />

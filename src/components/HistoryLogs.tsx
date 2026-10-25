@@ -12,7 +12,8 @@ import {
   Filter, 
   Database,
   FileText,
-  UserCheck
+  UserCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { TelemetryLog, AuthUser, SupabaseConnectionConfig } from '../types';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
@@ -159,6 +160,51 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
     });
   }, [userFilteredHistory]);
 
+  // Thống kê số lượng theo từng phân loại chuẩn xác, không bị đè chéo
+  const counts = useMemo(() => {
+    let good = 0;
+    let standing = 0;
+    let bad = 0;
+    let presence = 0;
+    let stranger = 0;
+
+    userFilteredHistory.forEach(item => {
+      const pStatus = item.postureStatus;
+      const label = (item.postureLabel || '').toLowerCase();
+      const aType = (item.alertType || '').toLowerCase();
+
+      // 1. Đúng: postureStatus 0 hoặc nhãn 'đúng'
+      if (pStatus === 0 || label === 'đúng' || label.includes('tư thế đúng')) {
+        good++;
+      } 
+      // 2. Đứng: postureStatus === 5 hoặc nhãn 'tư thế đứng' (và KHÔNG phải vắng mặt / không ngồi)
+      else if ((pStatus === 5 || label.includes('tư thế đứng')) && !label.includes('không ngồi') && pStatus !== 2) {
+        standing++;
+      } 
+      // 3. Sai tư thế: postureStatus 1 hoặc 3
+      else if (pStatus === 1 || pStatus === 3 || label.includes('sai') || label.includes('gù')) {
+        bad++;
+      } 
+      // 4. Vắng mặt / Rời ghế / Quay lại bàn làm việc
+      else if (pStatus === 2 || pStatus === 4 || label.includes('vắng') || label.includes('ngoài vùng') || label.includes('rời ghế') || label.includes('quay lại') || label.includes('không ngồi')) {
+        presence++;
+      } 
+      // 5. Cảnh báo người lạ / xác thực thất bại
+      else if (pStatus === -1 || label.includes('người lạ') || label.includes('không khớp') || aType.includes('người lạ') || aType.includes('không khớp')) {
+        stranger++;
+      }
+    });
+
+    return {
+      all: userFilteredHistory.length,
+      good,
+      standing,
+      bad,
+      presence,
+      stranger
+    };
+  }, [userFilteredHistory]);
+
   const filteredLogs = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return userFilteredHistory.filter(item => {
@@ -183,10 +229,42 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         return false;
       }
 
+      const label = (item.postureLabel || '').toLowerCase();
+      const aType = (item.alertType || '').toLowerCase();
+
       if (filterPosture === 'all') return true;
-      if (filterPosture === 'good') return item.postureStatus === 0;
-      if (filterPosture === 'standing') return item.postureStatus === 5;
-      if (filterPosture === 'bad') return item.postureStatus === 1 || item.postureStatus === 3;
+      if (filterPosture === 'good') {
+        return item.postureStatus === 0 || label === 'đúng' || label.includes('tư thế đúng');
+      }
+      if (filterPosture === 'standing') {
+        return (item.postureStatus === 5 || label.includes('tư thế đứng')) && !label.includes('không ngồi') && item.postureStatus !== 2;
+      }
+      if (filterPosture === 'bad') {
+        return item.postureStatus === 1 || item.postureStatus === 3 || label.includes('sai') || label.includes('gù');
+      }
+      if (filterPosture === 'presence') {
+        return (
+          item.postureStatus === 2 || 
+          item.postureStatus === 4 ||
+          label.includes('vắng') || 
+          label.includes('ngoài vùng') || 
+          label.includes('rời ghế') || 
+          label.includes('quay lại') ||
+          label.includes('không ngồi')
+        );
+      }
+      if (filterPosture === 'stranger') {
+        return (
+          item.postureStatus === -1 && (
+            aType.includes('khuôn mặt') ||
+            aType.includes('người lạ') ||
+            aType.includes('an ninh') ||
+            label.includes('người lạ') ||
+            label.includes('khuôn mặt') ||
+            label.includes('không khớp')
+          )
+        );
+      }
       return true;
     });
   }, [userFilteredHistory, searchTerm, filterPosture, filterDate]);
@@ -421,7 +499,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         )}
 
         {/* Posture Type Filter Buttons */}
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 py-1">
           <button
             onClick={() => setFilterPosture('all')}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
@@ -430,7 +508,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Tất cả ({userFilteredHistory.length})
+            Tất cả ({counts.all})
           </button>
           <button
             onClick={() => setFilterPosture('good')}
@@ -440,7 +518,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
             }`}
           >
-            Tư thế Đúng
+            ✓ Đúng ({counts.good})
           </button>
           <button
             onClick={() => setFilterPosture('standing')}
@@ -450,7 +528,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
             }`}
           >
-            Tư thế Đứng
+            🚶 Đứng ({counts.standing})
           </button>
           <button
             onClick={() => setFilterPosture('bad')}
@@ -460,7 +538,28 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
             }`}
           >
-            Tư thế Sai / Gù
+            ⚠ Sai/Gù ({counts.bad})
+          </button>
+          <button
+            onClick={() => setFilterPosture('presence')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+              filterPosture === 'presence' 
+                ? 'bg-amber-600 text-white shadow-2xs' 
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            ⏳ Vắng / Quay lại ({counts.presence})
+          </button>
+          <button
+            onClick={() => setFilterPosture('stranger')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
+              filterPosture === 'stranger' 
+                ? 'bg-rose-700 text-white shadow-2xs ring-2 ring-rose-400' 
+                : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-300'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Cảnh báo Người lạ ({counts.stranger})</span>
           </button>
         </div>
       </div>
@@ -492,11 +591,48 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredLogs.map((item, idx) => {
+                    const pStatus = item.postureStatus;
+                    const pLabel = (item.postureLabel || '').toLowerCase();
+                    const aType = (item.alertType || '').toLowerCase();
+
+                    const isGood = pStatus === 0 || pLabel === 'đúng' || pLabel.includes('tư thế đúng');
+                    const isStanding = !isGood && (pStatus === 5 || (pLabel.includes('đứng') && !pLabel.includes('không ngồi')));
+                    const isBad = !isGood && !isStanding && (pStatus === 1 || pStatus === 3 || pLabel.includes('sai') || pLabel.includes('gù'));
+                    const isReturn = pLabel.includes('quay lại');
+                    const isAbsent = !isGood && !isStanding && (pStatus === 2 || pStatus === 4 || pLabel.includes('vắng') || pLabel.includes('ngoài vùng') || pLabel.includes('rời ghế') || pLabel.includes('không ngồi'));
+                    const isStrangerEvent = !isGood && !isStanding && !isBad && (
+                      pStatus === -1 ||
+                      pLabel.includes('người lạ') ||
+                      pLabel.includes('không khớp') ||
+                      pLabel.includes('an ninh') ||
+                      aType.includes('người lạ') ||
+                      aType.includes('không khớp')
+                    );
+
                     let postureBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                    if (item.postureStatus === 0) postureBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                    else if (item.postureStatus === 5) postureBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
-                    else if (item.postureStatus === 1 || item.postureStatus === 3) postureBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
-                    else if (item.postureStatus === 4) postureBadgeClass = 'bg-amber-50 text-amber-800 border-amber-200';
+                    let postureIcon = null;
+
+                    if (isGood) {
+                      postureBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold';
+                      postureIcon = <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />;
+                    } else if (isStanding) {
+                      postureBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold';
+                      postureIcon = <span className="text-[10px]">🚶</span>;
+                    } else if (isBad) {
+                      postureBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
+                      postureIcon = <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />;
+                    } else if (isReturn) {
+                      postureBadgeClass = 'bg-teal-50 text-teal-800 border-teal-200 font-bold';
+                      postureIcon = <CheckCircle2 className="w-3 h-3 text-teal-600 shrink-0" />;
+                    } else if (isAbsent) {
+                      postureBadgeClass = 'bg-amber-50 text-amber-800 border-amber-200 font-bold';
+                      postureIcon = <span className="text-[10px]">⏳</span>;
+                    } else if (isStrangerEvent) {
+                      postureBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
+                      postureIcon = <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />;
+                    }
+
+                    const isSimulatedLog = Boolean(item.device?.includes('Giả Lập') || (item as any).source?.includes('Giả Lập'));
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition group">
@@ -510,10 +646,15 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                               <span className="font-mono text-slate-900 font-bold">
                                 {normalizeDateFormatted(item.dateFormatted || item.timestamp) || '--/--/----'}
                               </span>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 flex-wrap">
                                 <span className="font-mono text-[11px] text-slate-500">
                                   {item.timeFormatted}
                                 </span>
+                                {isSimulatedLog && (
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                                    Giả lập
+                                  </span>
+                                )}
                                 {(item.userName || item.userEmail) && (
                                   <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 max-w-[120px] truncate" title={item.userEmail}>
                                     {item.userName || item.userEmail}
@@ -524,8 +665,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                           </div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border whitespace-nowrap ${postureBadgeClass}`}>
-                            {item.postureLabel}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border whitespace-nowrap ${postureBadgeClass}`}>
+                            {postureIcon}
+                            <span>{item.postureLabel}</span>
                           </span>
                         </td>
                         <td className="px-4 py-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
@@ -541,17 +683,30 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                           <span className="text-slate-600">{item.trackingActive ? 'Trong vùng' : 'Vắng'}</span>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          {item.hasAlert ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md whitespace-nowrap">
-                              <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                              {item.alertType || 'Cảnh báo'}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium whitespace-nowrap">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                              Bình thường
-                            </span>
-                          )}
+                          {(() => {
+                            const hasRealAlert = Boolean(
+                              item.hasAlert && 
+                              item.alertType && 
+                              !item.alertType.toLowerCase().includes('đúng') &&
+                              item.alertType !== 'Sai tư thế'
+                            );
+
+                            if (hasRealAlert) {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                  <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  {item.alertType}
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium whitespace-nowrap">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                Bình thường
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* RESTORED ROW-LEVEL DELETE BUTTON */}
@@ -596,11 +751,48 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             {/* Mobile Card Feed View (Zero horizontal scroll, perfectly balanced) */}
             <div className="block sm:hidden divide-y divide-slate-100 p-2 space-y-2 max-h-[400px] overflow-y-auto">
               {filteredLogs.map(item => {
+                const pStatus = item.postureStatus;
+                const pLabel = (item.postureLabel || '').toLowerCase();
+                const aType = (item.alertType || '').toLowerCase();
+
+                const isGood = pStatus === 0 || pLabel === 'đúng' || pLabel.includes('tư thế đúng');
+                const isStanding = !isGood && (pStatus === 5 || (pLabel.includes('đứng') && !pLabel.includes('không ngồi')));
+                const isBad = !isGood && !isStanding && (pStatus === 1 || pStatus === 3 || pLabel.includes('sai') || pLabel.includes('gù'));
+                const isReturn = pLabel.includes('quay lại');
+                const isAbsent = !isGood && !isStanding && (pStatus === 2 || pStatus === 4 || pLabel.includes('vắng') || pLabel.includes('ngoài vùng') || pLabel.includes('rời ghế') || pLabel.includes('không ngồi'));
+                const isStrangerEvent = !isGood && !isStanding && !isBad && (
+                  pStatus === -1 ||
+                  pLabel.includes('người lạ') ||
+                  pLabel.includes('không khớp') ||
+                  pLabel.includes('an ninh') ||
+                  aType.includes('người lạ') ||
+                  aType.includes('không khớp')
+                );
+
                 let postureBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                if (item.postureStatus === 0) postureBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-                else if (item.postureStatus === 5) postureBadgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-300';
-                else if (item.postureStatus === 1 || item.postureStatus === 3) postureBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300';
-                else if (item.postureStatus === 4) postureBadgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+                let postureIcon = null;
+
+                if (isGood) {
+                  postureBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold';
+                  postureIcon = <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />;
+                } else if (isStanding) {
+                  postureBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold';
+                  postureIcon = <span className="text-[10px]">🚶</span>;
+                } else if (isBad) {
+                  postureBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
+                  postureIcon = <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />;
+                } else if (isReturn) {
+                  postureBadgeClass = 'bg-teal-50 text-teal-800 border-teal-200 font-bold';
+                  postureIcon = <CheckCircle2 className="w-3 h-3 text-teal-600 shrink-0" />;
+                } else if (isAbsent) {
+                  postureBadgeClass = 'bg-amber-50 text-amber-800 border-amber-200 font-bold';
+                  postureIcon = <span className="text-[10px]">⏳</span>;
+                } else if (isStrangerEvent) {
+                  postureBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
+                  postureIcon = <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />;
+                }
+
+                const isSimulatedLog = Boolean(item.device?.includes('Giả Lập') || (item as any).source?.includes('Giả Lập'));
 
                 return (
                   <div key={item.id} className="p-3 rounded-xl bg-slate-50/90 border border-slate-200 space-y-2.5">
@@ -610,6 +802,11 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                         <span className="font-bold text-slate-900">{normalizeDateFormatted(item.dateFormatted || item.timestamp) || '--/--/----'}</span>
                         <span className="text-slate-400">•</span>
                         <span className="text-slate-600">{item.timeFormatted}</span>
+                        {isSimulatedLog && (
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                            Giả lập
+                          </span>
+                        )}
                         {(item.userName || item.userEmail) && (
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 max-w-[90px] truncate" title={item.userEmail}>
                             {item.userName || item.userEmail}
@@ -618,8 +815,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                       </div>
                       
                       <div className="flex items-center gap-1.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border whitespace-nowrap shrink-0 ${postureBadgeClass}`}>
-                          {item.postureLabel}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border whitespace-nowrap shrink-0 ${postureBadgeClass}`}>
+                          {postureIcon}
+                          <span>{item.postureLabel}</span>
                         </span>
                         {/* Mobile Delete Button */}
                         {onDeleteSingleLog && (
@@ -657,18 +855,31 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between pt-1 text-xs">
-                      <span className="text-slate-500 text-[11px]">Trạng thái:</span>
-                      {item.hasAlert ? (
-                        <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md text-[11px] whitespace-nowrap">
-                          <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                          <span>{item.alertType || 'Cảnh báo'}</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-medium text-[11px] whitespace-nowrap">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                          <span>Bình thường</span>
-                        </span>
-                      )}
+                      <span className="text-slate-500 text-[11px]">Cảnh báo:</span>
+                      {(() => {
+                        const hasRealAlert = Boolean(
+                          item.hasAlert && 
+                          item.alertType && 
+                          !item.alertType.toLowerCase().includes('đúng') &&
+                          item.alertType !== 'Sai tư thế'
+                        );
+
+                        if (hasRealAlert) {
+                          return (
+                            <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md text-[11px] whitespace-nowrap">
+                              <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                              <span>{item.alertType}</span>
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-medium text-[11px] whitespace-nowrap">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Bình thường</span>
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

@@ -21,7 +21,8 @@ import {
   Sliders,
   Wrench,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Bot
 } from 'lucide-react';
 import { AuthUser, MainNavTab } from '../types';
 
@@ -49,6 +50,8 @@ interface SidebarProps {
   onOpenMobile?: () => void;
   isCollapsed?: boolean;
   setIsCollapsed?: React.Dispatch<React.SetStateAction<boolean>>;
+  onToggleChatbot?: () => void;
+  isChatbotOpen?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -74,7 +77,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   onOpenMobile,
   isCollapsed = false,
-  setIsCollapsed
+  setIsCollapsed,
+  onToggleChatbot,
+  isChatbotOpen
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const collapsed = !!isCollapsed;
@@ -295,6 +300,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             );
           })}
+
+          {/* Nút Kích Hoạt Cửa Sổ Trợ Lý AI */}
+          <button
+            onClick={() => {
+              onToggleChatbot?.();
+              onCloseMobile();
+            }}
+            title={!isExpanded ? "Trợ Lý AI Công Thái Học" : undefined}
+            className={`w-full flex items-center transition-all cursor-pointer relative group ${
+              isExpanded
+                ? `justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm ${
+                    isChatbotOpen
+                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-teal-50/80 hover:text-teal-900 border border-teal-200/60'
+                  }`
+                : `justify-center w-11 h-11 mx-auto rounded-xl ${
+                    isChatbotOpen
+                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-teal-50/80 hover:text-teal-900 border border-teal-200/60'
+                  }`
+            }`}
+          >
+            <div className={`flex items-center gap-3 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
+              <Bot className={`w-4.5 h-4.5 shrink-0 ${isChatbotOpen ? 'text-white' : 'text-teal-600'}`} />
+              {isExpanded && <span className="whitespace-nowrap truncate font-bold">Trợ Lý AI</span>}
+            </div>
+
+            {isExpanded && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-teal-500/20 text-teal-700 border border-teal-400/30">
+                AI
+              </span>
+            )}
+
+            {!isExpanded && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-teal-500 ring-2 ring-white"></span>
+            )}
+          </button>
 
           {/* Quick controls section */}
           <div className="pt-3 mt-2 border-t border-slate-100 space-y-1">
@@ -551,7 +593,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           {/* Live Connection Pill */}
           {isExpanded ? (
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/40 hover:bg-white/60 dark:bg-slate-800/40 border border-white/30 dark:border-white/10 text-xs backdrop-blur-xs shadow-2xs transition-all">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl glass-panel bg-white/50 hover:bg-white/70 border border-white/30 text-xs backdrop-blur-md shadow-2xs transition-all">
               <div className="flex items-center gap-2">
                 {isConnected ? (
                   <>
@@ -579,7 +621,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <div
               title={isConnected ? "Firebase IoT: Trực tuyến (LIVE)" : "Firebase IoT: Chưa kết nối (OFFLINE)"}
-              className="w-10 h-7 rounded-lg bg-white/40 dark:bg-slate-800/40 border border-white/30 dark:border-white/10 flex items-center justify-center cursor-help backdrop-blur-xs"
+              className="w-10 h-7 rounded-lg glass-panel bg-white/50 border border-white/30 flex items-center justify-center cursor-help backdrop-blur-md"
             >
               {isConnected ? (
                 <span className="relative flex h-2.5 w-2.5">
@@ -595,7 +637,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* User Account Card */}
           {currentUser && (
             isExpanded ? (
-              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/40 hover:bg-white/60 dark:bg-slate-800/40 border border-white/30 dark:border-white/10 shadow-2xs backdrop-blur-xs transition-all">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl glass-panel bg-white/50 hover:bg-white/70 border border-white/30 shadow-2xs backdrop-blur-md transition-all">
                 <button
                   onClick={onOpenProfile}
                   className="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80 transition cursor-pointer"

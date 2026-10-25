@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   HealthTelemetry, 
   TimeCalculations, 
@@ -54,7 +54,8 @@ import {
   normalizeDateFormatted,
   getSavedSupabaseConfig,
   disconnectSupabase,
-  reconnectSupabase
+  reconnectSupabase,
+  upsertDailyOHPSSummaryToSupabase
 } from './services/supabaseService';
 import { SupabaseConnectionConfig } from './types';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -66,7 +67,9 @@ import { FaceControlPanel } from './components/FaceControlPanel';
 import { GreetingGoalCard } from './components/GreetingGoalCard';
 import { DailyTasksCard } from './components/DailyTasksCard';
 import { WallpaperModal } from './components/WallpaperModal';
-import { watchFaceSession } from './services/faceCommandService';
+import { OHPSDetailModal } from './components/OHPSDetailModal';
+import { calculateOHPSFromLogs } from './utils/ohpsCalculator';
+import { watchFaceSession, requestFaceAction } from './services/faceCommandService';
 import { watchDeviceAssignment, pushWebTftAlert, calculateTftStatusCode } from './services/webTftAlertService';
 import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
 import { 
@@ -82,6 +85,7 @@ import {
   Layers, 
   ExternalLink,
   Shield,
+  ShieldAlert,
   CameraOff
 } from 'lucide-react';
 
@@ -173,6 +177,12 @@ export default function App() {
   const [isRpiGuideModalOpen, setIsRpiGuideModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
+  const [isOHPSModalOpen, setIsOHPSModalOpen] = useState(false);
+  const [unauthorizedFaceAlert, setUnauthorizedFaceAlert] = useState<{
+    active: boolean;
+    message: string;
+    time: string;
+  } | null>(null);
 
   // 2.0 Wallpaper & Glassmorphism Customization State
   const [dashboardWallpaper, setDashboardWallpaper] = useState<string>(() => {
@@ -435,7 +445,46 @@ export default function App() {
     return () => unsub();
   }, [currentUser, firebaseConfig]);
 
+  // Calculate OHPS Productivity Score based on history logs & tasks
+  const ohpsData = useMemo(() => {
+    const rawLogs = history.map(l => ({
+      id: typeof l.id === 'number' ? l.id : undefined,
+      created_at: l.timestamp,
+      user_id: l.userId || currentUser?.id || '',
+      bpm: l.bpm,
+      spo2: l.spo2,
+      posture_status: l.postureStatus,
+      posture_label: l.postureLabel || (l.postureStatus === 0 ? 'Đúng' : l.postureStatus === 2 ? 'Vắng' : 'Sai tư thế')
+    }));
+
+    const rawTasks = (taskNotifications || []).map(t => ({
+      id: t.id,
+      status: (t.status === 'completed' ? 'completed' : 'pending') as 'pending' | 'completed',
+      assigned_to: t.targetUserId,
+    }));
+
+    const completedBreaks = Math.max(1, Math.floor((timeStats.standingSeconds || 0) / 60));
+    return calculateOHPSFromLogs(rawLogs, rawTasks, 4, completedBreaks, 80);
+  }, [history, taskNotifications, timeStats.standingSeconds, currentUser?.id]);
+
+  // Tự động đồng bộ điểm OHPS hàng ngày vào bảng daily_ohps_summary trên Supabase
+  useEffect(() => {
+    if (!currentUser?.id || isSimulating) return;
+    const timeout = setTimeout(() => {
+      upsertDailyOHPSSummaryToSupabase(currentUser.id, {
+        posture_score: ohpsData.breakdown.S_posture,
+        break_score: ohpsData.breakdown.S_break,
+        vital_score: ohpsData.breakdown.S_vital >= 0 ? ohpsData.breakdown.S_vital : 0,
+        task_score: ohpsData.breakdown.S_task,
+        ohps_score: ohpsData.ohpsScore,
+        classification: ohpsData.evaluation.level,
+      }).catch(err => console.warn('[Supabase OHPS sync]', err));
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [currentUser?.id, ohpsData, isSimulating]);
+
   // Refs for audio throttle & last alert timestamp & Firebase history throttle
+  const wasAbsentRef = useRef<boolean | null>(null);
   const lastAlertPlayedRef = useRef<number>(0);
   const lastPostureVoiceRef = useRef<number>(0);
   const lastZoneVoiceRef = useRef<number>(0);
@@ -621,18 +670,44 @@ export default function App() {
     const isAbnormalHR = data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax);
     const isAbnormalSpO2 = data.spo2 > 0 && data.spo2 < currentThresholds.spo2Min;
 
+    const isFaceMismatch = !isFaceSessionVerified && (
+      Boolean(data.faceVerified === false && (data.bpm > 0 || data.inZone || data.postureStatus >= 0)) ||
+      Boolean(data.postureLabel && (
+        data.postureLabel.toLowerCase().includes('người lạ') ||
+        data.postureLabel.toLowerCase().includes('không khớp') ||
+        data.postureLabel.toLowerCase().includes('reverify') ||
+        data.postureLabel.toLowerCase().includes('sai khuôn mặt')
+      ))
+    );
+
     if (isAbnormalHR) {
       hasAlert = true;
       alertType = data.bpm < currentThresholds.hrMin ? 'Nhịp tim chậm' : 'Nhịp tim nhanh';
     } else if (isAbnormalSpO2) {
       hasAlert = true;
       alertType = 'Thiếu oxy SpO₂';
-    } else if (isBadPosture) {
+    } else if (isFaceMismatch) {
       hasAlert = true;
-      alertType = data.postureStatus === 3 ? 'Sai tư thế lâu' : 'Sai tư thế';
+      alertType = 'Khuôn mặt không khớp';
+      setUnauthorizedFaceAlert({
+        active: true,
+        message: 'Khuôn mặt trước camera Pi 4 không khớp với tài khoản được gán (hoặc phát hiện người lạ).',
+        time: new Date().toLocaleTimeString('vi-VN')
+      });
+    } else if (data.postureStatus === 3) {
+      // Chỉ khi sai tư thế kéo dài liên tục (>2 phút) mới ghi nhận là một cảnh báo sức khỏe
+      hasAlert = true;
+      alertType = 'Sai tư thế lâu (>2 phút)';
     } else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
       hasAlert = true;
       alertType = 'Ngoài vùng quan sát';
+    } else {
+      hasAlert = false;
+      alertType = '';
+    }
+
+    if ((isFaceSessionVerified || data.faceVerified === true) && !isFaceMismatch) {
+      setUnauthorizedFaceAlert(null);
     }
 
     // Audio chime & Vietnamese voice alert triggers với cơ chế giãn cách (Throttling) chuẩn y tế công thái học
@@ -641,8 +716,17 @@ export default function App() {
     const canPlayVoice = currentThresholds.voiceAlertEnabled;
 
     if (canPlayAudio || canPlayVoice) {
+      // 0. Cảnh báo an ninh: Khuôn mặt không khớp / Người lạ (giãn cách 30 giây)
+      if (isFaceMismatch && now - lastAlertPlayedRef.current > 30000) {
+        lastAlertPlayedRef.current = now;
+        playErgonomicVoiceAlert('custom', {
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+          customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp với chủ tài khoản!',
+        });
+      }
       // 1. Cảnh báo tư thế sai ("Xin hãy ngồi thẳng lưng lên!" hoặc "Bạn đang ngồi sai tư thế quá lâu!")
-      if (isBadPosture) {
+      else if (isBadPosture) {
         const isProlongedBad = data.postureStatus === 3;
         const timeSinceLastVoice = now - lastPostureVoiceRef.current;
         // Giãn cách: Sai lâu nhắc sau mỗi 30s, sai mới phát hiện nhắc sau mỗi 45s (tránh spam âm thanh liên tục)
@@ -739,6 +823,37 @@ export default function App() {
       userName: activeUser?.fullName || activeUser?.username,
       device: activeUser?.device || ''
     };
+
+    // Ghi nhận chuyển đổi trạng thái: Vắng mặt (Rời ghế) hoặc Quay lại bàn làm việc
+    const isCurrentlyAbsent = isAbsent || data.postureStatus === 2 || !data.inZone;
+    if (wasAbsentRef.current !== null && wasAbsentRef.current !== isCurrentlyAbsent) {
+      const presenceText = isCurrentlyAbsent ? 'Vắng mặt (Rời ghế làm việc)' : 'Quay lại bàn làm việc';
+      const presenceStatus = isCurrentlyAbsent ? 2 : (data.postureStatus >= 0 ? data.postureStatus : 0);
+      const presenceTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const presenceEvent: TelemetryLog = {
+        id: `rec-pres-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        timestamp: new Date().toISOString(),
+        timeFormatted: presenceTime,
+        dateFormatted,
+        dateTimeFormatted: `${dateFormatted} ${presenceTime}`,
+        bpm: isCurrentlyAbsent ? 0 : data.bpm,
+        spo2: isCurrentlyAbsent ? 0 : data.spo2,
+        postureStatus: presenceStatus,
+        postureLabel: presenceText,
+        trackingActive: !isCurrentlyAbsent,
+        hasAlert: false,
+        userId: activeUser?.id,
+        userEmail: activeUser?.email,
+        userName: activeUser?.fullName || activeUser?.username,
+        device: activeUser?.device || ''
+      };
+
+      setHistory(prev => [presenceEvent, ...prev.slice(0, 299)]);
+      if (activeUser) {
+        insertTelemetryToSupabase(presenceEvent, activeUser).catch(() => {});
+      }
+    }
+    wasAbsentRef.current = isCurrentlyAbsent;
 
     // === BỎ QUA GHI NHẬT KÝ KHI ĐANG CHỜ XÁC THỰC KHUÔN MẶT ===
     const pStatus = Number(data.postureStatus ?? -1);
@@ -863,7 +978,80 @@ export default function App() {
     try {
       const unsub = watchFaceSession(assignedDevice, data => {
         const status = String(data?.status || 'WAIT_LOGIN');
-        setIsFaceSessionVerified(status === 'VERIFIED');
+        const reason = String(data?.reason || '');
+        const rawErr = String(data?.error || '');
+        const isVerified = status === 'VERIFIED';
+        setIsFaceSessionVerified(isVerified);
+
+        // KHI ĐÃ XÁC THỰC THÀNH CÔNG: TẮT NGAY LẬP TỨC MỌI CẢNH BÁO AN NINH
+        if (isVerified) {
+          setUnauthorizedFaceAlert(null);
+          return;
+        }
+
+        // Phát hiện khi người khác ngồi vào hoặc quét khuôn mặt thất bại / cần xác thực lại
+        const progressStr = String(data?.progress || '');
+        const isAuthFailed = 
+          status === 'VERIFY_FAILED' || 
+          status === 'REVERIFY_REQUIRED' ||
+          status === 'STRANGER' ||
+          status === 'MISMATCH' ||
+          status === 'UNVERIFIED' ||
+          reason === 'OTHER_USER' || 
+          reason === 'MISMATCH' || 
+          reason === 'STRANGER' || 
+          reason === 'REVERIFY_REQUIRED' ||
+          (status !== 'WAIT_LOGIN' && progressStr.includes('0/3')) ||
+          rawErr.toUpperCase().includes('VERIFY_FAILED') ||
+          rawErr.toUpperCase().includes('KHÔNG KHỚP') ||
+          rawErr.toUpperCase().includes('NGƯỜI LẠ') ||
+          rawErr.toUpperCase().includes('REVERIFY');
+
+        if (isAuthFailed) {
+          const alertMsg = (reason === 'OTHER_USER' || status === 'STRANGER')
+            ? 'Phát hiện người khác đang ngồi trước trạm! Khuôn mặt không khớp với chủ tài khoản.'
+            : status === 'REVERIFY_REQUIRED'
+            ? 'Khuôn mặt trước camera Pi 4 không khớp với mẫu đã lưu. Vui lòng bấm Quét Lại Khuôn Mặt.'
+            : 'Quét khuôn mặt không thành công: Khuôn mặt trước Camera Pi 4 không khớp với dữ liệu mẫu của bạn.';
+
+          setUnauthorizedFaceAlert({
+            active: true,
+            message: alertMsg,
+            time: new Date().toLocaleTimeString('vi-VN')
+          });
+
+          if (thresholdsRef.current.soundEnabled || thresholdsRef.current.voiceAlertEnabled) {
+            playErgonomicVoiceAlert('custom', {
+              customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp với chủ tài khoản!'
+            });
+          }
+
+          const active = currentUserRef.current;
+          if (active) {
+            const dateStr = normalizeDateFormatted(new Date());
+            const timeStr = new Date().toLocaleTimeString('vi-VN');
+            const secLog: TelemetryLog = {
+              id: `sec-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              timestamp: new Date().toISOString(),
+              timeFormatted: timeStr,
+              dateFormatted: dateStr,
+              dateTimeFormatted: `${dateStr} ${timeStr}`,
+              bpm: 0,
+              spo2: 0,
+              postureStatus: -1,
+              postureLabel: 'Cảnh báo an ninh: Quét khuôn mặt thất bại / Người lạ',
+              trackingActive: false,
+              hasAlert: true,
+              alertType: 'Khuôn mặt không khớp',
+              userId: active.id,
+              userEmail: active.email,
+              userName: active.fullName,
+              device: active.device || ''
+            };
+            setHistory(prev => [secLog, ...prev.slice(0, 299)]);
+            insertTelemetryToSupabase(secLog, active).catch(() => {});
+          }
+        }
       });
       return () => unsub();
     } catch {
@@ -1750,6 +1938,8 @@ export default function App() {
         onOpenMobile={() => setMobileSidebarOpen(true)}
         isCollapsed={sidebarCollapsed}
         setIsCollapsed={setSidebarCollapsed}
+        onToggleChatbot={() => setIsChatbotOpen(!isChatbotOpen)}
+        isChatbotOpen={isChatbotOpen}
       />
 
       {/* 2. Main Content Wrapper: Accommodates sidebar width on desktop */}
@@ -1773,6 +1963,7 @@ export default function App() {
           supabaseConfig={supabaseConfig}
           onToggleSupabaseConnection={handleToggleSupabaseConnection}
           onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+          onToggleChatbot={() => setIsChatbotOpen(!isChatbotOpen)}
         />
 
         {/* Main Content Dashboard */}
@@ -1798,6 +1989,59 @@ export default function App() {
                 {clearNotice}
               </span>
               <button onClick={() => setClearNotice(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2 cursor-pointer">✕</button>
+            </div>
+          )}
+
+          {/* Cảnh Báo An Ninh: Quét Khuôn Mặt Thất Bại / Phát Hiện Người Lạ */}
+          {unauthorizedFaceAlert?.active && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 border-2 border-rose-500 shadow-lg text-slate-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fadeIn">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <ShieldAlert className="w-6 h-6 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-extrabold text-sm sm:text-base text-rose-700 tracking-tight">
+                      🚨 CẢNH BÁO AN NINH: KHUÔN MẶT KHÔNG TRÙNG KHỚP
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">
+                      {unauthorizedFaceAlert.time}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                    {unauthorizedFaceAlert.message}
+                  </p>
+                  <p className="text-[11px] text-rose-700 font-semibold">
+                    Hệ thống đã tạm dừng ghi nhận dữ liệu tư thế & sinh trắc học vào tài khoản của bạn để bảo vệ tính chính xác.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 self-end sm:self-center">
+                {assignedDevice && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await requestFaceAction(assignedDevice, 'VERIFY_FACE');
+                        setUnauthorizedFaceAlert(null);
+                      } catch (e: any) {
+                        alert(e?.message || 'Lỗi gửi lệnh quét lại');
+                      }
+                    }}
+                    className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition shadow-sm cursor-pointer whitespace-nowrap active:scale-95"
+                  >
+                    Quét Lại Khuôn Mặt
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setUnauthorizedFaceAlert(null)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition shadow-sm cursor-pointer whitespace-nowrap active:scale-95"
+                >
+                  Đã Rõ
+                </button>
+              </div>
             </div>
           )}
 
@@ -2048,6 +2292,26 @@ export default function App() {
                       <CameraOff className="w-3.5 h-3.5" />
                       <span>Rút Cam (-1)</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setUnauthorizedFaceAlert({
+                          active: true,
+                          message: 'Phát hiện người khác đang ngồi trước trạm! Khuôn mặt trước Camera Pi 4 không khớp với chủ tài khoản.',
+                          time: new Date().toLocaleTimeString('vi-VN')
+                        });
+                        if (thresholdsRef.current.soundEnabled || thresholdsRef.current.voiceAlertEnabled) {
+                          playErgonomicVoiceAlert('custom', {
+                            customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp với chủ tài khoản!'
+                          });
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-rose-700 hover:bg-rose-50 border border-rose-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Giả lập người khác ngồi vào trạm và quét khuôn mặt không khớp"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Thử Quét Lỗi (Lạ)</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -2092,6 +2356,8 @@ export default function App() {
                     thresholds={thresholds}
                     onResetTimers={handleResetTimers}
                     wallpaperUrl={dashboardWallpaper}
+                    ohpsData={ohpsData}
+                    onOpenOHPSModal={() => setIsOHPSModalOpen(true)}
                     className="h-full"
                   />
                 </div>
@@ -2433,8 +2699,8 @@ export default function App() {
           )}
         </main>
 
-        {/* Footer */}
-        <footer className="border-t border-slate-200 bg-white py-4 sm:py-5 text-center text-xs text-slate-500 mt-auto">
+        {/* Footer (Synchronized with Glassmorphism) */}
+        <footer className="border-t border-white/30 glass-panel py-4 sm:py-5 text-center text-xs text-slate-600 mt-auto backdrop-blur-xl">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
             {isManager ? (
@@ -2548,6 +2814,15 @@ export default function App() {
         cardOpacity={cardOpacity}
         onChangeCardOpacity={handleChangeCardOpacity}
         onResetDefaults={handleResetWallpaperDefaults}
+      />
+
+      {/* Modal Chi Tiết Điểm Năng Suất (OHPS) */}
+      <OHPSDetailModal
+        isOpen={isOHPSModalOpen}
+        onClose={() => setIsOHPSModalOpen(false)}
+        ohpsData={ohpsData}
+        userName={currentUser?.fullName || currentUser?.username}
+        historyLogs={history}
       />
 
       {/* Modals (Only Manager has access) */}

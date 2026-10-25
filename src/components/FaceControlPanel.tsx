@@ -227,6 +227,13 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
 
   const isVerified = session === 'VERIFIED';
   const isWaitLogin = session === 'WAIT_LOGIN';
+  const isAuthFailedOrMismatch = !isVerified && (
+    session === 'REVERIFY_REQUIRED' || 
+    session === 'VERIFY_FAILED' || 
+    session === 'STRANGER' || 
+    session === 'MISMATCH' || 
+    Boolean(progress && progress.includes('0/3'))
+  );
 
   const hasVector = templateStatus?.hasVector === true;
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;
@@ -239,6 +246,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
             isVerified 
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+              : isAuthFailedOrMismatch
+              ? 'bg-rose-50 text-rose-700 border-rose-300'
               : 'bg-indigo-50 text-indigo-700 border-indigo-200'
           }`}>
             <ScanFace className="w-5 h-5" />
@@ -249,6 +258,11 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
               {isVerified && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đã xác thực
+                </span>
+              )}
+              {isAuthFailedOrMismatch && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 whitespace-nowrap animate-pulse">
+                  <ShieldAlert className="w-3 h-3 text-rose-600" /> Sai khuôn mặt
                 </span>
               )}
             </h3>
@@ -266,7 +280,9 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
             className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border whitespace-nowrap shadow-2xs ${
               isVerified
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : isWaitLogin || session === 'REVERIFY_REQUIRED'
+                : isAuthFailedOrMismatch
+                ? 'bg-rose-50 text-rose-800 border-rose-300 ring-2 ring-rose-200'
+                : isWaitLogin
                 ? 'bg-amber-50 text-amber-800 border-amber-300'
                 : 'bg-slate-100 text-slate-700 border-slate-200'
             }`}
@@ -274,7 +290,9 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           >
             {isVerified ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : isWaitLogin || session === 'REVERIFY_REQUIRED' ? (
+            ) : isAuthFailedOrMismatch ? (
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+            ) : isWaitLogin ? (
               <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
             ) : (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
@@ -282,8 +300,12 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
             <span>
               {session === 'VERIFIED' 
                 ? 'ĐÃ XÁC THỰC' 
+                : session === 'STRANGER'
+                ? 'PHÁT HIỆN NGƯỜI LẠ'
                 : session === 'REVERIFY_REQUIRED'
-                ? 'TẠM KHÓA' 
+                ? 'SAI KHUÔN MẶT / CẦN QUÉT LẠI' 
+                : session === 'VERIFY_FAILED'
+                ? 'XÁC THỰC THẤT BẠI'
                 : session === 'WAIT_LOGIN' 
                 ? 'CHỜ XÁC THỰC' 
                 : session}
@@ -292,6 +314,38 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           </span>
         </div>
       </div>
+
+      {/* CẢNH BÁO AN NINH TRỰC TIẾP TRÊN THẺ KHUÔN MẶT KHI SAI KHUÔN MẶT */}
+      {isAuthFailedOrMismatch && (
+        <div className="mt-3 p-3.5 rounded-2xl bg-rose-50 border-2 border-rose-300 flex items-start gap-3 text-slate-900 shadow-xs animate-fadeIn">
+          <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <ShieldAlert className="w-4 h-4 animate-pulse" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-extrabold text-xs sm:text-sm text-rose-800 tracking-tight">
+                🚨 CẢNH BÁO: KHUÔN MẶT KHÔNG KHỚP {progress ? `(${progress})` : ''}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white">
+                Khóa an ninh
+              </span>
+            </div>
+            <p className="text-xs text-slate-700 leading-relaxed font-medium">
+              Camera Pi 4 phát hiện khuôn mặt người ngồi trước trạm không khớp với mẫu SFace đã lưu ({session}). Hệ thống đã tạm dừng ghi nhận dữ liệu vào tài khoản của bạn để bảo vệ tính chính xác.
+            </p>
+            <div className="pt-1 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => execute('VERIFY')}
+                disabled={working}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition cursor-pointer shadow-xs whitespace-nowrap active:scale-95 disabled:opacity-50"
+              >
+                {working ? 'Đang gửi lệnh...' : 'Quét Lại Khuôn Mặt (Camera Pi 4)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* THANH TRẠNG THÁI MẪU KHUÔN MẶT GỌN GÀNG */}
       <div className="mt-2.5 px-3 py-2 rounded-xl bg-slate-50/90 border border-slate-200 flex items-center justify-between gap-2 text-xs">

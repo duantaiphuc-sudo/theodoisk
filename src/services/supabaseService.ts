@@ -258,6 +258,7 @@ export async function insertTelemetryToSupabase(
     in_zone: Boolean((telemetry as any).inZone ?? true),
     tracking_active: Boolean(telemetry.trackingActive ?? true),
     has_alert: Boolean(telemetry.hasAlert),
+    alert_type: (telemetry as TelemetryLog).alertType || null,
     device: user?.deviceId || user?.device || (telemetry as any).source || (telemetry as any).device || 'pi4_node',
   };
 
@@ -402,8 +403,17 @@ export function mapRawDataToTelemetryLogs(rawData: any[]): TelemetryLog[] {
       postureStatus: Number(row.posture_status ?? -1),
       postureLabel: row.posture_label || 'Tư thế ĐÚNG',
       trackingActive: Boolean(row.tracking_active ?? true),
-      hasAlert: Boolean(row.has_alert || row.posture_status === 1 || row.posture_status === 3),
-      alertType: row.alert_type || (row.posture_status === 1 ? 'Cột sống đang bị gù hoặc cúi cổ' : undefined),
+      hasAlert: Boolean(
+        row.has_alert || 
+        row.posture_status === 3 || 
+        (Number(row.bpm) > 0 && (Number(row.bpm) > 100 || Number(row.bpm) < 50)) ||
+        (Number(row.spo2) > 0 && Number(row.spo2) < 95)
+      ),
+      alertType: row.alert_type || (
+        row.posture_status === 3 
+          ? 'Sai tư thế lâu (>2 phút)' 
+          : (Number(row.bpm) > 100 ? 'Nhịp tim nhanh' : Number(row.bpm) > 0 && Number(row.bpm) < 50 ? 'Nhịp tim chậm' : Number(row.spo2) > 0 && Number(row.spo2) < 95 ? 'Thiếu oxy SpO₂' : undefined)
+      ),
       userId: row.user_id,
       userEmail: row.user_email,
       userName: row.user_name,
@@ -521,6 +531,55 @@ export function subscribeToSupabaseRealtime(
     isCancelled = true;
     clearInterval(intervalId);
   };
+}
+
+export async function upsertDailyOHPSSummaryToSupabase(
+  userId: string,
+  summary: {
+    date?: string;
+    posture_score: number;
+    break_score: number;
+    vital_score: number;
+    task_score?: number;
+    ohps_score: number;
+    classification?: string;
+  }
+): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client || !userId) return false;
+  try {
+    const today = summary.date || new Date().toISOString().split('T')[0];
+    const baseRow: Record<string, any> = {
+      user_id: userId,
+      posture_score: Math.round(summary.posture_score),
+      break_score: Math.round(summary.break_score),
+      vital_score: Math.round(summary.vital_score),
+      ohps_score: Math.round(summary.ohps_score),
+    };
+    if (summary.task_score !== undefined) {
+      baseRow.task_score = Math.round(summary.task_score);
+    }
+    if (summary.classification) {
+      baseRow.classification = summary.classification;
+    }
+
+    // Try inserting/upserting with 'date'
+    const rowWithDate = { ...baseRow, date: today };
+    let res = await client.from('daily_ohps_summary').upsert([rowWithDate]);
+    if (!res.error) return true;
+
+    // Fallback: try with 'summary_date' (in case table has summary_date instead of date)
+    const rowWithSummaryDate = { ...baseRow, summary_date: today };
+    let res2 = await client.from('daily_ohps_summary').upsert([rowWithSummaryDate]);
+    if (!res2.error) return true;
+
+    // Fallback: simple insert
+    const res3 = await client.from('daily_ohps_summary').insert([rowWithDate]);
+    return !res3.error;
+  } catch (e) {
+    console.warn('Lỗi upsert daily_ohps_summary:', e);
+    return false;
+  }
 }
 
 export const SUPABASE_SQL_SETUP_SCRIPT = `-- Mã nguồn cài đặt bảng và RLS bảo mật tại supabase/schema.sql`;

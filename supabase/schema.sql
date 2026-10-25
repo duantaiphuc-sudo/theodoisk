@@ -34,10 +34,30 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_created_at ON public.telemetry_logs (cr
 CREATE INDEX IF NOT EXISTS idx_telemetry_user_id ON public.telemetry_logs (user_id);
 CREATE INDEX IF NOT EXISTS idx_telemetry_user_email ON public.telemetry_logs (user_email);
 
--- 3. BẬT ROW LEVEL SECURITY (RLS)
-ALTER TABLE public.telemetry_logs ENABLE ROW LEVEL SECURITY;
+-- 3. TẠO BẢNG TỔNG HỢP ĐIỂM NĂNG SUẤT HÀNG NGÀY (DAILY OHPS SUMMARY)
+CREATE TABLE IF NOT EXISTS public.daily_ohps_summary (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    date DATE DEFAULT CURRENT_DATE,
+    summary_date DATE DEFAULT CURRENT_DATE,
+    posture_score INT DEFAULT 0,
+    break_score INT DEFAULT 0,
+    vital_score INT DEFAULT 0,
+    task_score INT DEFAULT 0,
+    ohps_score INT DEFAULT 0,
+    classification TEXT DEFAULT 'Tốt',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_user_daily_summary UNIQUE (user_id, date)
+);
 
--- 4. XÓA MỌI CHÍNH SÁCH CÔNG KHAI CŨ (LOẠI BỎ POLICY USING (true))
+CREATE INDEX IF NOT EXISTS idx_daily_ohps_user_date ON public.daily_ohps_summary (user_id, date);
+
+-- 4. BẬT ROW LEVEL SECURITY (RLS)
+ALTER TABLE public.telemetry_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_ohps_summary ENABLE ROW LEVEL SECURITY;
+
+-- 5. XÓA MỌI CHÍNH SÁCH CÔNG KHAI CŨ (LOẠI BỎ POLICY USING (true))
 DROP POLICY IF EXISTS "Cho phép đọc dữ liệu công khai" ON public.telemetry_logs;
 DROP POLICY IF EXISTS "Cho phép ghi log từ Dashboard hoặc Raspberry Pi" ON public.telemetry_logs;
 DROP POLICY IF EXISTS "Cho phép xóa dữ liệu từ Dashboard" ON public.telemetry_logs;
@@ -46,7 +66,7 @@ DROP POLICY IF EXISTS "Allow anon insert" ON public.telemetry_logs;
 DROP POLICY IF EXISTS "Allow anon delete" ON public.telemetry_logs;
 DROP POLICY IF EXISTS "Enable all for anon" ON public.telemetry_logs;
 
--- 5. LƯU Ý BẢO MẬT:
+-- 6. LƯU Ý BẢO MẬT:
 -- Không cấp quyền SELECT, INSERT, UPDATE, DELETE cho anon role.
 -- Mọi truy vấn từ frontend Dashboard bắt buộc đi qua backend Server (/api/telemetry/log, /api/telemetry/history).
 -- Backend xác thực Firebase ID Token (Bearer token) của người dùng trước khi truy cập Supabase bằng SUPABASE_SERVICE_ROLE_KEY.
