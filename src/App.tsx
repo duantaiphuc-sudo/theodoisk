@@ -42,8 +42,8 @@ import { WeeklyPostureChart } from './components/WeeklyPostureChart';
 import { HistoryLogs } from './components/HistoryLogs';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { SupabaseModal } from './components/SupabaseModal';
-import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
+import { calculateAdaptiveThresholds } from './utils/adaptiveThresholds';
 import { savePiSettings, watchPiSettings, watchPiTimeStats, DEFAULT_PI_THRESHOLDS } from './services/piSettingsService';
 import { 
   insertTelemetryToSupabase, 
@@ -55,7 +55,8 @@ import {
   getSavedSupabaseConfig,
   disconnectSupabase,
   reconnectSupabase,
-  upsertDailyOHPSSummaryToSupabase
+  upsertDailyOHPSSummaryToSupabase,
+  fetchDailyOHPSSummaryFromSupabase
 } from './services/supabaseService';
 import { SupabaseConnectionConfig } from './types';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -68,7 +69,7 @@ import { GreetingGoalCard } from './components/GreetingGoalCard';
 import { DailyTasksCard } from './components/DailyTasksCard';
 import { WallpaperModal } from './components/WallpaperModal';
 import { OHPSDetailModal } from './components/OHPSDetailModal';
-import { calculateOHPSFromLogs } from './utils/ohpsCalculator';
+import { calculateOHPSFromLogs, mapSupabaseRowToOHPSResult } from './utils/ohpsCalculator';
 import { watchFaceSession, requestFaceAction } from './services/faceCommandService';
 import { watchDeviceAssignment, pushWebTftAlert, calculateTftStatusCode } from './services/webTftAlertService';
 import { generateSimulatedTelemetry, SimPostureScenario } from './domain/simulationGenerator';
@@ -128,6 +129,15 @@ export default function App() {
     setCurrentUser(user);
     saveCurrentUser(user);
     setSelectedHistoryAccount(user.id);
+
+    // Tự động tính toán và áp dụng ngưỡng y tế thích ứng theo hồ sơ (Nam/Nữ, Tuổi, Bệnh nền)
+    try {
+      const adaptive = calculateAdaptiveThresholds(user);
+      saveThresholdsForPi(adaptive.thresholds).catch(() => {
+        setThresholds(adaptive.thresholds);
+      });
+    } catch {}
+
     if (firebaseConfig.autoConnect) {
       updateUserRealtimePresence(firebaseConfig, user.id, {
         isOnline: true,
@@ -174,7 +184,6 @@ export default function App() {
   // 2. Modals State
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
-  const [isRpiGuideModalOpen, setIsRpiGuideModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
   const [isOHPSModalOpen, setIsOHPSModalOpen] = useState(false);
@@ -445,10 +454,32 @@ export default function App() {
     return () => unsub();
   }, [currentUser, firebaseConfig]);
 
-  // Calculate OHPS Productivity Score based on history logs & tasks
-  const ohpsData = useMemo(() => {
+  // Bản ghi điểm năng suất OHPS được lưu và lấy trực tiếp từ bảng daily_ohps_summary trên Supabase
+  const [supabaseOHPSRecord, setSupabaseOHPSRecord] = useState<any | null>(null);
+
+  // Tải bản ghi điểm OHPS đã lưu trong ngày từ Supabase
+  const refreshSupabaseOHPS = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      const record = await fetchDailyOHPSSummaryFromSupabase(currentUser.id);
+      if (record) {
+        setSupabaseOHPSRecord(record);
+      }
+    } catch (err) {
+      console.warn('[Supabase OHPS] Lỗi tải bản ghi daily_ohps_summary:', err);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    refreshSupabaseOHPS();
+  }, [refreshSupabaseOHPS]);
+
+  // Phân tích và tính toán điểm OHPS từ dữ liệu nhật ký đo đạc Supabase & danh sách Task
+  // - Nhân viên thường: Điểm task tính theo task do Admin giao (không tính task tự tạo cá nhân)
+  // - Admin: Điểm task tính theo các task do Admin tự thêm
+  const calculatedOHPS = useMemo(() => {
     const rawLogs = history.map(l => ({
-      id: typeof l.id === 'number' ? l.id : undefined,
+      id: l.id,
       created_at: l.timestamp,
       user_id: l.userId || currentUser?.id || '',
       bpm: l.bpm,
@@ -461,27 +492,106 @@ export default function App() {
       id: t.id,
       status: (t.status === 'completed' ? 'completed' : 'pending') as 'pending' | 'completed',
       assigned_to: t.targetUserId,
+      assigned_by: t.senderId,
+      is_personal: Boolean(t.isPersonal || (currentUser?.id && t.senderId === currentUser.id))
     }));
 
-    const completedBreaks = Math.max(1, Math.floor((timeStats.standingSeconds || 0) / 60));
-    return calculateOHPSFromLogs(rawLogs, rawTasks, 4, completedBreaks, 80);
-  }, [history, taskNotifications, timeStats.standingSeconds, currentUser?.id]);
+    // Tính số chu kỳ đứng giải lao trung thực từ nhật ký và thời gian đứng thực tế:
+    // 1. Đếm số lần chuyển sang trạng thái đứng từ rawLogs
+    let breakSessionsFromLogs = 0;
+    let prevIsStanding = false;
+    // Sắp xếp rawLogs theo thứ tự thời gian tăng dần để đếm các đợt đứng
+    const sortedLogs = [...rawLogs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    for (const log of sortedLogs) {
+      const isStand = log.posture_status === 5 || (log.posture_label && log.posture_label.toLowerCase().includes('đứng'));
+      if (isStand && !prevIsStanding) {
+        breakSessionsFromLogs++;
+      }
+      prevIsStanding = Boolean(isStand);
+    }
 
-  // Tự động đồng bộ điểm OHPS hàng ngày vào bảng daily_ohps_summary trên Supabase
+    // 2. Tính từ thời gian đứng thực tế (standingSeconds) trong phiên
+    const currentStandingSec = timeStats.standingSeconds || 0;
+    // Cứ mỗi 90 giây đứng làm việc tích lũy tương đương 1 chu kỳ giải phóng cột sống
+    const timeBasedBreaks = currentStandingSec >= 15 ? Math.max(1, Math.floor(currentStandingSec / 90)) : 0;
+    
+    // Nếu chưa đứng lần nào (cả từ log lẫn thời gian đứng hiện tại = 0) thì hoàn toàn là 0 lần
+    const completedBreaks = Math.max(breakSessionsFromLogs, timeBasedBreaks);
+    const userRole = currentUser?.role === 'admin' ? 'admin' : 'employee';
+
+    return calculateOHPSFromLogs(
+      rawLogs, 
+      rawTasks, 
+      4, 
+      completedBreaks, 
+      80,
+      userRole,
+      currentUser?.id
+    );
+  }, [history, taskNotifications, timeStats.standingSeconds, currentUser?.id, currentUser?.role]);
+
+  // Tự động phân tích và lưu (UPSERT) điểm OHPS vào bảng daily_ohps_summary trên Supabase
   useEffect(() => {
     if (!currentUser?.id || isSimulating) return;
-    const timeout = setTimeout(() => {
-      upsertDailyOHPSSummaryToSupabase(currentUser.id, {
-        posture_score: ohpsData.breakdown.S_posture,
-        break_score: ohpsData.breakdown.S_break,
-        vital_score: ohpsData.breakdown.S_vital >= 0 ? ohpsData.breakdown.S_vital : 0,
-        task_score: ohpsData.breakdown.S_task,
-        ohps_score: ohpsData.ohpsScore,
-        classification: ohpsData.evaluation.level,
-      }).catch(err => console.warn('[Supabase OHPS sync]', err));
+    // CHỈ lưu vào Supabase khi CÓ dữ liệu đo đạc thực tế (tránh ghi đè điểm khống vào db)
+    if (!calculatedOHPS.hasActualData || calculatedOHPS.dataConfidence === 0) return;
+    const timeout = setTimeout(async () => {
+      try {
+        const ok = await upsertDailyOHPSSummaryToSupabase(currentUser.id, {
+          posture_score: calculatedOHPS.breakdown.S_posture,
+          break_score: calculatedOHPS.breakdown.S_break,
+          vital_score: calculatedOHPS.breakdown.S_vital >= 0 ? calculatedOHPS.breakdown.S_vital : -1,
+          task_score: calculatedOHPS.breakdown.S_task,
+          hes_score: calculatedOHPS.hesScore,
+          ts_score: calculatedOHPS.taskScore,
+          ohps_score: calculatedOHPS.ohpsScore,
+          data_confidence: calculatedOHPS.dataConfidence,
+          has_vital_data: calculatedOHPS.hasVitalData,
+        });
+        if (ok) {
+          refreshSupabaseOHPS();
+        }
+      } catch (err) {
+        console.warn('[Supabase OHPS sync]', err);
+      }
     }, 3000);
     return () => clearTimeout(timeout);
-  }, [currentUser?.id, ohpsData, isSimulating]);
+  }, [currentUser?.id, calculatedOHPS, isSimulating, refreshSupabaseOHPS]);
+
+  // Mục điểm năng suất hiển thị: Chỉ tính khi CÓ dữ liệu đo đạc thực tế hôm nay
+  const ohpsData = useMemo(() => {
+    const hasTodayLogs = Boolean(history && history.some(l => (l.bpm > 0 || l.spo2 > 0 || l.postureStatus !== -1)));
+    const hasLiveTelemetry = Boolean(telemetry && (telemetry.bpm > 0 || telemetry.spo2 > 0) && telemetry.postureStatus !== -1);
+    const hasActualDataToday = hasTodayLogs || hasLiveTelemetry;
+
+    // Nếu CHƯA CÓ dữ liệu đo đạc hôm nay: Trả về trạng thái Chưa có dữ liệu
+    if (!hasActualDataToday) {
+      return {
+        hesScore: 0,
+        taskScore: 0,
+        ohpsScore: 0,
+        dataConfidence: 0,
+        hasVitalData: false,
+        hasActualData: false,
+        evaluation: {
+          level: 'Chưa có dữ liệu',
+          badgeColor: 'bg-slate-100 text-slate-500 border-slate-200',
+          meaning: 'Chưa có dữ liệu đo đạc thực tế từ trạm IoT cho ca làm việc hôm nay.'
+        },
+        breakdown: {
+          S_posture: 0,
+          S_break: 0,
+          S_vital: -1,
+          S_task: 0
+        }
+      };
+    }
+
+    if (supabaseOHPSRecord && supabaseOHPSRecord.posture_score !== undefined && supabaseOHPSRecord.data_confidence > 0) {
+      return mapSupabaseRowToOHPSResult(supabaseOHPSRecord);
+    }
+    return calculatedOHPS;
+  }, [history, telemetry, supabaseOHPSRecord, calculatedOHPS]);
 
   // Refs for audio throttle & last alert timestamp & Firebase history throttle
   const wasAbsentRef = useRef<boolean | null>(null);
@@ -1814,12 +1924,18 @@ export default function App() {
   };
 
   // Task notification filtering
+  // Task notification filtering - Loại bỏ trùng lặp bản ghi
+  const seenUserTaskIds = new Set<string>();
   const userTasks = (taskNotifications || []).filter(n => {
     if (!currentUser) return false;
-    return n.targetUserId === 'all' || 
+    const isTarget = n.targetUserId === 'all' || 
            n.targetUserId === currentUser.id || 
            n.targetUserId === currentUser.email ||
            n.targetUserId === currentUser.username;
+    if (!isTarget) return false;
+    if (seenUserTaskIds.has(n.id)) return false;
+    seenUserTaskIds.add(n.id);
+    return true;
   });
   const pendingTasksCount = userTasks.filter(t => t.status !== 'completed').length;
 
@@ -1845,15 +1961,22 @@ export default function App() {
     try {
       const newTask = await sendTaskNotificationToFirebase(firebaseConfig, {
         targetUserId: currentUser.id,
-        targetUserName: currentUser.fullName,
+        targetUserName: currentUser.fullName || currentUser.username,
         senderId: currentUser.id,
-        senderName: currentUser.fullName,
+        senderName: currentUser.fullName || currentUser.username,
         type: 'task',
         title: title.trim(),
-        content: 'Nhiệm vụ công thái học & bài tập cá nhân',
+        content: 'Nhiệm vụ cá nhân tự tạo trong ngày',
         priority,
+        isPersonal: true
       });
-      setTaskNotifications(prev => [newTask, ...prev]);
+      // Deduplicate: tránh việc thêm 1 task lại nhảy ra 2 lần
+      setTaskNotifications(prev => {
+        if (prev.some(t => t.id === newTask.id || (t.title === newTask.title && Math.abs(new Date(t.createdAt).getTime() - new Date(newTask.createdAt).getTime()) < 3000))) {
+          return prev;
+        }
+        return [newTask, ...prev];
+      });
     } catch (e) {
       console.warn('Lỗi thêm nhiệm vụ:', e);
     }
@@ -1928,7 +2051,6 @@ export default function App() {
         toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
         onOpenUserManagement={() => isManager && setIsUserManagementOpen(true)}
         onOpenSettings={() => isManager && setIsSettingsModalOpen(true)}
-        onOpenRpiGuide={() => isManager && setIsRpiGuideModalOpen(true)}
         onOpenFirebase={() => isManager && setIsFirebaseModalOpen(true)}
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
@@ -2614,7 +2736,11 @@ export default function App() {
 
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                           <span className="text-[11px]">
-                            Giao bởi: <b className="text-slate-700">{task.senderName}</b>
+                            {task.isPersonal || task.senderId === currentUser.id ? (
+                              <span className="text-slate-500 font-medium">Phân loại: <b className="text-slate-700">Nhiệm vụ cá nhân tự tạo</b></span>
+                            ) : (
+                              <span>Giao bởi: <b className="text-indigo-700">{task.senderName || 'Quản trị viên'}</b></span>
+                            )}
                           </span>
 
                           {!isCompleted && (
@@ -2709,10 +2835,6 @@ export default function App() {
                   Cấu hình Firebase
                 </button>
                 <span>•</span>
-                <button onClick={() => setIsRpiGuideModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
-                  Hướng dẫn Pi 4
-                </button>
-                <span>•</span>
                 <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
                   Ngưỡng đo cảnh báo
                 </button>
@@ -2772,6 +2894,12 @@ export default function App() {
         onUpdateUser={(updated) => {
           setCurrentUser(updated);
           saveCurrentUser(updated);
+          try {
+            const adaptive = calculateAdaptiveThresholds(updated);
+            saveThresholdsForPi(adaptive.thresholds).catch(() => {
+              setThresholds(adaptive.thresholds);
+            });
+          } catch {}
         }}
         onOpenUserManagement={() => setIsUserManagementOpen(true)}
       />
@@ -2822,7 +2950,12 @@ export default function App() {
         onClose={() => setIsOHPSModalOpen(false)}
         ohpsData={ohpsData}
         userName={currentUser?.fullName || currentUser?.username}
+        userId={currentUser?.id}
         historyLogs={history}
+        onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
+        onRefreshFromSupabase={refreshSupabaseOHPS}
+        isFromSupabase={Boolean(supabaseOHPSRecord)}
+        isAdmin={currentUser?.role === 'admin'}
       />
 
       {/* Modals (Only Manager has access) */}
@@ -2834,12 +2967,6 @@ export default function App() {
             config={firebaseConfig}
             onSaveConfig={handleSaveFirebaseConfig}
             isConnected={isConnected}
-          />
-
-          <RaspberryPiGuideModal
-            isOpen={isRpiGuideModalOpen}
-            onClose={() => setIsRpiGuideModalOpen(false)}
-            projectId={firebaseConfig.projectId}
           />
 
           <AlertSettingsModal

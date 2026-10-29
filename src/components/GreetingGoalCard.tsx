@@ -8,9 +8,11 @@ import {
   Award,
   Sparkles,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  Gift
 } from 'lucide-react';
 import { OHPSCalculationResult } from '../utils/ohpsCalculator';
+import { loadCompanyBonusPolicy, calculateEmployeeBonus, formatCurrencyVND } from '../utils/bonusPolicy';
 
 interface GreetingGoalCardProps {
   currentUser: AuthUser | null;
@@ -71,9 +73,23 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
   const maxSittingMin = Math.max(1, Math.round(maxSittingSec / 60));
   const sittingPercent = Math.min(100, Math.round((continuousSittingSec / maxSittingSec) * 100));
 
-  // OHPS metrics
-  const ohpsScore = ohpsData?.ohpsScore ?? 85;
-  const ohpsLevel = ohpsData?.evaluation.level ?? 'Rất tốt';
+  // OHPS metrics: Chỉ hiển thị khi có dữ liệu đo đạc thực tế, KHÔNG tự sinh điểm 85 hay 75 khống
+  const hasActualOHPSData = Boolean(
+    ohpsData && 
+    ohpsData.hasActualData === true && 
+    ohpsData.dataConfidence > 0
+  );
+  const ohpsScore = hasActualOHPSData ? (ohpsData?.ohpsScore ?? 0) : 0;
+  const ohpsLevel = hasActualOHPSData ? (ohpsData?.evaluation?.level ?? 'Chưa có dữ liệu') : 'Chưa có dữ liệu';
+
+  // Bonus policy calculation for quick badge
+  const bonusPolicy = loadCompanyBonusPolicy();
+  const bonusResult = calculateEmployeeBonus(
+    ohpsScore,
+    ohpsData?.breakdown ?? { S_posture: 0, S_break: 0, S_vital: -1, S_task: 0 },
+    bonusPolicy,
+    hasActualOHPSData
+  );
 
   // Circular gauge math (radius = 42, circumference = 2 * PI * 42 ≈ 263.89)
   const radius = 42;
@@ -86,7 +102,6 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
     : sittingPercent;
 
   const strokeDashoffset = circumference - (Math.min(100, currentPercent) / 100) * circumference;
-
   const strokeColor = goalMode === 'ohps'
     ? (ohpsScore >= 80 ? '#2dd4bf' : ohpsScore >= 70 ? '#fbbf24' : '#f43f5e')
     : goalMode === 'standing'
@@ -110,7 +125,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
         
         {/* Left Section: Transparent container with high-contrast text drop shadows */}
         <div className="md:col-span-7 lg:col-span-8 p-3 sm:p-4 rounded-2xl bg-black/25 sm:bg-black/20 border border-white/20 shadow-lg flex flex-col justify-between space-y-3 h-full">
-          {/* Header Row: Date Chip + OHPS Quick Badge */}
+          {/* Header Row: Date Chip + OHPS Quick Badge + Bonus Chip */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/25 text-white/95 text-xs font-semibold shadow-xs">
               <Calendar className="w-3.5 h-3.5 text-teal-300" />
@@ -118,18 +133,32 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
             </div>
 
             {onOpenOHPSModal && (
-              <button
-                type="button"
-                onClick={onOpenOHPSModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-400/20 hover:bg-teal-400/30 border border-teal-400/40 text-teal-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
-                title="Bấm để xem chi tiết điểm năng suất OHPS"
-              >
-                <Award className="w-3.5 h-3.5 text-teal-400" />
-                <span>OHPS: {ohpsScore}đ • {ohpsLevel}</span>
-                <ChevronRight className="w-3 h-3" />
-              </button>
+              <div className="inline-flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={onOpenOHPSModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-400/20 hover:bg-teal-400/30 border border-teal-400/40 text-teal-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  title="Bấm để xem chi tiết điểm năng suất OHPS từ Supabase"
+                >
+                  <Award className="w-3.5 h-3.5 text-teal-400" />
+                  <span>OHPS: {ohpsScore}đ • {ohpsLevel}</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+
+                {/* Badge Thưởng Công Ty Dự Kiến */}
+                <button
+                  type="button"
+                  onClick={onOpenOHPSModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 font-mono"
+                  title="Bấm để xem chính sách thưởng công thái học của công ty"
+                >
+                  <Gift className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Thưởng: +{formatCurrencyVND(bonusResult.totalReward)}</span>
+                </button>
+              </div>
             )}
           </div>
+
 
           {/* Heading */}
           <div>

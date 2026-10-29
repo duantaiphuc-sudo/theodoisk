@@ -39,6 +39,7 @@ export interface AuthUser {
   weight?: number; // kg
   maxSittingHours?: number; // Mục tiêu thời gian ngồi tối đa (tiếng)
   healthNotes?: string;
+  medicalConditions?: string[];
   status?: 'active' | 'suspended';
   lastLogin?: string;
   createdAt?: string;
@@ -183,7 +184,7 @@ export interface SupabaseConnectionConfig {
 export type NotificationType = 'task' | 'health_alert' | 'general';
 export type NotificationPriority = 'normal' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'acknowledged' | 'completed';
-export type MainNavTab = 'overview' | 'logs' | 'tasks' | 'admin_overview';
+export type MainNavTab = 'overview' | 'logs' | 'tasks' | 'admin_overview' | 'ai_chat';
 
 export interface UserTelemetryLive {
   userId: string;
@@ -225,4 +226,5 @@ export interface UserTaskNotification {
   createdAt: string;
   acknowledgedAt?: string;
   completedAt?: string;
+  isPersonal?: boolean;
 }

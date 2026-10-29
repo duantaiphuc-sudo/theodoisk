@@ -14,12 +14,17 @@ import {
   Ruler, 
   Building, 
   FileText, 
-  Save, 
   CheckCircle2, 
   Users, 
-  Radio
+  Radio,
+  Save,
+  Stethoscope,
+  Sparkles,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { syncUserProfileToFirestore, saveCurrentUser } from '../services/authService';
+import { COMMON_MEDICAL_CONDITIONS, calculateAdaptiveThresholds } from '../utils/adaptiveThresholds';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -37,12 +42,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenUserManagement,
 }) => {
   const [formData, setFormData] = useState<AuthUser>({ ...currentUser });
+  const [selectedConditions, setSelectedConditions] = useState<string[]>(
+    currentUser.medicalConditions || []
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
     setFormData({ ...currentUser });
+    setSelectedConditions(currentUser.medicalConditions || []);
   }, [currentUser, isOpen]);
+
+  // Ngưỡng đo y tế thích ứng theo giới tính, tuổi, và bệnh nền
+  const adaptiveResult = React.useMemo(() => {
+    return calculateAdaptiveThresholds({
+      ...formData,
+      medicalConditions: selectedConditions,
+    });
+  }, [formData.gender, formData.age, formData.height, formData.weight, formData.healthNotes, selectedConditions]);
 
   if (!isOpen) return null;
 
@@ -71,6 +88,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         height: Number(formData.height) || 170,
         weight: Number(formData.weight) || 65,
         maxSittingHours: Number(formData.maxSittingHours) || 6,
+        medicalConditions: selectedConditions,
       };
 
       // Save locally & to Firestore
@@ -359,6 +377,124 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white text-indigo-700 border border-slate-200 shadow-2xs shrink-0 self-start sm:self-auto">
               {formData.deviceId || formData.device || '– Chưa được gán'}
             </span>
+          </div>
+
+          {/* Medical Conditions Selector & Adaptive Thresholds */}
+          <div className="space-y-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                <Stethoscope className="w-4 h-4 text-rose-500" />
+                <span>Tiền Sử Bệnh Nền & Thể Trạng Đặc Thù</span>
+              </label>
+              <span className="text-[11px] font-medium text-slate-500">
+                (Hệ thống tự động điều chỉnh ngưỡng cảnh báo)
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Chọn các tình trạng sức khỏe bạn đang gặp phải để AI và thiết bị IoT tự động cá nhân hóa chu kỳ ngồi và ngưỡng sinh hiệu tối ưu:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {COMMON_MEDICAL_CONDITIONS.map(cond => {
+                const isSelected = selectedConditions.includes(cond.id);
+                return (
+                  <button
+                    key={cond.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedConditions(prev => 
+                        isSelected ? prev.filter(c => c !== cond.id) : [...prev, cond.id]
+                      );
+                    }}
+                    className={`p-2.5 rounded-xl text-left border transition-all flex items-start gap-2.5 cursor-pointer ${
+                      isSelected
+                        ? 'bg-rose-50/80 border-rose-300 text-slate-900 shadow-2xs ring-1 ring-rose-200'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center shrink-0 border ${
+                      isSelected ? 'bg-rose-600 border-rose-600 text-white' : 'border-slate-300 bg-white'
+                    }`}>
+                      {isSelected && <span className="text-[10px] font-bold leading-none">✓</span>}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-xs font-bold truncate">{cond.name}</span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug line-clamp-1">{cond.description}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Live Adaptive Threshold Preview Card */}
+            <div className="mt-3 p-3.5 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-sky-600" />
+                  <span className="text-xs font-bold text-sky-900">
+                    Ngưỡng Đo Y Tế Thích Ứng Tự Động (Adaptive Thresholds)
+                  </span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border ${
+                  adaptiveResult.riskLevel === 'high_attention'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : adaptiveResult.riskLevel === 'moderate'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {adaptiveResult.riskLevel === 'high_attention'
+                    ? '⚠️ Cần giám sát đặc biệt'
+                    : adaptiveResult.riskLevel === 'moderate'
+                    ? '⚡ Đã tối ưu hóa thể trạng'
+                    : '✓ Tiêu chuẩn lao động'}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 font-medium leading-relaxed bg-sky-50/60 p-2 rounded-lg border border-sky-100">
+                {adaptiveResult.clinicalSummary}
+              </p>
+
+              {/* 4 Metric Threshold Badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="block text-[10px] text-slate-500 uppercase font-semibold">Nhịp tim an toàn</span>
+                  <span className="text-xs font-extrabold font-mono text-slate-800 mt-0.5 block">
+                    {adaptiveResult.thresholds.hrMin} - {adaptiveResult.thresholds.hrMax} <span className="text-[9px] font-normal text-slate-500">BPM</span>
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="block text-[10px] text-slate-500 uppercase font-semibold">SpO₂ tối thiểu</span>
+                  <span className="text-xs font-extrabold font-mono text-slate-800 mt-0.5 block">
+                    ≥ {adaptiveResult.thresholds.spo2Min}%
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="block text-[10px] text-slate-500 uppercase font-semibold">Ngồi liên tục tối đa</span>
+                  <span className="text-xs font-extrabold font-mono text-indigo-700 mt-0.5 block">
+                    {Math.round(adaptiveResult.thresholds.longSittingSec / 60)} phút
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="block text-[10px] text-slate-500 uppercase font-semibold">Độ nhạy cúi gù</span>
+                  <span className="text-xs font-extrabold font-mono text-rose-700 mt-0.5 block">
+                    Báo sau {adaptiveResult.thresholds.incorrectPostureSec}s
+                  </span>
+                </div>
+              </div>
+
+              {/* Clinical tips */}
+              {adaptiveResult.personalizedTips.length > 0 && (
+                <div className="text-[11px] text-slate-600 space-y-1 pt-1 border-t border-slate-100">
+                  {adaptiveResult.personalizedTips.map((tip, idx) => (
+                    <div key={idx} className="flex items-start gap-1.5">
+                      <span className="text-sky-600 font-bold shrink-0">•</span>
+                      <span>{tip}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Health Notes */}

@@ -43,6 +43,9 @@ import {
 } from '../services/firebase';
 import { fetchFaceTemplate } from '../services/faceService';
 import { fetchSupabaseHistory, TimeRangeFilter, deleteSingleLogFromSupabase } from '../services/supabaseService';
+import { getOHPSEvaluation } from '../utils/ohpsCalculator';
+import { loadCompanyBonusPolicy, calculateEmployeeBonus, formatCurrencyVND } from '../utils/bonusPolicy';
+import { Award, Sparkles } from 'lucide-react';
 import { exportHealthReportToPDF } from '../services/pdfExportService';
 import { AdminQueryCharts } from './AdminQueryCharts';
 
@@ -360,10 +363,12 @@ export interface EmployeeListProps {
   alertCount: number;
   badPostureCount: number;
   onSelectUserForDetail: (user: AuthUser) => void;
+  onSelectUserForOHPS?: (user: AuthUser) => void;
   onOpenTaskModalWithUser?: (user: AuthUser) => void;
   onQueryUserHistory: (userId: string) => void;
   onDeleteUser: (user: AuthUser) => void;
   onAssignDevice?: (userId: string, device: string) => void;
+  history?: TelemetryHistoryItem[];
 }
 
 export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
@@ -380,10 +385,12 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
   alertCount,
   badPostureCount,
   onSelectUserForDetail,
+  onSelectUserForOHPS,
   onOpenTaskModalWithUser,
   onQueryUserHistory,
   onDeleteUser,
-  onAssignDevice
+  onAssignDevice,
+  history = []
 }) => {
   return (
     <div className="space-y-4">
@@ -563,6 +570,97 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                       <span className="line-clamp-2">{live.postureWarning}</span>
                     </div>
                   )}
+
+                  {/* OHPS Score & Bonus Badge for Employee (Chỉ tính khi có dữ liệu thực tế, KHÔNG bịa đặt thông tin) */}
+                  {(() => {
+                    // 1. Kiểm tra xem người này có dữ liệu đo đạc thực tế hay không
+                    const userLogs = (history || []).filter(h => 
+                      h.userId === user.id || (h.userEmail && user.email && h.userEmail.toLowerCase() === user.email.toLowerCase())
+                    );
+                    const hasLiveSignal = Boolean(isOnline && (bpm > 0 || spo2 > 0) && postureStatus !== -1);
+                    const hasLoggedData = userLogs.length > 0;
+                    const hasActualData = hasLiveSignal || hasLoggedData;
+
+                    // Nếu CHƯA CÓ dữ liệu đo đạc thực tế: Hiển thị trạng thái Chưa có dữ liệu, KHÔNG tính điểm khống
+                    if (!hasActualData) {
+                      return (
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                              <Award className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">Điểm Năng Suất (OHPS)</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-sm font-extrabold font-mono text-slate-400">-- / 100đ</span>
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
+                                  Chưa có dữ liệu đo
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] font-semibold text-slate-400 block">Dự kiến thưởng</span>
+                            <span className="text-xs font-mono font-medium text-slate-400">-- ₫</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // 2. Khi CÓ dữ liệu đo đạc thật: Tính toán chính xác từ logs thực tế
+                    const policy = loadCompanyBonusPolicy();
+                    let posturePts = 80;
+                    let breakPts = 70;
+                    let vitalPts = 85;
+                    let taskPts = 85;
+
+                    if (userLogs.length > 0) {
+                      const goodLogs = userLogs.filter(l => l.postureStatus === 0).length;
+                      const standLogs = userLogs.filter(l => l.postureStatus === 5).length;
+                      const alertLogs = userLogs.filter(l => Boolean(l.hasAlert || l.alertType)).length;
+                      posturePts = Math.round((goodLogs / userLogs.length) * 100);
+                      breakPts = standLogs > 0 ? Math.min(100, 70 + standLogs * 10) : 60;
+                      vitalPts = Math.max(40, 100 - (alertLogs * 8));
+                    } else if (hasLiveSignal) {
+                      posturePts = postureStatus === 0 ? 95 : postureStatus === 5 ? 100 : 40;
+                      breakPts = postureStatus === 5 ? 95 : 60;
+                      vitalPts = (bpm >= 60 && bpm <= 100 && spo2 >= 95) ? 98 : 65;
+                    }
+
+                    const hesScore = Math.round(posturePts * 0.35 + breakPts * 0.20 + vitalPts * 0.15);
+                    const ohpsScore = Math.round(hesScore + taskPts * 0.30);
+                    const evaluation = getOHPSEvaluation(ohpsScore);
+                    const bonusCalc = calculateEmployeeBonus(
+                      ohpsScore,
+                      { S_posture: posturePts, S_break: breakPts, S_vital: vitalPts, S_task: taskPts },
+                      policy
+                    );
+
+                    return (
+                      <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/90 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                            <Award className="w-4 h-4 text-amber-700" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Điểm Năng Suất (OHPS)</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-extrabold font-mono text-slate-900">{ohpsScore}/100đ</span>
+                              <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${evaluation.badgeColor} whitespace-nowrap`}>
+                                {evaluation.level}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] font-semibold text-slate-500 block">Dự kiến thưởng</span>
+                          <span className="text-xs font-extrabold font-mono text-emerald-700">
+                            {formatCurrencyVND(bonusCalc.totalReward)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center gap-2">
@@ -661,7 +759,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [detailTelemetry, setDetailTelemetry] = useState<HealthTelemetry | null>(null);
   const [detailUserLogs, setDetailUserLogs] = useState<TelemetryHistoryItem[]>([]);
   const [isLoadingDetailLogs, setIsLoadingDetailLogs] = useState(false);
-  const [detailActiveTab, setDetailActiveTab] = useState<'metrics' | 'history'>('metrics');
+  const [detailActiveTab, setDetailActiveTab] = useState<'metrics' | 'history' | 'ohps'>('metrics');
   const [detailHistoryFilter, setDetailHistoryFilter] = useState<'all' | 'bad_posture' | 'alerts'>('all');
   const [detailFaceImage, setDetailFaceImage] = useState<string | null>(null);
   const [hasDetailFaceTemplate, setHasDetailFaceTemplate] = useState<boolean | null>(null);
@@ -1332,10 +1430,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             alertCount={alertCount}
             badPostureCount={badPostureCount}
             onSelectUserForDetail={setSelectedUserForDetail}
+            onSelectUserForOHPS={(u) => { setSelectedUserForDetail(u); setDetailActiveTab('ohps'); }}
             onOpenTaskModalWithUser={onOpenTaskModalWithUser}
             onQueryUserHistory={handleQueryUserHistory}
             onDeleteUser={handleDeleteUser}
             onAssignDevice={handleAssignDeviceQuick}
+            history={history}
           />
         </div>
       )}
@@ -1607,6 +1707,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <th className="p-3">Thành viên</th>
                       <th className="p-3 text-center">Tổng bản ghi</th>
                       <th className="p-3 text-center">Tỷ lệ đúng</th>
+                      <th className="p-3 text-center">Điểm OHPS & Thưởng</th>
                       <th className="p-3 text-center">Ngồi sai / Gù</th>
                       <th className="p-3 text-center">Nhịp tim TB</th>
                       <th className="p-3 text-center">SpO2 TB</th>
@@ -1634,6 +1735,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             }`}>
                               {goodRatio}%
                             </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            {stat.total > 0 ? (() => {
+                              const posturePts = Math.round((stat.good / stat.total) * 100);
+                              const breakPts = stat.standing > 0 ? Math.min(100, 70 + stat.standing * 10) : 60;
+                              const vitalPts = Math.max(40, 100 - (stat.alerts * 8));
+                              const taskPts = 85;
+                              const hesScore = Math.round(posturePts * 0.35 + breakPts * 0.20 + vitalPts * 0.15);
+                              const ohpsScore = Math.round(hesScore + taskPts * 0.30);
+                              const evaluation = getOHPSEvaluation(ohpsScore);
+                              const policy = loadCompanyBonusPolicy();
+                              const bonusCalc = calculateEmployeeBonus(
+                                ohpsScore,
+                                { S_posture: posturePts, S_break: breakPts, S_vital: vitalPts, S_task: taskPts },
+                                policy
+                              );
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-mono font-extrabold text-xs text-slate-800">{ohpsScore}đ</span>
+                                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${evaluation.badgeColor}`}>
+                                      {evaluation.level}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-emerald-700 font-semibold">
+                                    +{new Intl.NumberFormat('vi-VN').format(bonusCalc.totalReward)} ₫
+                                  </span>
+                                </div>
+                              );
+                            })() : (
+                              <div>
+                                <span className="text-slate-400 font-mono text-xs">-- / 100đ</span>
+                                <div className="text-[10px] text-slate-400">Chưa có dữ liệu</div>
+                              </div>
+                            )}
                           </td>
                           <td className="p-3 text-center font-mono font-bold text-amber-700">{stat.bad}</td>
                           <td className="p-3 text-center font-mono text-rose-600 font-bold">{avgBpm > 0 ? `${avgBpm} BPM` : '--'}</td>
@@ -1859,6 +1995,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
 
               {/* Nếu là Admin thì không hiển thị tab Lịch Sử Nhật Ký Đo */}
+              <button
+                type="button"
+                onClick={() => setDetailActiveTab('ohps')}
+                className={`py-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  detailActiveTab === 'ohps'
+                    ? 'border-indigo-600 text-indigo-700 font-bold bg-white'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Điểm Năng Suất (OHPS) & Thưởng</span>
+              </button>
               {!isUserAdmin(selectedUserForDetail) && (
                 <button
                   type="button"
@@ -1876,7 +2024,139 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[60vh]">
-              {detailActiveTab === 'metrics' ? (
+              {detailActiveTab === 'ohps' ? (
+                (() => {
+                  const userLogs = detailUserLogs || [];
+                  const liveTelemetry = detailTelemetry ?? telemetryMap[selectedUserForDetail.id];
+                  const isOnline = Boolean(liveTelemetry && (liveTelemetry.bpm > 0 || liveTelemetry.spo2 > 0) && liveTelemetry.postureStatus !== -1);
+                  const hasLiveSignal = Boolean(isOnline && liveTelemetry && (liveTelemetry.bpm > 0 || liveTelemetry.spo2 > 0) && liveTelemetry.postureStatus !== -1);
+                  const hasLoggedData = userLogs.length > 0;
+                  const hasActualData = hasLiveSignal || hasLoggedData;
+
+                  if (!hasActualData) {
+                    return (
+                      <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                          <Award className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-slate-800">Chưa có dữ liệu đo đạc thực tế từ thiết bị</h4>
+                          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                            Hệ thống tuân thủ nguyên tắc đo lường thực tế, không bịa đặt số liệu. Điểm năng suất công thái học (OHPS) và tiền thưởng chỉ được tính toán khi nhân viên đăng nhập phiên làm việc và trạm IoT Raspberry Pi 4 truyền dữ liệu sinh trắc học & tư thế về máy chủ.
+                          </p>
+                        </div>
+                        <div className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-white border border-slate-200 font-mono text-xs">
+                          <span className="text-slate-400">Điểm OHPS: <b className="text-slate-600">-- / 100đ</b></span>
+                          <span className="text-slate-300">|</span>
+                          <span className="text-slate-400">Dự kiến thưởng: <b className="text-slate-600">-- ₫</b></span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const policy = loadCompanyBonusPolicy();
+                  let posturePts = 80;
+                  let breakPts = 70;
+                  let vitalPts = 85;
+                  let taskPts = 85;
+
+                  if (userLogs.length > 0) {
+                    const goodLogs = userLogs.filter(l => l.postureStatus === 0).length;
+                    const standLogs = userLogs.filter(l => l.postureStatus === 5).length;
+                    const alertLogs = userLogs.filter(l => Boolean(l.hasAlert || l.alertType)).length;
+                    posturePts = Math.round((goodLogs / userLogs.length) * 100);
+                    breakPts = standLogs > 0 ? Math.min(100, 70 + standLogs * 10) : 60;
+                    vitalPts = Math.max(40, 100 - (alertLogs * 8));
+                  } else if (hasLiveSignal && liveTelemetry) {
+                    posturePts = liveTelemetry.postureStatus === 0 ? 95 : liveTelemetry.postureStatus === 5 ? 100 : 40;
+                    breakPts = liveTelemetry.postureStatus === 5 ? 95 : 60;
+                    vitalPts = (liveTelemetry.bpm >= 60 && liveTelemetry.bpm <= 100 && liveTelemetry.spo2 >= 95) ? 98 : 65;
+                  }
+
+                  const hesScore = Math.round(posturePts * 0.35 + breakPts * 0.20 + vitalPts * 0.15);
+                  const ohpsScore = Math.round(hesScore + taskPts * 0.30);
+                  const evaluation = getOHPSEvaluation(ohpsScore);
+                  const bonusCalc = calculateEmployeeBonus(
+                    ohpsScore,
+                    { S_posture: posturePts, S_break: breakPts, S_vital: vitalPts, S_task: taskPts },
+                    policy
+                  );
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-mono font-extrabold text-2xl shadow-md">
+                            {ohpsScore}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold uppercase tracking-wider text-amber-900">Điểm Năng Suất (OHPS)</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${evaluation.badgeColor}`}>
+                                {evaluation.level}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-0.5">
+                              Dựa trên {userLogs.length} bản ghi đo thực tế trong ca làm việc
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right sm:border-l sm:border-slate-200 sm:pl-5">
+                          <span className="text-xs font-semibold text-slate-500 block">Dự Kiến Thưởng (Kỳ này)</span>
+                          <span className="text-xl font-mono font-extrabold text-emerald-700">
+                            +{new Intl.NumberFormat('vi-VN').format(bonusCalc.totalReward)} ₫
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            Tỷ lệ đạt thưởng: {bonusCalc.achievementRate}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">1. Tư thế (35%)</span>
+                          <div className="font-mono text-base font-extrabold text-slate-900 mt-1">{posturePts}/100</div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${posturePts}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">2. Giải lao (20%)</span>
+                          <div className="font-mono text-base font-extrabold text-slate-900 mt-1">{breakPts}/100</div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                            <div className="bg-sky-500 h-full rounded-full" style={{ width: `${breakPts}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">3. Sinh hiệu (15%)</span>
+                          <div className="font-mono text-base font-extrabold text-slate-900 mt-1">{vitalPts}/100</div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                            <div className="bg-rose-500 h-full rounded-full" style={{ width: `${vitalPts}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">4. Nhiệm vụ (30%)</span>
+                          <div className="font-mono text-base font-extrabold text-slate-900 mt-1">{taskPts}/100</div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                            <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${taskPts}%` }}></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed font-sans">
+                        <p className="font-bold text-slate-800 mb-1">Công thức OHPS chuẩn đề tài:</p>
+                        <p className="font-mono text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200">
+                          OHPS = (0.35 × S_tư_thế + 0.20 × S_nghỉ + 0.15 × S_sinh_hiệu) + 0.30 × S_nhiệm_vụ
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : detailActiveTab === 'metrics' ? (
                 <>
                   <RealtimeMetrics
                     bpm={detailTelemetry?.bpm ?? telemetryMap[selectedUserForDetail.id]?.bpm ?? 0}

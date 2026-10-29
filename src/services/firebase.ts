@@ -266,14 +266,25 @@ export function subscribeToTaskNotifications(
     const unsub = onSnapshot(
       q,
       snap => {
-        const notifs: UserTaskNotification[] = snap.docs.map(d => {
+        const seen = new Set<string>();
+        const notifs: UserTaskNotification[] = [];
+        
+        for (const d of snap.docs) {
+          if (seen.has(d.id)) continue;
+          seen.add(d.id);
           const data = d.data();
-          return {
+          const isPersonal = Boolean(
+            data.isPersonal || 
+            data.is_personal || 
+            (data.senderId && data.targetUserId && data.senderId === data.targetUserId)
+          );
+
+          notifs.push({
             id: d.id,
             targetUserId: data.targetUserId || 'all',
             targetUserName: data.targetUserName || '',
-            senderId: data.senderId || 'Admin',
-            senderName: data.senderName || 'Quản trị viên',
+            senderId: data.senderId || (isPersonal ? (data.targetUserId || 'self') : 'Admin'),
+            senderName: data.senderName || (isPersonal ? 'Cá nhân' : 'Quản trị viên'),
             type: data.type || 'task',
             title: data.title || '',
             content: data.content || '',
@@ -283,8 +294,9 @@ export function subscribeToTaskNotifications(
             createdAt: data.createdAt || new Date().toISOString(),
             acknowledgedAt: data.acknowledgedAt,
             completedAt: data.completedAt,
-          };
-        });
+            isPersonal,
+          });
+        }
         onUpdate(notifs);
       },
       err => {

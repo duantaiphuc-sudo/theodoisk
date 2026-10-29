@@ -15,6 +15,21 @@ const rules = fs.readFileSync(path.resolve(process.cwd(), 'firestore.rules'), 'u
 describe('Firestore Security Rules Unit Tests', () => {
   beforeAll(async () => {
     try {
+      const isEmulatorUp = await new Promise<boolean>((resolve) => {
+        import('net').then(({ default: net }) => {
+          const sock = net.createConnection({ host: '127.0.0.1', port: 8080 });
+          sock.setTimeout(600);
+          sock.on('connect', () => { sock.destroy(); resolve(true); });
+          sock.on('error', () => { resolve(false); });
+          sock.on('timeout', () => { sock.destroy(); resolve(false); });
+        }).catch(() => resolve(false));
+      });
+
+      if (!isEmulatorUp) {
+        console.warn('⚠️ Firestore Emulator không chạy trên port 8080. Tự động bỏ qua integration rules test.');
+        return;
+      }
+
       testEnv = await initializeTestEnvironment({
         projectId: PROJECT_ID,
         firestore: {

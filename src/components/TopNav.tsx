@@ -74,6 +74,10 @@ export const TopNav: React.FC<TopNavProps> = ({
       title: 'Giao việc & Nhiệm vụ',
       subtitle: 'Danh sách nhắc nhở và thông báo tác vụ hệ thống'
     },
+    ai_chat: {
+      title: 'Trợ lý AI Gemini',
+      subtitle: 'Tư vấn công thái học, chẩn đoán tư thế & hỏi đáp sức khỏe thông minh'
+    },
     admin_overview: {
       title: 'Danh mục quản trị',
       subtitle: 'Giám sát tổng thể tài khoản & chỉ số sinh trắc học thời gian thực'

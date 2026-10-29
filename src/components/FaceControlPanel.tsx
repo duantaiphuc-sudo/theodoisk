@@ -37,6 +37,7 @@ interface FaceControlPanelProps {
   telemetry?: HealthTelemetry;
   hasReceivedData?: boolean;
   className?: string;
+  onSecurityFaceMismatch?: (reason: string) => void;
 }
 
 function formatFaceError(rawError: string): string {
@@ -51,7 +52,7 @@ function formatFaceError(rawError: string): string {
     return 'Mẫu khuôn mặt của tài khoản này đã tồn tại trên hệ thống. Để quét lại khuôn mặt mới, vui lòng bấm nút "Đặt lại mẫu khuôn mặt" bên dưới để xóa mẫu cũ trước.';
   }
   if (err.includes('VERIFY_FAILED')) {
-    return 'Xác thực không thành công (0/3 frame khớp): Khuôn mặt trước camera Pi 4 không khớp với mẫu đã lưu của tài khoản này. Vui lòng nhìn thẳng vào camera Pi hoặc bấm "Đặt lại mẫu khuôn mặt" để quét lại.';
+    return 'Cảnh báo an ninh (Không phải nhân viên): Khuôn mặt trước camera Pi 4 KHÔNG KHỚP với mẫu đã lưu của nhân viên này!';
   }
   if (err.includes('NO_FACE') || err.includes('FACE_NOT_FOUND')) {
     return 'Camera Pi 4 không phát hiện khuôn mặt nào trong khung hình. Vui lòng ngồi thẳng vào giữa camera.';
@@ -62,13 +63,14 @@ function formatFaceError(rawError: string): string {
   return rawError || 'Thao tác khuôn mặt thất bại';
 }
 
-export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, className }: FaceControlPanelProps) {
+export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, className, onSecurityFaceMismatch }: FaceControlPanelProps) {
   const [session, setSession] = useState('WAIT_LOGIN');
   const [progress, setProgress] = useState('');
   const [commandStatus, setCommandStatus] = useState('');
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
+  const [securityMismatch, setSecurityMismatch] = useState<{ active: boolean; message: string; timestamp: string } | null>(null);
   
   // Trạng thái mẫu khuôn mặt từ Firestore (được chụp và gửi từ Pi 4)
   const [templateStatus, setTemplateStatus] = useState<FaceTemplateStatus | null>(null);
@@ -128,6 +130,16 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         const currentSession = String(data?.status || 'WAIT_LOGIN');
         setSession(currentSession);
         setProgress(String(data?.progress || ''));
+
+        if (data?.reason === 'OTHER_USER' || (data?.error && String(data.error).includes('VERIFY_FAILED'))) {
+          const reasonText = `Cảnh báo an ninh: Phát hiện người khác trước camera Pi 4! Khuôn mặt không trùng khớp với nhân viên ${currentUser?.fullName || 'đã đăng ký'}.`;
+          setSecurityMismatch({
+            active: true,
+            message: reasonText,
+            timestamp: new Date().toLocaleTimeString('vi-VN')
+          });
+          onSecurityFaceMismatch?.(reasonText);
+        }
       });
       return () => {
         try { unsub(); } catch {}
@@ -137,7 +149,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
     } catch (e) {
       console.warn('FaceControlPanel error:', e);
     }
-  }, [deviceId]);
+  }, [deviceId, currentUser?.fullName, onSecurityFaceMismatch]);
 
   const execute = useCallback(async (action: Command) => {
     if (!deviceId || working) return;
@@ -171,6 +183,15 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           if (status === 'FAILED') {
             const rawErr = String(data?.error || '');
             setError(formatFaceError(rawErr));
+            if (action === 'VERIFY' || rawErr.includes('VERIFY_FAILED') || rawErr.includes('OTHER_USER') || rawErr.includes('MISMATCH')) {
+              const reasonText = `Cảnh báo an ninh: Quét khuôn mặt thất bại! Người trước camera Pi 4 KHÔNG PHẢI là nhân viên ${currentUser?.fullName || 'đã gán'}.`;
+              setSecurityMismatch({
+                active: true,
+                message: reasonText,
+                timestamp: new Date().toLocaleTimeString('vi-VN')
+              });
+              onSecurityFaceMismatch?.(reasonText);
+            }
           } else if (status === 'SUCCEEDED') {
             if (action === 'ENROLL') {
               setSuccessNotice('Đăng ký khuôn mặt thành công trên Pi 4! Đã lưu vector 128 chiều SFace và ảnh chụp. Hãy nhìn vào camera Pi 4 để kích hoạt phiên làm việc.');
@@ -178,6 +199,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
               setIsFaceViewerOpen(true);
             } else if (action === 'VERIFY') {
               setSuccessNotice('Xác thực khuôn mặt thành công! Phiên làm việc đã kích hoạt.');
+              setSecurityMismatch(null);
             } else if (action === 'LOGOUT') {
               setSuccessNotice('Đã đăng xuất thiết bị an toàn.');
             }
@@ -190,7 +212,17 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
       setError(e instanceof Error ? e.message : String(e));
       setWorking(false);
     }
-  }, [deviceId, working, refreshTemplateStatus]);
+  }, [deviceId, working, refreshTemplateStatus, currentUser?.fullName, onSecurityFaceMismatch]);
+
+  const handleSimulateUnknownFace = () => {
+    const reasonText = `CẢNH BÁO AN NINH: Phát hiện người khác ngồi vào trạm làm việc! Khuôn mặt quét không khớp với nhân viên ${currentUser?.fullName || 'này'}.`;
+    setSecurityMismatch({
+      active: true,
+      message: reasonText,
+      timestamp: new Date().toLocaleTimeString('vi-VN')
+    });
+    onSecurityFaceMismatch?.(reasonText);
+  };
 
   // PI_AUTHORITATIVE_AUTO_FACE_V2
   // Khong gui VERIFY_FACE / LOGOUT_FACE tu trinh duyet.
@@ -442,6 +474,47 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         </div>
       )}
 
+      {/* CẢNH BÁO AN NINH: KHUÔN MẶT QUÉT KHÔNG THÀNH CÔNG / KHÔNG PHẢI NHÂN VIÊN */}
+      {securityMismatch && (
+        <div className="mt-3 p-3.5 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-950 flex flex-col gap-2.5 animate-fadeIn shadow-md" role="alert">
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-200 text-rose-800 flex items-center justify-center shrink-0 border border-rose-300">
+              <ShieldAlert className="w-5 h-5 text-rose-700 animate-bounce" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-wider text-rose-900 flex items-center gap-1">
+                  <span>🚨 CẢNH BÁO AN NINH: KHÔNG PHẢI NHÂN VIÊN ĐÃ ĐĂNG KÝ</span>
+                </span>
+                <span className="text-[10px] font-mono text-rose-700 font-bold">{securityMismatch.timestamp}</span>
+              </div>
+              <p className="text-xs text-rose-900 mt-1 leading-relaxed font-semibold">
+                {securityMismatch.message}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-rose-200">
+            <button
+              type="button"
+              onClick={() => setSecurityMismatch(null)}
+              className="px-3 py-1 rounded-lg bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 text-xs font-bold transition cursor-pointer shadow-2xs"
+            >
+              Bỏ qua
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSecurityMismatch(null);
+                execute('VERIFY');
+              }}
+              className="px-3.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+            >
+              Quét lại xác thực
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Thông báo tiến trình lệnh hoặc lỗi */}
       {commandStatus && (
         <div className="mt-3 flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl">
@@ -499,7 +572,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
       )}
 
       {/* HÀNG NÚT THAO TÁC CÒN LẠI (GỌN GÀNG, CÂN BẰNG CHIỀU CAO) */}
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2 flex-wrap">
         {/* Nút đăng ký chính qua Camera Pi 4 */}
         <button
           type="button"
@@ -526,6 +599,17 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         >
           <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-700 ${isResetting ? 'animate-spin' : ''}`} />
           <span>Đặt lại</span>
+        </button>
+
+        {/* Nút mô phỏng quét mặt người lạ (Kiểm thử cảnh báo an ninh) */}
+        <button
+          type="button"
+          onClick={handleSimulateUnknownFace}
+          className="min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 transition cursor-pointer whitespace-nowrap active:scale-95"
+          title="Mô phỏng trường hợp người lạ ngồi vào quét khuôn mặt thất bại"
+        >
+          <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+          <span>Test người lạ</span>
         </button>
       </div>
 

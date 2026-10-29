@@ -19,6 +19,7 @@ import { HealthTelemetry, TelemetryLog, AuthUser, TimeCalculations } from '../ty
 import { getAuth } from 'firebase/auth';
 import { getSavedFirebaseConfig, initializeFirebaseApp } from '../services/firebase';
 import { getSavedSupabaseConfig, fetchSupabaseHistory } from '../services/supabaseService';
+import { loadCompanyBonusPolicy, calculateEmployeeBonus, formatCurrencyVND } from '../utils/bonusPolicy';
 
 interface ChatMessage {
   id: string;
@@ -100,9 +101,8 @@ function renderFormattedMessage(text: string) {
     if (line.startsWith('### ') || line.startsWith('## ') || line.startsWith('# ')) {
       const cleanHeader = line.replace(/^#+\s*/, '').replace(/\*\*/g, '');
       return (
-        <h4 key={lineIdx} className="font-bold text-teal-800 text-xs sm:text-sm mt-2.5 mb-1 flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-          <span>{cleanHeader}</span>
+        <h4 key={lineIdx} className="font-bold text-slate-900 text-xs sm:text-sm mt-2.5 mb-1">
+          {cleanHeader}
         </h4>
       );
     }
@@ -265,6 +265,19 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       const selectedMember = allUsers.find(u => u.id === selectedMemberId);
       const targetMemberName = selectedMember ? selectedMember.fullName : 'all';
 
+      // Lấy chính sách thưởng công ty và mức thưởng hiện tại
+      const currentBonusPolicy = loadCompanyBonusPolicy();
+      const currentBonusResult = calculateEmployeeBonus(
+        (telemetry as any)?.ohpsScore || 80,
+        {
+          S_posture: (telemetry as any)?.postureScore || 85,
+          S_break: (telemetry as any)?.breakScore || 80,
+          S_vital: (telemetry as any)?.vitalScore || 85,
+          S_task: 90
+        },
+        currentBonusPolicy
+      );
+
       // 3. Post to /api/chat
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -283,6 +296,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           targetMemberId: selectedMemberId,
           targetMemberName,
           allUsers,
+          bonusPolicy: currentBonusPolicy,
+          bonusResult: currentBonusResult,
           conversationHistory: messages.slice(-8).map(m => ({
             role: m.sender === 'user' ? 'user' : 'model',
             content: m.text
@@ -323,20 +338,91 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   };
 
   const generateLocalFallback = (query: string, telem: HealthTelemetry, stats?: any, name?: string): string => {
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
     const bpm = telem?.bpm || 0;
     const spo2 = telem?.spo2 || 0;
     const sittingMins = Math.floor((stats?.sittingSeconds || sittingSeconds) / 60);
 
-    if (q.includes('dữ liệu') || q.includes('lưu trữ') || q.includes('database')) {
-      return `🗄️ **Thông Tin Cơ Sở Dữ Liệu Sức Khỏe:**\n\n` +
-        `- **Trạng thái:** Dịch vụ lưu trữ trực tuyến hoạt động bình thường.\n` +
-        `- **Dữ liệu theo dõi:** Toàn bộ lịch sử nhịp tim, nồng độ oxy và tư thế của ${name || 'bạn'} được đồng bộ chuỗi thời gian liên tục.\n` +
-        `- **Bảo mật:** Dữ liệu cá nhân được phân quyền nghiêm ngặt và chỉ phục vụ việc cải thiện sức khỏe lao động.`;
+    const now = new Date();
+    const daysOfWeek = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayName = daysOfWeek[now.getDay()];
+    const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+    // 1. Hỏi về ngày giờ
+    if (
+      q.includes('thứ mấy') || 
+      q.includes('thu may') || 
+      q.includes('mấy giờ') || 
+      q.includes('may gio') || 
+      q.includes('ngày mấy') || 
+      q.includes('ngay may') || 
+      q.includes('ngày bao nhiêu') || 
+      q.includes('hôm nay ngày')
+    ) {
+      return `Hôm nay là ${dayName}, ngày ${dateStr}. Hiện tại là ${timeStr}.\n\nChúc bạn một ngày làm việc hiệu quả, tập trung và luôn duy trì tư thế ngồi thoải mái!`;
     }
 
+    // 2. Hỏi về năng lực, khả năng, chức năng của trợ lý
+    if (
+      q.includes('làm được việc gì') || 
+      q.includes('làm được gì') || 
+      q.includes('lam duoc gi') || 
+      q.includes('chức năng') || 
+      q.includes('chuc nang') || 
+      q.includes('khả năng') || 
+      q.includes('bạn là ai') || 
+      q.includes('ban la ai') || 
+      q.includes('giới thiệu') || 
+      q.includes('hướng dẫn sử dụng')
+    ) {
+      return `Tôi là Trợ lý AI Công Thái Học & Huấn Luyện Viên Hiệu Suất (OHPS Coach) của bạn.\n\n` +
+        `Các chức năng chính tôi có thể hỗ trợ bạn:\n\n` +
+        `1. Giám sát & phân tích tư thế: Nhận diện góc nghiêng cổ, phát hiện cúi gục đầu (Text Neck) hoặc gù lưng qua hệ thống camera AI, nhắc nhở điều chỉnh kịp thời.\n` +
+        `2. Theo dõi chỉ số sinh trắc học: Cập nhật nhịp tim (BPM) và nồng độ oxy trong máu (SpO2) từ cảm biến quang học MAX30102 kết nối IoT.\n` +
+        `3. Quản lý thời gian làm việc: Ghi nhận thời lượng phiên ngồi, cảnh báo ngồi sai tư thế kéo dài và nhắc nhở đứng dậy vận động định kỳ.\n` +
+        `4. Đánh giá Điểm Năng Suất Tổng Hợp (OHPS): Kết hợp giữa Sức khỏe Công thái học (HES 70%) và Tiến độ Nhiệm vụ (TS 30%) để đánh giá hiệu suất lao động toàn diện.\n` +
+        `5. Hướng dẫn bài tập giãn cơ 1-2 phút: Đưa ra các bài tập chuyên sâu tại bàn làm việc (Chin Tuck, Scapular Retraction, Seated Cat-Cow) giúp phòng tránh thoái hóa đốt sống cổ và đau mỏi thắt lưng.\n` +
+        `6. Tra cứu dữ liệu nhật ký: Tìm kiếm và đối chiếu lịch sử đo đạc theo từng mốc thời gian cụ thể được lưu trữ an toàn trên Supabase.\n\n` +
+        `Bạn cần tôi hỗ trợ kiểm tra tư thế, giải đáp chỉ số sinh trắc học hay gợi ý bài tập giãn cơ ngay lúc này?`;
+    }
+
+    // 3. Chào hỏi
+    if (
+      q.includes('chào') || 
+      q.includes('hello') || 
+      q.includes('hi ') || 
+      q === 'hi' || 
+      q.includes('ơi') || 
+      q.includes('alo')
+    ) {
+      return `Chào ${name || 'bạn'}, chúc bạn làm việc tràn đầy năng lượng và hiệu quả!\n\nTôi là Trợ Lý AI Công Thái Học của bạn. Bạn cần tôi hỗ trợ kiểm tra tư thế, tra cứu dữ liệu đo đạc hay gợi ý bài tập giãn cơ hôm nay?`;
+    }
+
+    // 4. Cảm ơn, tạm biệt
+    if (
+      q.includes('cảm ơn') || 
+      q.includes('thank') || 
+      q === 'ok' || 
+      q.includes('tuyệt vời') || 
+      q.includes('tốt lắm') || 
+      q.includes('tạm biệt') || 
+      q.includes('bye')
+    ) {
+      return `Rất vui được đồng hành cùng bạn! Hãy giữ lưng tựa thoải mái, thả lỏng bả vai và uống đủ nước nhé.`;
+    }
+
+    // 5. Câu hỏi về dữ liệu Supabase
+    if (q.includes('dữ liệu') || q.includes('lưu trữ') || q.includes('database') || q.includes('supabase')) {
+      return `Thông Tin Cơ Sở Dữ Liệu Sức Khỏe:\n\n` +
+        `- Trạng thái: Dịch vụ lưu trữ trực tuyến Supabase hoạt động bình thường.\n` +
+        `- Dữ liệu theo dõi: Toàn bộ lịch sử nhịp tim, nồng độ oxy và tư thế của ${name || 'bạn'} được đồng bộ chuỗi thời gian liên tục.\n` +
+        `- Bảo mật: Dữ liệu cá nhân được phân quyền nghiêm ngặt và chỉ phục vụ việc cải thiện sức khỏe lao động.`;
+    }
+
+    // 6. Câu hỏi về nhịp tim
     if (q.includes('nhịp tim') || q.includes('bpm')) {
-      return `❤️ **Chỉ số nhịp tim hiện tại:** ${bpm > 0 ? `${bpm} BPM` : 'Đang chờ cảm biến đo'}.\n\n` +
+      return `Chỉ số nhịp tim hiện tại: ${bpm > 0 ? `${bpm} BPM` : 'Đang chờ cảm biến đo'}.\n\n` +
         (bpm >= 60 && bpm <= 100 
           ? 'Nhịp tim của bạn đang ở dải chuẩn người trưởng thành khi nghỉ ngơi (60-100 BPM).' 
           : bpm > 100 
@@ -344,41 +430,77 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           : 'Hãy đặt đầu ngón tay nhẹ nhàng lên cảm biến để đo chính xác.');
     }
 
+    // 7. Câu hỏi về SpO2
     if (q.includes('spo2') || q.includes('oxy')) {
-      return `🫁 **Nồng độ oxy trong máu (SpO₂):** ${spo2 > 0 ? `${spo2}%` : 'Đang chờ cảm biến đo'}.\n\n` +
+      return `Nồng độ oxy trong máu (SpO2): ${spo2 > 0 ? `${spo2}%` : 'Đang chờ cảm biến đo'}.\n\n` +
         (spo2 >= 95 
-          ? 'Chỉ số oxy trong máu rất tốt (≥95%). Hệ hô hấp và tuần hoàn của bạn hoạt động ổn định.' 
-          : 'SpO₂ dưới 95% có thể do đặt ngón tay chưa khít hoặc không gian phòng thiếu oxy. Hãy mở cửa thông thoáng.');
+          ? 'Chỉ số oxy trong máu rất tốt (từ 95% trở lên). Hệ hô hấp và tuần hoàn của bạn hoạt động ổn định.' 
+          : 'SpO2 dưới 95% có thể do đặt ngón tay chưa khít hoặc không gian phòng thiếu oxy. Hãy mở cửa thông thoáng.');
     }
 
+    // 8. Câu hỏi về tư thế
     if (q.includes('tư thế') || q.includes('ngồi') || q.includes('cột sống')) {
       const label = telem?.postureLabel || 'Chưa nhận diện';
-      return `🩺 **Trạng thái tư thế:** ${label}.\n\n` +
-        `- Thời gian ngồi liên tục: **${sittingMins} phút**.\n` +
-        `- Lời khuyên: Giữ lưng tựa sát ghế, góc gập khuỷu tay ~90°, mắt nhìn ngang 1/3 trên màn hình để tránh thoái hóa đốt sống cổ.`;
+      return `Trạng thái tư thế: ${label}.\n\n` +
+        `- Thời gian ngồi liên tục: ${sittingMins} phút.\n` +
+        `- Lời khuyên: Giữ lưng tựa sát ghế, góc gập khuỷu tay khoảng 90-100 độ, mắt nhìn ngang mép trên màn hình để tránh thoái hóa đốt sống cổ.`;
+    }
+
+    // 9. Câu hỏi về bài tập giãn cơ
+    // 9. Câu hỏi về chính sách thưởng & tiền thưởng công thái học của công ty
+    if (q.includes('thưởng') || q.includes('tiền thưởng') || q.includes('chính sách thưởng') || q.includes('mức thưởng') || q.includes('bao nhiêu tiền')) {
+      const pol = loadCompanyBonusPolicy();
+      const res = calculateEmployeeBonus(
+        (telemetry as any)?.ohpsScore || 80,
+        {
+          S_posture: (telemetry as any)?.postureScore || 85,
+          S_break: (telemetry as any)?.breakScore || 80,
+          S_vital: (telemetry as any)?.vitalScore || 85,
+          S_task: 90
+        },
+        pol
+      );
+
+      const cycleStr = pol.cycle === 'daily' ? 'Hàng ngày' : pol.cycle === 'weekly' ? 'Hàng tuần' : 'Hàng tháng';
+      return `Chính Sách Thưởng Công Thái Học & Hiệu Suất (${pol.companyName || 'Công ty'}):\n\n` +
+        `- Chu kỳ xét thưởng: ${cycleStr}\n` +
+        `- Mức thưởng tối đa mỗi nhân viên: ${formatCurrencyVND(pol.maxRewardAmount)}\n` +
+        `- Điểm sàn nhận thưởng: ${pol.minScoreToReward} điểm OHPS\n\n` +
+        `Tình Trạng Thưởng Hiện Tại Của ${name || 'Bạn'}:\n` +
+        `- Điểm OHPS hiện tại: ${(telemetry as any)?.ohpsScore || 80}/100\n` +
+        `- Xếp loại: ${res.isEligible ? (res.tierAchieved?.tierName || 'Đạt chuẩn') : 'Chưa đủ điều kiện nhận thưởng'}\n` +
+        `- Mức tiền thưởng dự kiến nhận được: +${formatCurrencyVND(res.totalReward)} (${res.achievementRate}% hạn mức thưởng)\n\n` +
+        `Hướng dẫn tối ưu: ${res.tipsToReachNextTier}\n\n` +
+        `Lưu ý: Quản lý hoặc bạn có thể mở modal "Điểm Năng Suất OHPS" và nhấn "Nhập / Tùy chỉnh mức thưởng" để điều chỉnh ngân sách và cơ chế thưởng theo đặc thù của công ty.`;
     }
 
     if (q.includes('bài tập') || q.includes('giãn cơ') || q.includes('mỏi')) {
-      return `🧘 **Gợi ý bài tập giãn cơ 2 phút tại bàn làm việc:**\n\n` +
-        `1. **Thu cằm (Chin Tuck):** Ngồi thẳng, kéo cằm lùi về phía sau giữ 5 giây, lặp lại 5 lần để giải phóng đốt sống cổ C5-C7.\n` +
-        `2. **Mở rộng lồng ngực:** Đan hai tay ra sau lưng, ưỡn ngực về trước, hít sâu 3 nhịp.\n` +
-        `3. **Gập duỗi bàn chân:** Nâng gót chân lên xuống 15 lần để kích thích tuần hoàn tĩnh mạch chân.`;
+      return `Gợi ý bài tập giãn cơ 2 phút tại bàn làm việc:\n\n` +
+        `1. Thu cằm (Chin Tuck): Ngồi thẳng, kéo nhẹ cằm lùi về phía sau gáy giữ 5 giây, lặp lại 5 lần để giải phóng đốt sống cổ C5-C7.\n` +
+        `2. Mở rộng lồng ngực: Đan hai tay ra sau lưng, ưỡn ngực về trước, hít sâu 3 nhịp.\n` +
+        `3. Gập duỗi bàn chân: Nâng gót chân lên xuống 15 lần để kích thích tuần hoàn tĩnh mạch chân.`;
     }
 
-    return `Cảm ơn bạn đã hỏi! Hiện tại chỉ số của ${name || 'bạn'} ghi nhận: Nhịp tim ${bpm > 0 ? `${bpm} BPM` : 'Đang chờ cảm biến'}, SpO₂ ${spo2 > 0 ? `${spo2}%` : 'Đang chờ cảm biến'}, thời gian ngồi ${sittingMins} phút. Hãy duy trì tư thế ngồi thẳng và nghỉ giải lao sau mỗi 45-60 phút làm việc.`;
+    // 10. Mặc định
+    const isHealthContext = /sức khỏe|chỉ số|thời gian|phiên/i.test(q);
+    if (isHealthContext) {
+      return `Hiện tại dữ liệu đo đạc của ${name || 'bạn'} ghi nhận: Nhịp tim ${bpm > 0 ? `${bpm} BPM` : 'Đang chờ cảm biến'}, SpO2 ${spo2 > 0 ? `${spo2}%` : 'Đang chờ cảm biến'}, thời gian ngồi ${sittingMins} phút. Hãy duy trì tư thế ngồi thẳng và nghỉ giải lao sau mỗi 45-60 phút làm việc nhé!`;
+    }
+
+    return `Chào ${name || 'bạn'}! Tôi đã nhận câu hỏi: "${query}".\n\nTôi là Trợ lý AI chuyên về Công thái học & Theo dõi Sức khỏe. Bạn có thể hỏi tôi về tư thế ngồi, nhịp tim, nồng độ SpO2, gợi ý bài tập giãn cơ, hoặc chính sách tiền thưởng công thái học của công ty!`;
   };
 
-  // Clean, professional suggestions with zero technical jargon
+  // Clean, professional suggestions with zero emojis
   const quickQuestions = isAdmin ? [
-    '📊 Ai đang cần cải thiện tư thế nhiều nhất?',
-    '❤️ Tổng hợp nhịp tim & SpO₂ của các thành viên',
-    '🚨 Thành viên nào có cảnh báo sức khỏe gần nhất?',
-    '📋 Báo cáo tổng quan sức khỏe nhóm hôm nay'
+    'Ai đang cần cải thiện tư thế nhiều nhất?',
+    'Chính sách thưởng công thái học của công ty thế nào?',
+    'Tổng hợp nhịp tim & SpO2 của các thành viên',
+    'Báo cáo tổng quan sức khỏe nhóm hôm nay'
   ] : [
-    '🗄️ Xem lịch sử đo đạc gần đây của tôi',
-    '🩺 Đánh giá tư thế ngồi & góc nghiêng cổ hiện tại',
-    '❤️ Nhịp tim và nồng độ SpO₂ của tôi có ổn định không?',
-    '🧘 Gợi ý bài tập giãn cơ cổ vai gáy 2 phút'
+    'Tôi hiện được thưởng bao nhiêu tiền?',
+    'Làm thế nào để nhận tối đa tiền thưởng?',
+    'Đánh giá tư thế ngồi & góc nghiêng cổ hiện tại',
+    'Gợi ý bài tập giãn cơ cổ vai gáy 2 phút'
   ];
 
   return (

@@ -15,6 +15,7 @@ import {
   Eye
 } from 'lucide-react';
 import { TelemetryLog, AuthUser } from '../types';
+import { aggregateTelemetryByHour, HourlyTelemetryPoint } from '../utils/hourlyAggregation';
 import { TimeRangeFilter } from '../services/supabaseService';
 
 interface MemberGroupStat {
@@ -65,54 +66,64 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
 
-  // 1. Posture distribution segments
+  // 1. Posture distribution segments with calibrated normalization
   const distribution = useMemo(() => {
-    const total = data.length || 1;
+    const total = data.length;
+    if (total === 0) {
+      return [
+        { id: 'good', label: 'Ngồi đúng chuẩn', count: 0, percent: 100, color: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+        { id: 'bad', label: 'Sai tư thế / Gù', count: 0, percent: 0, color: '#f59e0b', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+        { id: 'standing', label: 'Đứng làm việc', count: 0, percent: 0, color: '#6366f1', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+        { id: 'absent', label: 'Vắng / Ngoài vùng', count: 0, percent: 0, color: '#94a3b8', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+      ];
+    }
+
     let good = 0;
     let bad = 0;
     let standing = 0;
     let absent = 0;
 
     data.forEach(d => {
-      if (d.postureStatus === 5 || (d.postureLabel && d.postureLabel.toLowerCase().includes('đứng'))) {
+      const label = (d.postureLabel || '').toLowerCase();
+      const status = d.postureStatus;
+
+      if (status === 5 || label.includes('đứng')) {
         standing++;
-      } else if (d.postureStatus === 2 || !d.inZone || (d.postureLabel && d.postureLabel.toLowerCase().includes('vắng'))) {
+      } else if (status === 2 || status === -1 || d.inZone === false || label.includes('vắng') || label.includes('rời ghế') || label.includes('ngoài')) {
         absent++;
-      } else if (d.postureStatus === 1 || d.postureStatus === 3 || d.postureStatus === 4 || (d.postureLabel && d.postureLabel.toLowerCase().includes('sai'))) {
+      } else if (status === 1 || status === 3 || status === 4 || label.includes('sai') || label.includes('gù') || label.includes('cúi')) {
         bad++;
       } else {
         good++;
       }
     });
 
+    let pGood = Math.round((good / total) * 100);
+    let pBad = Math.round((bad / total) * 100);
+    let pStanding = Math.round((standing / total) * 100);
+    let pAbsent = Math.round((absent / total) * 100);
+
+    // Chuẩn hóa tổng chính xác 100% không bị chênh lệch do làm tròn
+    const sum = pGood + pBad + pStanding + pAbsent;
+    if (sum !== 100 && total > 0) {
+      const diff = 100 - sum;
+      if (pGood >= pBad && pGood >= pStanding && pGood >= pAbsent) pGood += diff;
+      else if (pBad >= pStanding && pBad >= pAbsent) pBad += diff;
+      else if (pStanding >= pAbsent) pStanding += diff;
+      else pAbsent += diff;
+    }
+
     return [
-      { id: 'good', label: 'Ngồi đúng chuẩn', count: good, percent: Math.round((good / total) * 100), color: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-      { id: 'bad', label: 'Sai tư thế / Gù', count: bad, percent: Math.round((bad / total) * 100), color: '#f59e0b', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
-      { id: 'standing', label: 'Đứng làm việc', count: standing, percent: Math.round((standing / total) * 100), color: '#6366f1', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-      { id: 'absent', label: 'Vắng / Ngoài vùng', count: absent, percent: Math.round((absent / total) * 100), color: '#94a3b8', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+      { id: 'good', label: 'Ngồi đúng chuẩn', count: good, percent: Math.max(0, pGood), color: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+      { id: 'bad', label: 'Sai tư thế / Gù', count: bad, percent: Math.max(0, pBad), color: '#f59e0b', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+      { id: 'standing', label: 'Đứng làm việc', count: standing, percent: Math.max(0, pStanding), color: '#6366f1', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+      { id: 'absent', label: 'Vắng / Ngoài vùng', count: absent, percent: Math.max(0, pAbsent), color: '#94a3b8', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
     ];
   }, [data]);
 
-  // 2. Timeline aggregation: Sample at most 30 data points chronologically (left to right)
-  const timelinePoints = useMemo(() => {
-    if (!data.length) return [];
-    // Sort ascending by timestamp
-    const sorted = [...data].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    
-    // If <= 30 points, take all
-    if (sorted.length <= 30) {
-      return sorted;
-    }
-    
-    // Sample 30 representative points evenly
-    const step = Math.floor(sorted.length / 30);
-    const sampled: TelemetryLog[] = [];
-    for (let i = 0; i < sorted.length; i += step) {
-      if (sampled.length < 30) {
-        sampled.push(sorted[i]);
-      }
-    }
-    return sampled;
+  // 2. Hourly Timeline Aggregation (08:00 - 18:00)
+  const hourlyTimelinePoints = useMemo(() => {
+    return aggregateTelemetryByHour(data, 8, 18);
   }, [data]);
 
   // Donut SVG Math
@@ -164,13 +175,13 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
     return paddingY + chartH - ratio * chartH;
   };
 
-  const bpmPoints = timelinePoints
-    .map((d, i) => (d.bpm > 0 ? { x: getX(i, timelinePoints.length), y: getYBpm(d.bpm), log: d } : null))
-    .filter(Boolean) as { x: number; y: number; log: TelemetryLog }[];
+  const bpmPoints = hourlyTimelinePoints
+    .map((d, i) => (d.hasData && d.avgBpm > 0 ? { x: getX(i, hourlyTimelinePoints.length), y: getYBpm(d.avgBpm), point: d, index: i } : null))
+    .filter(Boolean) as { x: number; y: number; point: HourlyTelemetryPoint; index: number }[];
 
-  const spo2Points = timelinePoints
-    .map((d, i) => (d.spo2 > 0 ? { x: getX(i, timelinePoints.length), y: getYSpo2(d.spo2), log: d } : null))
-    .filter(Boolean) as { x: number; y: number; log: TelemetryLog }[];
+  const spo2Points = hourlyTimelinePoints
+    .map((d, i) => (d.hasData && d.avgSpo2 > 0 ? { x: getX(i, hourlyTimelinePoints.length), y: getYSpo2(d.avgSpo2), point: d, index: i } : null))
+    .filter(Boolean) as { x: number; y: number; point: HourlyTelemetryPoint; index: number }[];
 
   const bpmPathD = bpmPoints.length > 0 
     ? bpmPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '')
@@ -296,10 +307,10 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                   stroke="#e2e8f0"
                   strokeWidth={strokeWidth}
                 />
-                {/* Colored Slices */}
+                {/* Colored Slices - Clean, non-overlapping SVG butt segments */}
                 {donutSlices.map((slice, idx) => (
                   <circle
-                    key={idx}
+                    key={slice.id || idx}
                     cx={donutSize / 2}
                     cy={donutSize / 2}
                     r={radius}
@@ -308,8 +319,8 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                     strokeWidth={hoveredSlice === slice.id ? strokeWidth + 4 : strokeWidth}
                     strokeDasharray={slice.strokeDasharray}
                     strokeDashoffset={slice.strokeDashoffset}
-                    strokeLinecap="round"
-                    className="transition-all duration-300 cursor-pointer"
+                    strokeLinecap={donutSlices.length === 1 ? 'round' : 'butt'}
+                    className="transition-all duration-200 cursor-pointer"
                     onMouseEnter={() => setHoveredSlice(slice.id)}
                     onMouseLeave={() => setHoveredSlice(null)}
                   />
@@ -337,9 +348,28 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
 
           {/* Right: Detailed Breakdown Cards */}
           <div className="lg:col-span-7 space-y-3">
-            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <span>Phân Bổ Chi Tiết Trạng Thái Làm Việc:</span>
-            </h5>
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span>Phân Bổ Chi Tiết Trạng Thái Làm Việc:</span>
+              </h5>
+              <span className="text-[11px] font-mono font-bold text-slate-500">
+                Tổng: {data.length} mẫu đo
+              </span>
+            </div>
+
+            {/* Horizontal Stacked Segmented Ratio Bar */}
+            <div className="w-full h-4 rounded-xl overflow-hidden flex bg-slate-100 border border-slate-200/90 shadow-inner p-0.5 gap-0.5">
+              {distribution.map(item => item.percent > 0 ? (
+                <div
+                  key={item.id}
+                  style={{ width: `${item.percent}%`, backgroundColor: item.color }}
+                  title={`${item.label}: ${item.percent}% (${item.count} lần)`}
+                  className="h-full rounded-sm transition-all duration-300 relative cursor-pointer hover:opacity-90"
+                  onMouseEnter={() => setHoveredSlice(item.id)}
+                  onMouseLeave={() => setHoveredSlice(null)}
+                />
+              ) : null)}
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {distribution.map(item => (
@@ -414,7 +444,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
             </div>
 
             <div className="text-[11px] text-slate-500 font-mono">
-              Hiển thị {timelinePoints.length} điểm đo lấy mẫu đại diện
+              Tổng hợp dữ liệu theo {hourlyTimelinePoints.length} khung giờ làm việc (08:00 - 18:00)
             </div>
           </div>
 
@@ -506,16 +536,14 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                 />
               )}
 
-              {/* Scatter Points & Posture Flags */}
-              {timelinePoints.map((d, i) => {
-                const x = getX(i, timelinePoints.length);
-                const isBad = d.postureStatus === 1 || d.postureStatus === 3 || d.postureStatus === 4;
+              {/* Hourly Scatter Points & Markers */}
+              {hourlyTimelinePoints.map((d, i) => {
+                const x = getX(i, hourlyTimelinePoints.length);
                 const isHovered = hoveredPointIndex === i;
-
                 return (
                   <g key={i}>
-                    {/* Posture flag marker at bottom */}
-                    {isBad && (
+                    {/* Posture flag marker at bottom for hours with bad posture */}
+                    {d.hasData && d.badCount > 0 && (
                       <rect
                         x={x - 2}
                         y={paddingY + chartH - 8}
@@ -525,65 +553,94 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                         fill="#f59e0b"
                       />
                     )}
-
-                    {/* Interactive invisible hover column */}
+                    {/* Interactive hover column */}
                     <rect
-                      x={x - (chartW / (timelinePoints.length || 1)) / 2}
+                      x={x - (chartW / (hourlyTimelinePoints.length || 1)) / 2}
                       y={paddingY}
-                      width={chartW / (timelinePoints.length || 1)}
+                      width={chartW / (hourlyTimelinePoints.length || 1)}
                       height={chartH}
                       fill="transparent"
                       className="cursor-pointer"
                       onMouseEnter={() => setHoveredPointIndex(i)}
                       onMouseLeave={() => setHoveredPointIndex(null)}
                     />
-
                     {/* Point Indicator on BPM */}
-                    {d.bpm > 0 && (
+                    {d.hasData && d.avgBpm > 0 && (
                       <circle
                         cx={x}
-                        cy={getYBpm(d.bpm)}
+                        cy={getYBpm(d.avgBpm)}
                         r={isHovered ? 5 : 2.5}
                         fill="#f43f5e"
                         stroke="#ffffff"
-                        strokeWidth="1.5"
-                        className="transition-all"
+                        strokeWidth={1.5}
+                        className="transition-all pointer-events-none"
                       />
                     )}
+                    {/* Point Indicator on SpO2 */}
+                    {d.hasData && d.avgSpo2 > 0 && (
+                      <circle
+                        cx={x}
+                        cy={getYSpo2(d.avgSpo2)}
+                        r={isHovered ? 4.5 : 2}
+                        fill="#0284c7"
+                        stroke="#ffffff"
+                        strokeWidth={1.5}
+                        className="transition-all pointer-events-none"
+                      />
+                    )}
+                    {/* X-axis hourly text label */}
+                    <text
+                      x={x}
+                      y={svgHeight - 10}
+                      fill={isHovered ? '#0f172a' : d.hasData ? '#334155' : '#94a3b8'}
+                      fontSize="9"
+                      textAnchor="middle"
+                      fontFamily="monospace"
+                      fontWeight={d.hasData ? 'bold' : 'normal'}
+                    >
+                      {d.hourLabel}
+                    </text>
                   </g>
                 );
               })}
             </svg>
 
-            {/* Hover Tooltip Overlay */}
-            {hoveredPointIndex !== null && timelinePoints[hoveredPointIndex] && (() => {
-              const p = timelinePoints[hoveredPointIndex];
+            {/* Hover Tooltip Overlay (Tổng hợp theo từng giờ làm việc) */}
+            {hoveredPointIndex !== null && hourlyTimelinePoints[hoveredPointIndex] && (() => {
+              const p = hourlyTimelinePoints[hoveredPointIndex];
               return (
                 <div className="mt-2.5 p-3 rounded-xl bg-white border border-slate-200 shadow-md flex items-center justify-between text-xs animate-fadeIn">
                   <div className="flex items-center gap-3">
                     <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                      {p.timeFormatted} {p.dateFormatted}
+                      Khung giờ: {p.timeRangeLabel}
                     </span>
-                    <span className="font-semibold text-slate-800">
-                      {p.userName || p.userEmail || 'Thành viên'}
+                    <span className="text-slate-500 font-medium">
+                      {p.hasData ? `(Tổng hợp ${p.sampleCount} bản ghi đo)` : '(Chưa có dữ liệu)'}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1 font-mono text-rose-600 font-bold">
-                      <Heart className="w-3.5 h-3.5" />
-                      <span>{p.bpm > 0 ? `${p.bpm} BPM` : '--'}</span>
+                  {p.hasData ? (
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1 font-mono text-rose-600 font-bold">
+                        <Heart className="w-3.5 h-3.5" />
+                        <span>{p.avgBpm > 0 ? `${p.avgBpm} BPM TB` : '--'}</span>
+                      </div>
+                      <div className="flex items-center gap-1 font-mono text-sky-600 font-bold">
+                        <Wind className="w-3.5 h-3.5" />
+                        <span>{p.avgSpo2 > 0 ? `${p.avgSpo2}% TB` : '--'}</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        Đúng tư thế: {p.goodRatio}%
+                      </span>
+                      {p.badCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                          Sai: {p.badCount} lần
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 font-mono text-sky-600 font-bold">
-                      <Wind className="w-3.5 h-3.5" />
-                      <span>{p.spo2 > 0 ? `${p.spo2}%` : '--'}</span>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      p.postureStatus === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {p.postureLabel || (p.postureStatus === 0 ? 'Chuẩn' : 'Sai tư thế')}
-                    </span>
-                  </div>
+                  ) : (
+                    <span className="text-slate-400 italic">Không có dữ liệu đo đạc</span>
+                  )}
                 </div>
               );
             })()}

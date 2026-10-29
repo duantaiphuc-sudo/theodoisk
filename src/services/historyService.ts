@@ -25,7 +25,7 @@ import {
   getAppFirestore,
   getSavedFirebaseConfig
 } from './firebase';
-import { supabase } from './supabaseService';
+import { getSupabaseClient, getSavedSupabaseConfig, getSupabaseHeaders } from './supabaseService';
 import { getAuth } from 'firebase/auth';
 
 const STORAGE_KEY = 'theodoisk_historical_records_v1';
@@ -89,18 +89,19 @@ export async function fetchTelemetryHistory(
     params.set('limit', String(limit));
 
     const token = await getAuthTokenSafe();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const cfg = getSavedSupabaseConfig();
+    const headers = getSupabaseHeaders(cfg, token);
 
     const res = await fetch(`/api/telemetry/history?${params.toString()}`, { headers });
     
     // Nếu API server trả về lỗi 500 hoặc không thành công
     if (!res.ok) {
-      console.warn(`[HistoryService] API /api/telemetry/history trả về mã lỗi ${res.status}. Fallback sang singleton supabase.`);
-      // Thử dùng singleton supabase duy nhất nếu có
-      if (supabase) {
+      console.warn(`[HistoryService] API /api/telemetry/history trả về mã lỗi ${res.status}. Fallback sang Supabase client.`);
+      // Thử dùng Supabase client trực tiếp nếu có cấu hình
+      const client = getSupabaseClient(cfg);
+      if (client) {
         try {
-          let q = supabase.from('telemetry_logs').select('*').order('created_at', { ascending: false }).limit(limit);
+          let q = client.from(cfg.tableName || 'telemetry_logs').select('*').order('created_at', { ascending: false }).limit(limit);
           if (userId && userId !== 'all') q = q.eq('user_id', userId);
           const { data, error } = await q;
           if (!error && Array.isArray(data)) {
@@ -116,6 +117,7 @@ export async function fetchTelemetryHistory(
       }
       return [];
     }
+
 
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {

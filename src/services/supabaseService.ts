@@ -4,8 +4,8 @@ import { getAuth } from 'firebase/auth';
 import { initializeFirebaseApp, getSavedFirebaseConfig } from './firebase';
 
 export const DEFAULT_SUPABASE_CONFIG: SupabaseConnectionConfig = {
-  url: '',
-  anonKey: '',
+  url: ((import.meta as any).env?.VITE_SUPABASE_URL || '').trim(),
+  anonKey: ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '').trim(),
   tableName: 'telemetry_logs',
   autoSync: true,
   isConnected: true,
@@ -39,6 +39,9 @@ export function getSavedSupabaseConfig(): SupabaseConnectionConfig {
       return { 
         ...DEFAULT_SUPABASE_CONFIG, 
         ...parsed,
+        // Nếu trong localStorage để trống nhưng biến môi trường có, ưu tiên biến môi trường
+        url: (parsed.url || DEFAULT_SUPABASE_CONFIG.url || '').trim(),
+        anonKey: (parsed.anonKey || DEFAULT_SUPABASE_CONFIG.anonKey || '').trim(),
       };
     }
   } catch (err) {
@@ -51,11 +54,14 @@ export function getSavedSupabaseConfig(): SupabaseConnectionConfig {
 // SINGLETON SUPABASE CLIENT (Mô hình 1 instance duy nhất, ngăn cảnh báo GoTrueClient)
 // =========================================================================
 let singletonSupabaseInstance: SupabaseClient | null = null;
+let lastClientKey = '';
 
 function createSingletonClient(url?: string, anonKey?: string): SupabaseClient | null {
-  if (!url || !anonKey) return null;
+  const cleanUrl = (url || '').trim();
+  const cleanKey = (anonKey || '').trim();
+  if (!cleanUrl || !cleanKey) return null;
   try {
-    return createClient(url, anonKey, {
+    return createClient(cleanUrl, cleanKey, {
       auth: {
         persistSession: false, // Xóa triệt để cảnh báo Multiple GoTrueClient instances
         autoRefreshToken: false,
@@ -68,20 +74,44 @@ function createSingletonClient(url?: string, anonKey?: string): SupabaseClient |
   }
 }
 
-// Khởi tạo và export 1 instance supabase duy nhất ở ngoài cùng module
-const initialCfg = getSavedSupabaseConfig();
-singletonSupabaseInstance = createSingletonClient(initialCfg.url, initialCfg.anonKey);
-
-export const supabase: SupabaseClient | null = singletonSupabaseInstance;
-
 export function getSupabaseClient(config?: SupabaseConnectionConfig): SupabaseClient | null {
-  if (singletonSupabaseInstance) return singletonSupabaseInstance;
   const cfg = config || getSavedSupabaseConfig();
-  if (cfg.url && cfg.anonKey) {
-    singletonSupabaseInstance = createSingletonClient(cfg.url, cfg.anonKey);
+  const cleanUrl = (cfg.url || '').trim();
+  const cleanKey = (cfg.anonKey || '').trim();
+  const currentKey = `${cleanUrl}_${cleanKey}`;
+
+  if (singletonSupabaseInstance && lastClientKey === currentKey && cleanUrl && cleanKey) {
+    return singletonSupabaseInstance;
+  }
+
+  if (cleanUrl && cleanKey) {
+    singletonSupabaseInstance = createSingletonClient(cleanUrl, cleanKey);
+    lastClientKey = currentKey;
     return singletonSupabaseInstance;
   }
   return null;
+}
+
+// Khởi tạo instance ban đầu
+const initialCfg = getSavedSupabaseConfig();
+if (initialCfg.url && initialCfg.anonKey) {
+  singletonSupabaseInstance = createSingletonClient(initialCfg.url, initialCfg.anonKey);
+  lastClientKey = `${initialCfg.url}_${initialCfg.anonKey}`;
+}
+
+export const supabase: SupabaseClient | null = singletonSupabaseInstance;
+
+/**
+ * Xây dựng headers an toàn truyền cả Supabase credentials cho Backend Server Proxy
+ */
+export function getSupabaseHeaders(cfg: SupabaseConnectionConfig, token?: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (cfg.url) headers['x-supabase-url'] = cfg.url.trim();
+  if (cfg.anonKey) headers['x-supabase-key'] = cfg.anonKey.trim();
+  return headers;
 }
 
 /**
@@ -267,22 +297,29 @@ export async function insertTelemetryToSupabase(
     if (token) {
       const res = await fetch('/api/telemetry/log', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(row),
+        headers: getSupabaseHeaders(cfg, token),
+        body: JSON.stringify({ ...row, supabaseConfig: cfg }),
       });
 
-      if (res.ok) return true;
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json && json.success) return true;
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.warn('[SupabaseService] Proxy insert error, falling back to direct client:', err);
+  }
 
   // Fallback direct insert dùng Singleton client
-  const client = getSupabaseClient();
+  const client = getSupabaseClient(cfg);
   if (client) {
-    const { error } = await client.from(cfg.tableName || 'telemetry_logs').insert([row]);
-    return !error;
+    try {
+      const { error } = await client.from(cfg.tableName || 'telemetry_logs').insert([row]);
+      if (!error) return true;
+      console.warn('Lỗi direct insert Supabase:', error.message);
+    } catch (e) {
+      console.warn('Lỗi kết nối direct Supabase:', e);
+    }
   }
 
   return false;
@@ -292,7 +329,7 @@ export type TimeRangeFilter = 'day' | 'week' | 'month' | 'all';
 
 /**
  * Truy xuất dữ liệu lịch sử (API First -> Fallback Direct Client)
- * Bắt lỗi 500 an toàn tuyệt đối, trả về mảng rỗng [] không bắn unhandled error
+ * Bắt lỗi an toàn tuyệt đối, trả về mảng rỗng [] không bắn unhandled error
  */
 export async function fetchSupabaseHistory(
   timeRange: TimeRangeFilter = 'day',
@@ -312,7 +349,9 @@ export async function fetchSupabaseHistory(
     },
   };
 
-  // 1. Thử fetch qua Server API an toàn
+  const cfg = getSavedSupabaseConfig();
+
+  // 1. Thử fetch qua Server API an toàn với thông tin credentials truyền kèm
   try {
     const token = await getAuthToken();
     if (token) {
@@ -322,13 +361,10 @@ export async function fetchSupabaseHistory(
       params.set('limit', '300');
 
       const res = await fetch(`/api/telemetry/history?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getSupabaseHeaders(cfg, token)
       });
 
-      // Nếu API Server trả về lỗi 500 hoặc không thành công -> Fallback an toàn
-      if (!res.ok) {
-        console.warn(`[SupabaseService] /api/telemetry/history trả về mã lỗi ${res.status}. Fallback sang Supabase Direct Client.`);
-      } else {
+      if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const result = await res.json();
@@ -344,11 +380,11 @@ export async function fetchSupabaseHistory(
       }
     }
   } catch (apiErr) {
-    console.warn('[SupabaseService] Lỗi kết nối /api/telemetry/history (sử dụng fallback an toàn):', apiErr);
+    console.warn('[SupabaseService] Lỗi kết nối /api/telemetry/history (sử dụng fallback direct client):', apiErr);
   }
 
-  // 2. Fallback Singleton Client nếu API Server không sẵn sàng hoặc trả về lỗi
-  const client = getSupabaseClient();
+  // 2. Fallback Singleton Client nếu API Server không sẵn sàng hoặc không có dữ liệu
+  const client = getSupabaseClient(cfg);
   if (!client) {
     return emptyResult;
   }
@@ -533,6 +569,170 @@ export function subscribeToSupabaseRealtime(
   };
 }
 
+export interface OHPSSyncResult {
+  success: boolean;
+  message: string;
+  timestamp?: string;
+  score?: number;
+}
+
+/**
+ * Đồng bộ thủ công hoặc tự động điểm OHPS vào bảng daily_ohps_summary trên Supabase
+ * Hỗ trợ Dual-path: Thử qua Server Proxy (/api/telemetry/ohps-summary) trước,
+ * nếu server không sẵn sàng hoặc thiếu env thì fallback sang Supabase Direct Client.
+ */
+export async function syncOHPSToSupabase(
+  userId: string,
+  summary: {
+    date?: string;
+    posture_score: number;
+    break_score: number;
+    vital_score: number;
+    task_score?: number;
+    hes_score?: number;
+    ts_score?: number;
+    ohps_score: number;
+    data_confidence?: number;
+    has_vital_data?: boolean;
+    classification?: string;
+  }
+): Promise<OHPSSyncResult> {
+  const cfg = getSavedSupabaseConfig();
+  if (!userId) {
+    return { success: false, message: 'Chưa xác định tài khoản người dùng.' };
+  }
+
+  const cleanUrl = (cfg.url || '').trim();
+  const cleanKey = (cfg.anonKey || '').trim();
+
+  if (!cleanUrl || !cleanKey) {
+    return { 
+      success: false, 
+      message: 'Chưa cấu hình Supabase URL hoặc Anon Key. Vui lòng vào Cấu hình Supabase để kết nối.' 
+    };
+  }
+
+  const todayStr = summary.date || new Date().toISOString().slice(0, 10);
+  const postureScore = Math.min(100, Math.max(0, Math.round(Number(summary.posture_score) || 0)));
+  const breakScore = Math.min(100, Math.max(0, Math.round(Number(summary.break_score) || 0)));
+  const hasVital = summary.has_vital_data !== false && summary.vital_score !== -1;
+  const vitalScore = hasVital 
+    ? Math.min(100, Math.max(0, Math.round(Number(summary.vital_score) || 0))) 
+    : -1;
+  const taskScore = Math.min(100, Math.max(0, Math.round(Number(summary.task_score) || 0)));
+  const hesScore = Math.min(100, Math.max(0, Math.round(Number(summary.hes_score ?? summary.ohps_score) || 0)));
+  const tsScore = Math.min(100, Math.max(0, Math.round(Number(summary.ts_score ?? summary.task_score ?? 0) || 0)));
+  const ohpsScore = Math.min(100, Math.max(0, Math.round(Number(summary.ohps_score) || 0)));
+  const dataConfidence = Math.min(100, Math.max(0, Math.round(Number(summary.data_confidence ?? 100))));
+
+  // Payload khớp 100% với schema bảng public.daily_ohps_summary của Supabase
+  const payload = {
+    user_id: userId,
+    date: todayStr,
+    posture_score: postureScore,
+    break_score: breakScore,
+    vital_score: vitalScore,
+    task_score: taskScore,
+    hes_score: hesScore,
+    ts_score: tsScore,
+    ohps_score: ohpsScore,
+    data_confidence: dataConfidence,
+    has_vital_data: hasVital,
+    supabaseConfig: cfg
+  };
+
+  // 1. Thử qua backend API endpoint (/api/telemetry/ohps-summary)
+  try {
+    const token = await getAuthToken();
+    if (token) {
+      const res = await fetch('/api/telemetry/ohps-summary', {
+        method: 'POST',
+        headers: getSupabaseHeaders(cfg, token),
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json && json.success) {
+          const nowStr = new Date().toLocaleTimeString('vi-VN');
+          return {
+            success: true,
+            message: `Đã đồng bộ điểm OHPS (${ohpsScore}đ) vào Supabase thành công!`,
+            timestamp: nowStr,
+            score: ohpsScore
+          };
+        }
+      }
+    }
+  } catch (apiErr) {
+    console.warn('[SupabaseService] API sync OHPS error, fallback direct client:', apiErr);
+  }
+
+  // 2. Fallback trực tiếp qua Direct Supabase Client
+  const client = getSupabaseClient(cfg);
+  if (!client) {
+    return {
+      success: false,
+      message: 'Không thể kết nối Supabase client. Vui lòng kiểm tra lại URL và Anon Key.'
+    };
+  }
+
+  try {
+    // Chỉ truyền đúng các trường có trong bảng daily_ohps_summary
+    const rowToUpsert = {
+      user_id: userId,
+      date: todayStr,
+      posture_score: postureScore,
+      break_score: breakScore,
+      vital_score: vitalScore,
+      task_score: taskScore,
+      hes_score: hesScore,
+      ts_score: tsScore,
+      ohps_score: ohpsScore,
+      data_confidence: dataConfidence,
+      has_vital_data: hasVital
+    };
+
+    let res = await client
+      .from('daily_ohps_summary')
+      .upsert([rowToUpsert], { onConflict: 'user_id,date' });
+
+    if (res.error) {
+      console.warn('[SupabaseService] Lỗi upsert onConflict, thử insert trực tiếp:', res.error.message);
+      // Fallback: Thử insert trực tiếp nếu bảng chưa hỗ trợ upsert conflict syntax
+      const res2 = await client.from('daily_ohps_summary').insert([rowToUpsert]);
+      if (res2.error) {
+        // Fallback: Cập nhật nếu bản ghi ngày hôm đó đã tồn tại
+        const res3 = await client
+          .from('daily_ohps_summary')
+          .update(rowToUpsert)
+          .eq('user_id', userId)
+          .eq('date', todayStr);
+
+        if (res3.error) {
+          return {
+            success: false,
+            message: `Lỗi Supabase: ${res.error.message || res3.error.message}`
+          };
+        }
+      }
+    }
+
+    const nowStr = new Date().toLocaleTimeString('vi-VN');
+    return {
+      success: true,
+      message: `Đã đồng bộ trực tiếp điểm OHPS (${ohpsScore}đ) vào Supabase thành công!`,
+      timestamp: nowStr,
+      score: ohpsScore
+    };
+  } catch (directErr: any) {
+    return {
+      success: false,
+      message: `Lỗi đồng bộ: ${directErr?.message || 'Không thể liên lạc Supabase'}`
+    };
+  }
+}
+
 export async function upsertDailyOHPSSummaryToSupabase(
   userId: string,
   summary: {
@@ -541,44 +741,119 @@ export async function upsertDailyOHPSSummaryToSupabase(
     break_score: number;
     vital_score: number;
     task_score?: number;
+    hes_score?: number;
+    ts_score?: number;
     ohps_score: number;
+    data_confidence?: number;
+    has_vital_data?: boolean;
     classification?: string;
   }
 ): Promise<boolean> {
-  const client = getSupabaseClient();
-  if (!client || !userId) return false;
+  const result = await syncOHPSToSupabase(userId, summary);
+  return result.success;
+}
+
+/**
+ * Đọc bản ghi điểm OHPS đã lưu trong ngày từ bảng daily_ohps_summary trên Supabase
+ */
+export async function fetchDailyOHPSSummaryFromSupabase(
+  userId: string,
+  date?: string
+): Promise<any | null> {
+  const cfg = getSavedSupabaseConfig();
+  const todayStr = date || new Date().toISOString().slice(0, 10);
+
+  // 1. Thử qua backend API endpoint
   try {
-    const today = summary.date || new Date().toISOString().split('T')[0];
-    const baseRow: Record<string, any> = {
-      user_id: userId,
-      posture_score: Math.round(summary.posture_score),
-      break_score: Math.round(summary.break_score),
-      vital_score: Math.round(summary.vital_score),
-      ohps_score: Math.round(summary.ohps_score),
-    };
-    if (summary.task_score !== undefined) {
-      baseRow.task_score = Math.round(summary.task_score);
+    const token = await getAuthToken();
+    if (token) {
+      const res = await fetch(`/api/telemetry/ohps-summary?userId=${encodeURIComponent(userId)}&limit=1`, {
+        headers: getSupabaseHeaders(cfg, token)
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.data && Array.isArray(json.data) && json.data.length > 0) {
+          const match = json.data.find((r: any) => r.date === todayStr) || json.data[0];
+          if (match) return match;
+        }
+      }
     }
-    if (summary.classification) {
-      baseRow.classification = summary.classification;
+  } catch (apiErr) {
+    console.warn('[SupabaseService] Lỗi fetch OHPS qua API:', apiErr);
+  }
+
+  // 2. Fallback Direct Supabase Client
+  const client = getSupabaseClient(cfg);
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('daily_ohps_summary')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', todayStr)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Lỗi query daily_ohps_summary từ Supabase direct:', error.message);
+      return null;
     }
+    return data;
+  } catch (err) {
+    console.warn('Lỗi đọc daily_ohps_summary từ Supabase direct:', err);
+    return null;
+  }
+}
 
-    // Try inserting/upserting with 'date'
-    const rowWithDate = { ...baseRow, date: today };
-    let res = await client.from('daily_ohps_summary').upsert([rowWithDate]);
-    if (!res.error) return true;
+/**
+ * Đọc toàn bộ các bản ghi lịch sử OHPS thực tế (tối đa 7 ngày gần nhất) từ bảng daily_ohps_summary trên Supabase
+ * KHÔNG tạo số liệu giả lập - Chỉ trả về đúng những ngày đã có trong database
+ */
+export async function fetchDailyOHPSHistoryFromSupabase(
+  userId: string,
+  limitDays: number = 7
+): Promise<any[]> {
+  const cfg = getSavedSupabaseConfig();
+  if (!userId) return [];
 
-    // Fallback: try with 'summary_date' (in case table has summary_date instead of date)
-    const rowWithSummaryDate = { ...baseRow, summary_date: today };
-    let res2 = await client.from('daily_ohps_summary').upsert([rowWithSummaryDate]);
-    if (!res2.error) return true;
+  // 1. Thử qua backend API endpoint (/api/telemetry/ohps-summary)
+  try {
+    const token = await getAuthToken();
+    if (token) {
+      const res = await fetch(`/api/telemetry/ohps-summary?userId=${encodeURIComponent(userId)}&limit=${limitDays}`, {
+        headers: getSupabaseHeaders(cfg, token)
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.data && Array.isArray(json.data) && json.data.length > 0) {
+          return json.data.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        }
+      }
+    }
+  } catch (apiErr) {
+    console.warn('[SupabaseService] Lỗi fetch OHPS history qua API:', apiErr);
+  }
 
-    // Fallback: simple insert
-    const res3 = await client.from('daily_ohps_summary').insert([rowWithDate]);
-    return !res3.error;
-  } catch (e) {
-    console.warn('Lỗi upsert daily_ohps_summary:', e);
-    return false;
+  // 2. Fallback Direct Supabase Client
+  const client = getSupabaseClient(cfg);
+  if (!client) return [];
+
+  try {
+    const { data, error } = await client
+      .from('daily_ohps_summary')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true })
+      .limit(limitDays);
+
+    if (error) {
+      console.warn('Lỗi query daily_ohps_summary history từ Supabase direct:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('Lỗi đọc daily_ohps_summary history từ Supabase direct:', err);
+    return [];
   }
 }
 

@@ -37,7 +37,6 @@ interface HeaderProps {
   toggleSimulation: () => void;
   firebaseConfig: FirebaseConnectionConfig;
   onOpenFirebaseModal: () => void;
-  onOpenRpiGuideModal: () => void;
   onOpenSettingsModal: () => void;
   onOpenProfileModal?: () => void;
   onOpenUserManagementModal?: () => void;
@@ -62,7 +61,6 @@ export const Header: React.FC<HeaderProps> = ({
   toggleSimulation,
   firebaseConfig,
   onOpenFirebaseModal,
-  onOpenRpiGuideModal,
   onOpenSettingsModal,
   onOpenProfileModal,
   onOpenUserManagementModal,
@@ -199,27 +197,6 @@ export const Header: React.FC<HeaderProps> = ({
             <FlaskConical className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span className="whitespace-nowrap">{isSimulating ? 'Đang giả lập' : 'Giả lập Pi 4'}</span>
           </button>
-
-          {/* Raspberry Pi 4 Code Guide */}
-          {isManager ? (
-            <button
-              onClick={onOpenRpiGuideModal}
-              title="Xem mã nguồn Python & hướng dẫn kết nối Raspberry Pi 4"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
-            >
-              <Cpu className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span className="whitespace-nowrap">Code Pi 4</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowSystemInfoModal(true)}
-              title="Xem sơ đồ & thông tin phần cứng"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
-            >
-              <Cpu className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span className="whitespace-nowrap">Phần cứng Pi 4</span>
-            </button>
-          )}
 
           {/* Alert Thresholds Settings */}
           {isManager && (
@@ -574,17 +551,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>Ngưỡng Cảnh Báo</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenRpiGuideModal();
-                  }}
-                  className="col-span-2 flex items-center justify-center gap-1.5 p-2.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold cursor-pointer"
-                >
-                  <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Xem Mã Nguồn & Hướng Dẫn Pi 4</span>
-                </button>
-
                 {onOpenUserManagementModal && (
                   <button
                     onClick={() => {
@@ -745,10 +711,6 @@ export const Header: React.FC<HeaderProps> = ({
                       <li className="flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Cài đặt ngưỡng cảnh báo & kết nối Firebase</span>
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Xem mã nguồn Python & hướng dẫn đấu dây</span>
                       </li>
                     </>
                   )}

@@ -28,7 +28,10 @@ export const UserTaskAlertBanner: React.FC<UserTaskAlertBannerProps> = ({
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
   // Filter tasks targeted for current user that are not yet marked completed and not dismissed in current view
+  // CRITICAL: Personal tasks (tự tạo cv mỗi cá nhân) KHÔNG hiển thị banner giao việc từ Admin!
   const activeAlerts = notifications.filter(n => {
+    // Nếu là task cá nhân tự tạo (isPersonal) hoặc chính user tự giao cho mình thì không hiện popup alert
+    if (n.isPersonal || (n.senderId && n.senderId === currentUser.id)) return false;
     const isTarget = n.targetUserId === 'all' || 
                      n.targetUserId === currentUser.id || 
                      n.targetUserId === currentUser.email ||

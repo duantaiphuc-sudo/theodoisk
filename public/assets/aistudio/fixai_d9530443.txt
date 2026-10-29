@@ -1,0 +1,43 @@
+Hãy nâng cấp API Backend `/api/chat` (hoặc Route Handler tương ứng) để tích hợp cả MÔ HÌNH ĐÁNH GIÁ OHPS và DỮ LIỆU NHẬT KÝ CHI TIẾT (Telemetry Logs) theo các yêu cầu sau:
+
+1. Import hàm `calculateOHPSFromLogs` từ `src/utils/ohpsCalculator.ts`.
+2. Khởi tạo Supabase Client (dùng SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY).
+3. Trong xử lý request POST `/api/chat`:
+   - Lấy `userId` từ body request (hoặc `targetMemberId` nếu Admin đang xem nhân viên).
+   - Lấy chuỗi ngày hôm nay (dạng `YYYY-MM-DD`).
+   - Query bảng `telemetry_logs` từ Supabase lấy danh sách log trong ngày của `userId` đó (sắp xếp mới nhất lên đầu, giới hạn 40-50 log gần nhất).
+   - Query bảng `tasks` từ Supabase lấy danh sách task được giao cho `userId`.
+   - Gọi hàm `calculateOHPSFromLogs(logs, tasks)` để tính toán `ohpsResult`.
+   - Lưu hoặc cập nhật (UPSERT) kết quả vào bảng `daily_ohps_summary` trên Supabase:
+     + user_id: userId
+     + date: ngày hôm nay
+     + posture_score: ohpsResult.breakdown.S_posture
+     + break_score: ohpsResult.breakdown.S_break
+     + vital_score: ohpsResult.breakdown.S_vital
+     + task_score: ohpsResult.breakdown.S_task
+     + hes_score: ohpsResult.hesScore
+     + ts_score: ohpsResult.taskScore
+     + ohps_score: ohpsResult.ohpsScore
+     + data_confidence: ohpsResult.dataConfidence
+     + has_vital_data: ohpsResult.hasVitalData
+
+4. Cấu hình System Prompt đầy đủ gửi sang Gemini API:
+
+   BẠN LÀ TRỢ LÝ AI CÔNG THÁI HỌC VÀ ĐÁNH GIÁ HIỆU SUẤT VĂN PHÒNG (OHPS COACH).
+
+   === I. BÁO CÁO ĐIỂM NĂNG SUẤT TỔNG HỢP (OHPS) ===
+   - 🩺 Sức khỏe & Công thái học (HES - 70%): [hesScore]/100
+     * Tư thế (35%): [S_posture]/100
+     * Giải lao (20%): [S_break]/100
+     * Sinh hiệu (15%): [S_vital nếu có / Mất cảm biến (Đã tự động cân bằng lại)]
+   - 📋 Tiến độ công việc (TS - 30%): [S_task]/100
+   - ⭐ ĐIỂM OHPS TỔNG HỢP: [ohpsScore]/100 (Độ tin cậy dữ liệu: [dataConfidence]%)
+   - Xếp loại: [evaluation.level] ([evaluation.meaning])
+
+   === II. CHUỖI NHẬT KÝ CHI TIẾT (TELEMETRY LOGS GẦN NHẤT) ===
+   [Danh sách 40 log gần nhất dạng JSON rút gọn: created_at, bpm, spo2, posture_label]
+
+   === III. NHIỆM VỤ CỦA AI ===
+   1. Đánh giá tổng quan điểm OHPS và chỉ ra nguyên nhân kéo điểm tăng/giảm.
+   2. Phân tích chuỗi Nhật ký chi tiết để soi ra các mốc thời gian bất thường (ví dụ: tư thế ngồi sai diễn ra vào lúc mấy giờ, nhịp tim biến động lúc nào).
+   3. Giữ thái độ tích cực, đưa ra lời khuyên công thái học ngắn gọn và gợi ý bài tập giãn cơ 2 phút phù hợp.

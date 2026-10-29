@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   X, 
   Award, 
@@ -10,13 +10,20 @@ import {
   ShieldCheck, 
   Info, 
   TrendingUp, 
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Database,
-  Cpu,
-  Layers,
-  ArrowUpRight
+  Sparkles, 
+  ChevronDown, 
+  ChevronUp, 
+  Database, 
+  Cpu, 
+  Layers, 
+  ArrowUpRight, 
+  ArrowDownRight,
+  Minus,
+  CloudUpload, 
+  RefreshCw, 
+  AlertTriangle,
+  Gift,
+  Settings2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -28,24 +35,47 @@ import {
   CartesianGrid, 
   ReferenceLine 
 } from 'recharts';
-import { OHPSCalculationResult } from '../utils/ohpsCalculator';
+import { OHPSCalculationResult, getOHPSEvaluation } from '../utils/ohpsCalculator';
 import { TelemetryLog } from '../types';
+import { 
+  syncOHPSToSupabase, 
+  getSavedSupabaseConfig, 
+  OHPSSyncResult,
+  fetchDailyOHPSHistoryFromSupabase 
+} from '../services/supabaseService';
+import { 
+  CompanyBonusPolicy, 
+  loadCompanyBonusPolicy, 
+  calculateEmployeeBonus, 
+  formatCurrencyVND 
+} from '../utils/bonusPolicy';
+import { CompanyBonusModal } from './CompanyBonusModal';
+import { aggregateTelemetryByHour } from '../utils/hourlyAggregation';
 
 interface OHPSDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   ohpsData?: OHPSCalculationResult;
   userName?: string;
+  userId?: string;
   historyLogs?: TelemetryLog[];
+  onOpenSupabaseConfig?: () => void;
+  onRefreshFromSupabase?: () => Promise<void>;
+  isFromSupabase?: boolean;
+  isAdmin?: boolean;
 }
 
 interface TrendPoint {
   timeLabel: string;
+  timeRangeLabel?: string;
   score: number;
   postureScore: number;
   breakScore: number;
   vitalScore: number;
   status: string;
+  avgBpm?: number;
+  avgSpo2?: number;
+  sampleCount?: number;
 }
 
 export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
@@ -53,28 +83,86 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
   onClose,
   ohpsData,
   userName = 'Bạn',
-  historyLogs = []
+  userId,
+  historyLogs = [],
+  onOpenSupabaseConfig,
+  onRefreshFromSupabase,
+  isFromSupabase = false,
+  isAdmin = false,
 }) => {
   // Hooks MUST all execute unconditionally at the top of the component
   const [timeView, setTimeView] = useState<'today' | 'week'>('today');
   const [showFormulaDetails, setShowFormulaDetails] = useState(true);
+  const [supabaseHistoryRows, setSupabaseHistoryRows] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
+  const [bonusPolicy, setBonusPolicy] = useState<CompanyBonusPolicy>(loadCompanyBonusPolicy());
 
-  const safeData = ohpsData || {
-    ohpsScore: 82,
-    hesScore: 84,
-    taskScore: 78,
-    dataConfidence: 100,
-    hasVitalData: true,
+  // Lắng nghe cập nhật chính sách thưởng từ mọi nơi trong hệ thống
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail) setBonusPolicy(e.detail);
+    };
+    window.addEventListener('company_bonus_policy_updated', handler);
+    return () => window.removeEventListener('company_bonus_policy_updated', handler);
+  }, []);
+
+  // Tải danh sách bản ghi OHPS thực tế từ bảng daily_ohps_summary trên Supabase
+  const loadSupabaseHistory = useCallback(async () => {
+    if (!userId) return;
+    setIsLoadingHistory(true);
+    try {
+      const rows = await fetchDailyOHPSHistoryFromSupabase(userId, 7);
+      setSupabaseHistoryRows(rows || []);
+    } catch (e) {
+      console.warn('Lỗi tải lịch sử daily_ohps_summary từ Supabase:', e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [userId]);
+
+  const handleRefresh = async () => {
+    setIsLoadingHistory(true);
+    try {
+      await Promise.allSettled([
+        loadSupabaseHistory(),
+        onRefreshFromSupabase ? onRefreshFromSupabase() : Promise.resolve()
+      ]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadSupabaseHistory();
+    }
+  }, [isOpen, loadSupabaseHistory]);
+
+  // Kiểm tra nghiêm ngặt: Có dữ liệu đo đạc thực tế hay không?
+  const hasActualData = Boolean(
+    ohpsData && 
+    ohpsData.hasActualData !== false && 
+    (ohpsData.dataConfidence > 0 || (historyLogs && historyLogs.length > 0))
+  );
+
+  const safeData = (ohpsData && hasActualData) ? ohpsData : {
+    ohpsScore: 0,
+    hesScore: 0,
+    taskScore: 0,
+    dataConfidence: 0,
+    hasVitalData: false,
+    hasActualData: false,
     evaluation: {
-      level: 'Tốt',
-      meaning: 'Duy trì tư thế làm việc chuẩn và sức khỏe ổn định.',
-      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      level: 'Chưa có dữ liệu',
+      meaning: 'Chưa có dữ liệu đo đạc thực tế từ trạm IoT cho ca làm việc hôm nay.',
+      badgeColor: 'bg-slate-100 text-slate-500 border-slate-200'
     },
     breakdown: {
-      S_posture: 85,
-      S_break: 80,
-      S_vital: 85,
-      S_task: 78
+      S_posture: 0,
+      S_break: 0,
+      S_vital: -1,
+      S_task: 0
     }
   };
 
@@ -88,48 +176,96 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
     breakdown
   } = safeData;
 
-  // Generate real or smoothly projected trend points for Recharts based on logs & ohpsData
-  const trendData: TrendPoint[] = useMemo(() => {
-    if (timeView === 'today') {
-      const baseHours = ['08:00', '09:30', '11:00', '13:30', '15:00', '16:30', '17:30', 'Hiện tại'];
-      
-      return baseHours.map((hourStr, idx) => {
-        let factor = 1;
-        if (idx === 0) factor = 0.92;
-        else if (idx === 1) factor = 0.98;
-        else if (idx === 2) factor = 1.02;
-        else if (idx === 3) factor = 0.94;
-        else if (idx === 4) factor = 0.97;
-        else if (idx === 5) factor = 0.99;
-        else if (idx === 6) factor = 1.01;
-        else factor = 1.0;
+  // Tính mức tiền thưởng thực tế theo chính sách doanh nghiệp (Chỉ tính khi có dữ liệu đo thật)
+  const bonusResult = useMemo(() => {
+    return calculateEmployeeBonus(ohpsScore, breakdown, bonusPolicy, hasActualData);
+  }, [ohpsScore, breakdown, bonusPolicy, hasActualData]);
 
-        const calculated = Math.min(100, Math.max(45, Math.round(ohpsScore * factor)));
+  // DỮ LIỆU XU HƯỚNG 100% THỰC TẾ TỪ SUPABASE (TUYỆT ĐỐI KHÔNG BỊA SỐ LIỆU)
+  const trendData: TrendPoint[] = useMemo(() => {
+    if (timeView === 'week') {
+      // 1. CHẾ ĐỘ 7 NGÀY QUA: Lấy trực tiếp từ bảng daily_ohps_summary trên Supabase
+      // Nếu Supabase chỉ có 1 hoặc 2 bản ghi (VD: 25/10 và 26/10), CHỈ hiển thị đúng các bản ghi đó!
+      if (!supabaseHistoryRows || supabaseHistoryRows.length === 0) {
+        return [];
+      }
+
+      return supabaseHistoryRows.map((row: any) => {
+        let dayFormatted = String(row.date);
+        if (typeof row.date === 'string' && row.date.includes('-')) {
+          const parts = row.date.split('-');
+          if (parts.length === 3) {
+            dayFormatted = `${parts[2]}/${parts[1]}`;
+          }
+        } else {
+          const d = new Date(row.date);
+          if (!isNaN(d.getTime())) {
+            dayFormatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+          }
+        }
+        const score = Number(row.ohps_score ?? 0);
         return {
-          timeLabel: hourStr,
-          score: idx === baseHours.length - 1 ? ohpsScore : calculated,
-          postureScore: Math.min(100, Math.round(breakdown.S_posture * factor)),
-          breakScore: Math.min(100, Math.round(breakdown.S_break * (factor > 1 ? 1 : 0.95))),
-          vitalScore: hasVitalData ? Math.min(100, Math.round(breakdown.S_vital * factor)) : 85,
-          status: calculated >= 85 ? 'Rất tốt' : calculated >= 75 ? 'Tốt' : 'Khá'
+          timeLabel: dayFormatted,
+          score,
+          postureScore: Number(row.posture_score ?? 0),
+          breakScore: Number(row.break_score ?? 0),
+          vitalScore: Number(row.vital_score ?? -1),
+          status: getOHPSEvaluation(score).level
         };
       });
     } else {
-      const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Hôm nay'];
-      return days.map((dayStr, idx) => {
-        const variance = [-6, -2, +3, +1, -3, +2, 0][idx];
-        const val = Math.min(100, Math.max(50, ohpsScore + variance));
+      // 2. CHẾ ĐỘ HÔM NAY: TỔNG HỢP THEO TỪNG GIỜ LÀM VIỆC (08:00 - 18:00)
+      // TUYỆT ĐỐI KHÔNG VẼ THEO GIÂY RỜI RẠC (01:34:59, 01:35:01...)
+      const todayLogs = (historyLogs || []).filter(l => {
+        if (!l.timestamp) return false;
+        const d = new Date(l.timestamp);
+        if (isNaN(d.getTime())) return false;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const logDateStr = d.toISOString().slice(0, 10);
+        return logDateStr === todayStr || d.toDateString() === new Date().toDateString();
+      });
+
+      if (todayLogs.length === 0) {
+        return [];
+      }
+
+      // Tổng hợp dữ liệu đo thực tế thành các mốc theo giờ
+      const hourlyBuckets = aggregateTelemetryByHour(todayLogs, 8, 18);
+      const activeBuckets = hourlyBuckets.filter(b => b.hasData);
+
+      if (activeBuckets.length === 0) {
+        return [];
+      }
+
+      return activeBuckets.map(b => {
+        const postScore = b.goodRatio;
+        const breakScore = b.standingCount > 0 ? 100 : 60;
+        const vitScore = (b.avgBpm > 0 && b.avgSpo2 > 0)
+          ? (b.avgBpm >= 60 && b.avgBpm <= 100 && b.avgSpo2 >= 95 ? 100 : 70)
+          : -1;
+
+        const slotHes = vitScore >= 0 
+          ? Math.round((35 * postScore + 20 * breakScore + 15 * vitScore) / 70) 
+          : Math.round((35 * postScore + 20 * breakScore) / 55);
+
+        const taskPts = breakdown.S_task > 0 ? breakdown.S_task : 80;
+        const pointScore = Math.round(0.7 * slotHes + 0.3 * taskPts);
+
         return {
-          timeLabel: dayStr,
-          score: idx === days.length - 1 ? ohpsScore : val,
-          postureScore: Math.min(100, Math.max(40, breakdown.S_posture + (variance > 0 ? 2 : -2))),
-          breakScore: Math.min(100, Math.max(40, breakdown.S_break + (variance > 0 ? 5 : -5))),
-          vitalScore: hasVitalData ? breakdown.S_vital : 90,
-          status: val >= 85 ? 'Rất tốt' : val >= 75 ? 'Tốt' : 'Khá'
+          timeLabel: b.hourLabel, // '01:00', '08:00', '09:00', ..., '18:00' (LUÔN LÀ GIỜ, KHÔNG CÓ GIÂY!)
+          timeRangeLabel: b.timeRangeLabel,
+          score: pointScore,
+          postureScore: postScore,
+          breakScore: breakScore,
+          vitalScore: vitScore,
+          avgBpm: b.avgBpm,
+          avgSpo2: b.avgSpo2,
+          sampleCount: b.sampleCount,
+          status: getOHPSEvaluation(pointScore).level
         };
       });
     }
-  }, [timeView, ohpsScore, breakdown, hasVitalData]);
+  }, [timeView, supabaseHistoryRows, historyLogs, breakdown]);
 
   // Early return ONLY after all hooks have been unconditionally invoked
   if (!isOpen) return null;
@@ -146,8 +282,9 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (Math.min(100, Math.max(0, ohpsScore)) / 100) * circumference;
 
-  const peakScore = Math.max(...trendData.map(d => d.score), ohpsScore);
-  const avgScore = Math.round(trendData.reduce((acc, d) => acc + d.score, 0) / trendData.length);
+  const peakScore = trendData.length > 0 ? Math.max(...trendData.map(d => d.score)) : ohpsScore;
+  const avgScore = trendData.length > 0 ? Math.round(trendData.reduce((acc, d) => acc + d.score, 0) / trendData.length) : ohpsScore;
+  const trendDelta = trendData.length >= 2 ? (trendData[trendData.length - 1].score - trendData[0].score) : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
@@ -173,17 +310,62 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition cursor-pointer"
-            aria-label="Đóng"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          
+          <div className="flex items-center gap-2">
+            {/* Nút Làm Mới Dữ Liệu Từ Supabase */}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoadingHistory}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 whitespace-nowrap bg-white hover:bg-slate-100 text-slate-700 border border-slate-300"
+              title="Tải lại dữ liệu mới nhất từ bảng daily_ohps_summary trên Supabase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              <span>{isLoadingHistory ? 'Đang tải...' : 'Làm mới Supabase'}</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition cursor-pointer"
+              aria-label="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 text-slate-700 scrollbar-thin bg-white">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 text-slate-700 scrollbar-thin bg-white">
+          
+          {/* Kiến Trúc Luồng Dữ Liệu: Nhật Ký & Task -> Tính ngầm -> Supabase -> Giao diện OHPS */}
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-teal-50/60 border border-teal-200 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Database className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-slate-900">Luồng Dữ Liệu: Nhật Ký & Task → Tính Toán Ngầm → Supabase → OHPS</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white text-teal-800 border border-teal-300 font-mono">
+                    daily_ohps_summary
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                  Điểm số được hệ thống tự động tính toán ngầm và lưu vào Supabase. Toàn bộ giao diện OHPS lấy trực tiếp từ Supabase làm nguồn dữ liệu chuẩn.
+                </p>
+              </div>
+            </div>
+
+            {onOpenSupabaseConfig && (
+              <button
+                type="button"
+                onClick={onOpenSupabaseConfig}
+                className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition cursor-pointer shrink-0 self-start sm:self-auto shadow-2xs"
+              >
+                Cấu hình kết nối
+              </button>
+            )}
+          </div>
           
           {/* Main Score Hero Card (Light Mode) */}
           <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-teal-50/20 to-slate-50 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6">
@@ -299,99 +481,255 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-500 block font-medium">Điểm Cao Nhất</span>
                 <span className="text-base sm:text-lg font-black font-mono text-emerald-700">
-                  {peakScore}đ
+                  {trendData.length > 0 ? `${peakScore}đ` : '–'}
                 </span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-500 block font-medium">Điểm Trung Bình</span>
                 <span className="text-base sm:text-lg font-black font-mono text-teal-700">
-                  {avgScore}đ
+                  {trendData.length > 0 ? `${avgScore}đ` : '–'}
                 </span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-500 block font-medium">Xu Hướng Phong Độ</span>
-                <span className="text-base sm:text-lg font-black font-mono text-teal-700 flex items-center justify-center gap-1">
-                  <ArrowUpRight className="w-4 h-4 text-emerald-600" />
-                  <span>+6%</span>
-                </span>
+                <div className="text-base sm:text-lg font-black font-mono flex items-center justify-center gap-1">
+                  {trendData.length < 2 ? (
+                    <span className="text-xs text-slate-500 font-sans font-medium">
+                      {trendData.length === 1 ? '1 mốc dữ liệu' : 'Chưa có dữ liệu'}
+                    </span>
+                  ) : trendDelta > 0 ? (
+                    <>
+                      <ArrowUpRight className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-emerald-700">+{trendDelta}đ</span>
+                    </>
+                  ) : trendDelta < 0 ? (
+                    <>
+                      <ArrowDownRight className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="text-rose-700">{trendDelta}đ</span>
+                    </>
+                  ) : (
+                    <>
+                      <Minus className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="text-slate-600">0đ</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Recharts Area Chart */}
             <div className="h-56 sm:h-64 w-full pt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="ohpsGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#0d9488" stopOpacity={0.0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis 
-                    dataKey="timeLabel" 
-                    stroke="#64748b" 
-                    fontSize={11} 
-                    tickLine={false}
-                    axisLine={{ stroke: '#cbd5e1' }}
-                  />
-                  <YAxis 
-                    domain={[40, 100]} 
-                    ticks={[50, 65, 80, 95]} 
-                    stroke="#64748b" 
-                    fontSize={11} 
-                    tickLine={false}
-                    axisLine={{ stroke: '#cbd5e1' }}
-                  />
-                  <ReferenceLine 
-                    y={80} 
-                    stroke="#059669" 
-                    strokeDasharray="4 4" 
-                    label={{ value: 'Mục Tiêu Chuẩn (80đ)', fill: '#059669', fontSize: 10, position: 'insideTopRight' }} 
-                  />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload as TrendPoint;
-                        return (
-                          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-xl text-xs space-y-1.5">
-                            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1">
-                              <span className="font-bold text-slate-900">{data.timeLabel}</span>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-                                {data.status}
-                              </span>
+              {isLoadingHistory ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 border border-dashed border-slate-200 rounded-xl">
+                  <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
+                  <span className="text-xs font-medium">Đang truy vấn dữ liệu thực tế từ Supabase...</span>
+                </div>
+              ) : trendData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-200 rounded-xl p-4 text-center bg-slate-50/50">
+                  <Database className="w-8 h-8 text-slate-300 mb-2" />
+                  <span className="text-xs font-bold text-slate-700">
+                    {timeView === 'week' ? 'Chưa có bản ghi nào trong bảng daily_ohps_summary' : 'Chưa có bản ghi telemetry hôm nay'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 max-w-sm mt-1 leading-relaxed">
+                    {timeView === 'week' 
+                      ? 'Biểu đồ được vẽ trực tiếp từ bảng daily_ohps_summary trên Supabase. Hệ thống sẽ tự động lưu ngầm khi có phiên đo hoặc nhiệm vụ.' 
+                      : 'Hệ thống chỉ hiển thị khi nhận được các gói tin telemetry thực tế từ Raspberry Pi trong ngày.'}
+                  </span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="ohpsGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#0d9488" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis 
+                      dataKey="timeLabel" 
+                      stroke="#64748b" 
+                      fontSize={11} 
+                      tickLine={false}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                    />
+                    <YAxis 
+                      domain={[0, 100]} 
+                      ticks={[0, 25, 50, 75, 100]} 
+                      stroke="#64748b" 
+                      fontSize={11} 
+                      tickLine={false}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                    />
+                    <ReferenceLine 
+                      y={80} 
+                      stroke="#059669" 
+                      strokeDasharray="4 4" 
+                      label={{ value: 'Mục Tiêu Chuẩn (80đ)', fill: '#059669', fontSize: 10, position: 'insideTopRight' }} 
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload as TrendPoint;
+                          return (
+                            <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-xl text-xs space-y-1.5">
+                              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1">
+                                <span className="font-bold text-slate-900 font-mono">
+                                  {data.timeRangeLabel ? `Khung giờ: ${data.timeRangeLabel}` : data.timeLabel}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                                  {data.status}
+                                </span>
+                              </div>
+                              <div className="space-y-1 text-[11px] font-mono">
+                                <p className="text-teal-700 font-bold">
+                                  Điểm OHPS: <span className="text-slate-900 text-xs">{data.score}/100</span>
+                                </p>
+                                <p className="text-slate-600">
+                                  • Tư thế ngồi chuẩn: <span className="text-emerald-700 font-semibold">{data.postureScore}%</span>
+                                </p>
+                                <p className="text-slate-600">
+                                  • Vận động giải lao: <span className="text-sky-700 font-semibold">{data.breakScore}đ</span>
+                                </p>
+                                <p className="text-slate-600">
+                                  • Sinh hiệu: <span className="text-rose-700 font-semibold">{data.vitalScore >= 0 ? `${data.vitalScore}đ` : 'Không có cảm biến'}</span>
+                                </p>
+                                {data.avgBpm !== undefined && data.avgBpm > 0 && (
+                                  <p className="text-rose-600">
+                                    • Nhịp tim TB: <span className="font-bold">{data.avgBpm} BPM</span>
+                                  </p>
+                                )}
+                                {data.avgSpo2 !== undefined && data.avgSpo2 > 0 && (
+                                  <p className="text-sky-600">
+                                    • SpO₂ TB: <span className="font-bold">{data.avgSpo2}%</span>
+                                  </p>
+                                )}
+                                {data.sampleCount !== undefined && data.sampleCount > 0 && (
+                                  <p className="text-slate-400 text-[10px] pt-0.5 border-t border-slate-100">
+                                    (Ghi nhận {data.sampleCount} bản ghi trong khung giờ)
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <div className="space-y-1 text-[11px] font-mono">
-                              <p className="text-teal-700 font-bold">
-                                Điểm OHPS: <span className="text-slate-900 text-xs">{data.score}/100</span>
-                              </p>
-                              <p className="text-slate-600">
-                                • Tư thế: <span className="text-emerald-700 font-semibold">{data.postureScore}đ</span>
-                              </p>
-                              <p className="text-slate-600">
-                                • Vận động giải lao: <span className="text-sky-700 font-semibold">{data.breakScore}đ</span>
-                              </p>
-                              <p className="text-slate-600">
-                                • Sinh hiệu: <span className="text-rose-700 font-semibold">{data.vitalScore}đ</span>
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="score" 
+                      stroke="#0d9488" 
+                      strokeWidth={2.5} 
+                      fill="url(#ohpsGradient)" 
+                      dot={{ fill: '#0d9488', stroke: '#ffffff', strokeWidth: 2, r: 5 }}
+                      activeDot={{ fill: '#0d9488', stroke: '#ffffff', strokeWidth: 3, r: 7 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Chân Thích Nguồn Dữ Liệu Thực Tế */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+              <span className="flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                <span>
+                  Nguồn dữ liệu: <strong className="text-slate-700">{timeView === 'week' ? 'Bảng public.daily_ohps_summary (Supabase)' : 'Nhật ký telemetry_logs hôm nay'}</strong>
+                </span>
+              </span>
+              <span className="font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                {trendData.length} {timeView === 'week' ? 'ngày ghi nhận' : 'mốc thời gian ghi nhận'}
+              </span>
+            </div>
+          </div>
+
+          {/* Khung Thưởng Năng Suất & Sức Khỏe Doanh Nghiệp (Company Bonus Policy) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-teal-500/10 border border-amber-300/80 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-700 shrink-0">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900">
+                      Chính Sách Thưởng Công Thái Học Của Công Ty
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                      {bonusPolicy.companyName || 'Doanh Nghiệp'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    Chu kỳ: {bonusPolicy.cycle === 'daily' ? 'Hàng ngày' : bonusPolicy.cycle === 'weekly' ? 'Hàng tuần' : 'Hàng tháng'} • Mức thưởng tối đa: <strong className="font-mono text-amber-800">{formatCurrencyVND(bonusPolicy.maxRewardAmount)}</strong>/người
+                  </p>
+                </div>
+              </div>
+
+              {/* Nút Nhập / Cấu Hình Mức Thưởng Của Công Ty (CHỈ ADMIN MỚI THẤY VÀ ĐƯỢC CHỈNH) */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsBonusModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-2xs transition cursor-pointer active:scale-95 whitespace-nowrap self-stretch sm:self-auto justify-center"
+                >
+                  <Settings2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Nhập / Tùy chỉnh mức thưởng</span>
+                </button>
+              )}
+            </div>
+
+            {/* Nội Dung Mức Thưởng Đạt Được */}
+            <div className="p-3.5 rounded-xl bg-white border border-amber-200/90 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-slate-600 font-medium">Mức thưởng ước tính đạt được:</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    bonusResult.isEligible
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}>
+                    {bonusResult.isEligible ? (bonusResult.tierAchieved?.tierName || 'Đạt chuẩn') : `Chưa đạt điểm sàn (≥ ${bonusPolicy.minScoreToReward}đ)`}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700 tracking-tight">
+                    +{formatCurrencyVND(bonusResult.totalReward)}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    ({bonusResult.achievementRate}% hạn mức thưởng)
+                  </span>
+                </div>
+                {(bonusResult.postureBonus > 0 || bonusResult.breakBonus > 0 || bonusResult.taskBonus > 0) && (
+                  <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap gap-2">
+                    <span>(Bao gồm: Cơ bản {formatCurrencyVND(bonusResult.baseReward)}</span>
+                    {bonusResult.postureBonus > 0 && <span>• Thưởng tư thế +{formatCurrencyVND(bonusResult.postureBonus)}</span>}
+                    {bonusResult.breakBonus > 0 && <span>• Thưởng giải lao +{formatCurrencyVND(bonusResult.breakBonus)}</span>}
+                    {bonusResult.taskBonus > 0 && <span>• Thưởng task +{formatCurrencyVND(bonusResult.taskBonus)}</span>}
+                    <span>)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full sm:w-48">
+                <div className="flex justify-between text-[10px] text-slate-500 font-semibold mb-1">
+                  <span>Tiến độ nhận thưởng</span>
+                  <span className="font-mono text-emerald-700 font-bold">{bonusResult.achievementRate}%</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                  <div 
+                    className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, bonusResult.achievementRate)}%` }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="score" 
-                    stroke="#0d9488" 
-                    strokeWidth={2.5} 
-                    fill="url(#ohpsGradient)" 
-                    dot={{ fill: '#0d9488', stroke: '#ffffff', strokeWidth: 2, r: 4 }}
-                    activeDot={{ fill: '#0d9488', stroke: '#ffffff', strokeWidth: 3, r: 6 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Lời khuyên tối ưu thưởng */}
+            <div className="text-[11px] text-slate-600 bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/60 flex items-start gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <span>{bonusResult.tipsToReachNextTier}</span>
             </div>
           </div>
 
@@ -603,6 +941,15 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
         </div>
 
       </div>
+
+      {/* Modal Tùy Chỉnh Chính Sách Thưởng Công Ty */}
+      <CompanyBonusModal
+        isOpen={isBonusModalOpen}
+        onClose={() => setIsBonusModalOpen(false)}
+        currentScore={ohpsScore}
+        breakdown={breakdown}
+        onPolicyChanged={(newPol) => setBonusPolicy(newPol)}
+      />
     </div>
   );
 };

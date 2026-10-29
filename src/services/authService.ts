@@ -480,7 +480,8 @@ export async function registerWithFirebaseEmail(
   email: string,
   pass: string,
   fullName: string,
-  role: UserRole = 'employee'
+  role: UserRole = 'employee',
+  extraProfile?: Partial<AuthUser>
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   try {
     const config = getSavedFirebaseConfig();
@@ -499,6 +500,7 @@ export async function registerWithFirebaseEmail(
       fullName: fullName || cred.user.displayName || 'Nhân Viên Mới',
       role: role,
       department: role === 'manager' ? 'Ban Quản Trị Hệ Thống' : 'Phòng Làm Việc Văn Phòng',
+      ...(extraProfile || {}),
     };
 
     saveCurrentUser(authUser);

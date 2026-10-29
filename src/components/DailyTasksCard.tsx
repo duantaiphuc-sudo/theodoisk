@@ -39,12 +39,16 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
   const [newPriority, setNewPriority] = useState<'normal' | 'high' | 'urgent'>('normal');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filter tasks targeted for current user or 'all'
+  // Filter tasks targeted for current user or 'all', loại bỏ trùng lặp ID
+  const seenIds = new Set<string>();
   const myTasks = tasks.filter(t => {
-    if (t.targetUserId === 'all') return true;
-    if (currentUser?.id && t.targetUserId === currentUser.id) return true;
-    if (currentUser?.email && t.targetUserId?.toLowerCase() === currentUser.email.toLowerCase()) return true;
-    return false;
+    const isTarget = t.targetUserId === 'all' || 
+      (currentUser?.id && t.targetUserId === currentUser.id) || 
+      (currentUser?.email && t.targetUserId?.toLowerCase() === currentUser.email.toLowerCase());
+    if (!isTarget) return false;
+    if (seenIds.has(t.id)) return false;
+    seenIds.add(t.id);
+    return true;
   });
 
   const completedCount = myTasks.filter(t => t.status === 'completed').length;
@@ -52,7 +56,7 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await onAddTask(newTitle.trim(), newPriority);
@@ -248,6 +252,15 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
                       )}
                       {task.priority === 'high' && (
                         <span className="text-amber-600 font-bold">Ưu tiên cao</span>
+                      )}
+                      {task.isPersonal || task.senderId === currentUser?.id ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                          Tự tạo
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          Admin giao ({task.senderName || 'Quản trị'})
+                        </span>
                       )}
                       <span>
                         {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
