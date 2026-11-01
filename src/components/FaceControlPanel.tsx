@@ -271,79 +271,71 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;
 
   return (
-    <section className={`rounded-3xl glass-panel border border-white/60 p-4 sm:p-5 shadow-lg transition-all ${className || ''}`} aria-label="Xác thực khuôn mặt">
-      {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-            isVerified 
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-              : isAuthFailedOrMismatch
-              ? 'bg-rose-50 text-rose-700 border-rose-300'
-              : 'bg-indigo-50 text-indigo-700 border-indigo-200'
-          }`}>
-            <ScanFace className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 flex items-center gap-2">
-              Xác Thực Khuôn Mặt SFace
-              {isVerified && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đã xác thực
-                </span>
-              )}
-              {isAuthFailedOrMismatch && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 whitespace-nowrap animate-pulse">
-                  <ShieldAlert className="w-3 h-3 text-rose-600" /> Sai khuôn mặt
-                </span>
-              )}
-            </h3>
-            <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-600 font-medium">
-              <span>Trạm: <b className="font-mono text-slate-800">{deviceId || 'Chưa gán'}</b></span>
-              <span className="text-slate-400">•</span>
-              <span className="truncate">SFace 128D OpenCV</span>
+    <section className={`rounded-3xl glass-panel border border-white/60 p-3.5 sm:p-5 shadow-lg transition-all overflow-hidden ${className || ''}`} aria-label="Xác thực khuôn mặt">
+      {/* Header Panel - Thiết kế tự co giãn gọn gàng, chống tràn viền tuyệt đối */}
+      <div className="flex flex-col gap-2.5 pb-3 border-b border-slate-100">
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+              isVerified 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                : isAuthFailedOrMismatch
+                ? 'bg-rose-50 text-rose-700 border-rose-300'
+                : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+            }`}>
+              <ScanFace className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold tracking-tight text-slate-900 truncate">
+                Xác Thực Khuôn Mặt SFace
+              </h3>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium truncate">
+                <span>Trạm: <b className="font-mono text-slate-700">{deviceId || 'Chưa gán'}</b></span>
+                <span className="text-slate-300">•</span>
+                <span className="truncate">SFace 128D</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Trạng thái phiên làm việc */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span 
-            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border whitespace-nowrap shadow-2xs ${
-              isVerified
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : isAuthFailedOrMismatch
-                ? 'bg-rose-50 text-rose-800 border-rose-300 ring-2 ring-rose-200'
-                : isWaitLogin
-                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                : 'bg-slate-100 text-slate-700 border-slate-200'
-            }`}
-            role="status"
-          >
-            {isVerified ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : isAuthFailedOrMismatch ? (
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
-            ) : isWaitLogin ? (
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-            ) : (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
-            )}
-            <span>
-              {session === 'VERIFIED' 
-                ? 'ĐÃ XÁC THỰC' 
-                : session === 'STRANGER'
-                ? 'PHÁT HIỆN NGƯỜI LẠ'
-                : session === 'REVERIFY_REQUIRED'
-                ? 'SAI KHUÔN MẶT / CẦN QUÉT LẠI' 
-                : session === 'VERIFY_FAILED'
-                ? 'XÁC THỰC THẤT BẠI'
-                : session === 'WAIT_LOGIN' 
-                ? 'CHỜ XÁC THỰC' 
-                : session}
-              {progress ? ` (${progress})` : ''}
+          {/* Badge trạng thái thu gọn, căn phải an toàn không tràn thẻ */}
+          <div className="shrink-0">
+            <span 
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs whitespace-nowrap ${
+                isVerified
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : isAuthFailedOrMismatch
+                  ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200'
+                  : isWaitLogin
+                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                  : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+              role="status"
+            >
+              {isVerified ? (
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              ) : isAuthFailedOrMismatch ? (
+                <ShieldAlert className="w-3 h-3 text-rose-600 animate-pulse" />
+              ) : isWaitLogin ? (
+                <ShieldAlert className="w-3 h-3 text-amber-600" />
+              ) : (
+                <Loader2 className="w-3 h-3 animate-spin text-slate-600" />
+              )}
+              <span>
+                {session === 'VERIFIED' 
+                  ? 'Đã xác thực' 
+                  : session === 'STRANGER'
+                  ? 'Người lạ'
+                  : session === 'REVERIFY_REQUIRED'
+                  ? 'Cần quét lại' 
+                  : session === 'VERIFY_FAILED'
+                  ? 'Không khớp'
+                  : session === 'WAIT_LOGIN' 
+                  ? 'Chờ xác thực' 
+                  : session}
+                {progress ? ` (${progress})` : ''}
+              </span>
             </span>
-          </span>
+          </div>
         </div>
       </div>
 
@@ -354,11 +346,11 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
             <ShieldAlert className="w-4 h-4 animate-pulse" />
           </div>
           <div className="flex-1 space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-extrabold text-xs sm:text-sm text-rose-800 tracking-tight">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-xs text-rose-800 tracking-tight">
                 🚨 CẢNH BÁO: KHUÔN MẶT KHÔNG KHỚP {progress ? `(${progress})` : ''}
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white">
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-600 text-white whitespace-nowrap">
                 Khóa an ninh
               </span>
             </div>
@@ -415,8 +407,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
                 Chưa có mẫu khuôn mặt
               </span>
             )}
-            <span className="text-xs text-slate-700 font-semibold hidden sm:inline">
-              (Tự động nhận diện khi ngồi trước Pi 4)
+            <span className="text-[11px] text-slate-500 font-medium hidden md:inline truncate">
+              (Tự động nhận diện trước Pi 4)
             </span>
           </div>
         </div>
@@ -571,18 +563,18 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         </div>
       )}
 
-      {/* HÀNG NÚT THAO TÁC CÒN LẠI (GỌN GÀNG, CÂN BẰNG CHIỀU CAO) */}
-      <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+      {/* HÀNG NÚT THAO TÁC (Tự động co giãn chống tràn viền) */}
+      <div className="mt-2.5 grid grid-cols-12 gap-1.5 sm:gap-2">
         {/* Nút đăng ký chính qua Camera Pi 4 */}
         <button
           type="button"
           disabled={working || isResetting || !deviceId}
           onClick={() => execute('ENROLL')}
-          className="flex-1 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-3 py-2 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap"
+          className="col-span-6 sm:col-span-6 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-2 sm:px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
           title="Yêu cầu camera Raspberry Pi 4 chụp và tạo vector khuôn mặt 128 chiều"
         >
           <ScanFace className="w-3.5 h-3.5 shrink-0" />
-          <span>Đăng ký mẫu Pi 4</span>
+          <span className="truncate">Đăng ký mẫu Pi 4</span>
         </button>
 
         {/* Nút đặt lại mẫu khuôn mặt */}
@@ -590,7 +582,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           type="button"
           disabled={working || isResetting}
           onClick={() => setShowConfirmReset(prev => !prev)}
-          className={`min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer border whitespace-nowrap ${
+          className={`col-span-3 sm:col-span-3 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer border whitespace-nowrap truncate ${
             showConfirmReset 
               ? 'bg-amber-100 text-amber-950 border-amber-400' 
               : 'bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border-amber-300'
@@ -598,18 +590,18 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           title="Xóa mẫu khuôn mặt đã lưu của tài khoản này để quét lại mẫu mới"
         >
           <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-700 ${isResetting ? 'animate-spin' : ''}`} />
-          <span>Đặt lại</span>
+          <span className="truncate">Đặt lại</span>
         </button>
 
         {/* Nút mô phỏng quét mặt người lạ (Kiểm thử cảnh báo an ninh) */}
         <button
           type="button"
           onClick={handleSimulateUnknownFace}
-          className="min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 transition cursor-pointer whitespace-nowrap active:scale-95"
+          className="col-span-3 sm:col-span-3 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-1.5 sm:px-2 py-1.5 text-[11px] font-bold border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 transition cursor-pointer whitespace-nowrap active:scale-95 truncate"
           title="Mô phỏng trường hợp người lạ ngồi vào quét khuôn mặt thất bại"
         >
           <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-          <span>Test người lạ</span>
+          <span className="truncate">Test lạ</span>
         </button>
       </div>
 
