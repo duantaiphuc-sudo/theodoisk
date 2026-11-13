@@ -28,7 +28,20 @@ import {
 } from './services/firebase';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers, isUserAdmin, refreshCurrentUserClaims } from './services/authService';
-import { playAlertChime, playErgonomicVoiceAlert } from './services/sound';
+import { 
+  playAlertChime, 
+  playErgonomicVoiceAlert,
+  playFingerPlacedAlert,
+  playMeasuringPulseSound,
+  playMeasureCompleteAlert,
+  playFingerRemovedAlert,
+  playStrangerAlert,
+  playCameraErrorAlert,
+  playWelcomeBackAlert,
+  playPostureCorrectAlert,
+  playStandingActiveAlert,
+  playUserAbsentAlert
+} from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { notificationManager } from './services/notificationService';
 import { Sidebar } from './components/Sidebar';
@@ -69,6 +82,7 @@ import { GreetingGoalCard } from './components/GreetingGoalCard';
 import { DailyTasksCard } from './components/DailyTasksCard';
 import { WallpaperModal } from './components/WallpaperModal';
 import { OHPSDetailModal } from './components/OHPSDetailModal';
+import { AIPredictionHub } from './components/AIPredictionHub';
 import { calculateOHPSFromLogs, mapSupabaseRowToOHPSResult } from './utils/ohpsCalculator';
 import { watchFaceSession, requestFaceAction } from './services/faceCommandService';
 import { watchDeviceAssignment, pushWebTftAlert, calculateTftStatusCode } from './services/webTftAlertService';
@@ -85,6 +99,7 @@ import {
   Plus, 
   Layers, 
   ExternalLink,
+  BrainCircuit,
   Shield,
   ShieldAlert,
   CameraOff
@@ -387,6 +402,51 @@ export default function App() {
     continuousStandingSeconds: 0,
   });
 
+  // Tự động nâng cấp trạng thái hiển thị sang "SAI TƯ THẾ LÂU" (status 3) hoặc "NGỒI QUÁ LÂU" (status 4)
+  // khi bộ đếm thời gian thực tế đạt ngưỡng cài đặt của người dùng
+  const isProlongedBadPosture = 
+    telemetry.trackingActive && 
+    (telemetry.postureStatus === 1 || telemetry.postureStatus === 3) && 
+    timeStats.badPostureSeconds >= thresholds.incorrectPostureSec;
+
+  const isProlongedSitting = 
+    telemetry.trackingActive && 
+    telemetry.postureStatus !== 2 && 
+    telemetry.postureStatus !== -1 && 
+    telemetry.postureStatus !== 5 &&
+    timeStats.continuousSittingSeconds >= thresholds.longSittingSec;
+
+  const effectiveTelemetry: HealthTelemetry = useMemo(() => {
+    if (isProlongedBadPosture) {
+      const thresholdText = thresholds.incorrectPostureSec ? ` (≥${thresholds.incorrectPostureSec}s)` : '';
+      return {
+        ...telemetry,
+        postureStatus: 3,
+        postureLabel: `SAI TƯ THẾ LÂU${thresholdText}`,
+        postureWarning: `Sai tư thế kéo dài ${timeStats.badPostureSeconds}s (vượt ngưỡng ${thresholds.incorrectPostureSec}s)`,
+        hasAlert: true,
+      };
+    }
+    if (isProlongedSitting && (telemetry.postureStatus === 0 || telemetry.postureStatus === 4)) {
+      return {
+        ...telemetry,
+        postureStatus: 4,
+        postureLabel: 'NGỒI LÀM VIỆC QUÁ LÂU',
+        postureWarning: `Đã ngồi liên tục ${Math.floor(timeStats.continuousSittingSeconds / 60)} phút`,
+        hasAlert: true,
+      };
+    }
+    return telemetry;
+  }, [
+    telemetry, 
+    isProlongedBadPosture, 
+    isProlongedSitting, 
+    thresholds.incorrectPostureSec, 
+    thresholds.longSittingSec, 
+    timeStats.badPostureSeconds, 
+    timeStats.continuousSittingSeconds
+  ]);
+
   // Main vertical sidebar navigation tab: 'overview' | 'zone' | 'logs' | 'tasks'
   const [mainNavTab, setMainNavTab] = useState<MainNavTab>('overview');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -595,6 +655,11 @@ export default function App() {
 
   // Refs for audio throttle & last alert timestamp & Firebase history throttle
   const wasAbsentRef = useRef<boolean | null>(null);
+  const wasBadPostureRef = useRef<boolean>(false);
+  const wasStandingRef = useRef<boolean>(false);
+  const lastPostureCorrectVoiceRef = useRef<number>(0);
+  const lastStandingVoiceRef = useRef<number>(0);
+  const lastAbsentVoiceRef = useRef<number>(0);
   const lastAlertPlayedRef = useRef<number>(0);
   const lastPostureVoiceRef = useRef<number>(0);
   const lastZoneVoiceRef = useRef<number>(0);
@@ -604,6 +669,15 @@ export default function App() {
   const lastFirebaseHistorySaveRef = useRef<number>(0);
   const lastSavedMetricsRef = useRef<{ bpm: number; spo2: number }>({ bpm: 0, spo2: 0 });
   const lastPostureStatusRef = useRef<number>(-1);
+
+  // Refs for MAX30102, camera error, stranger, and welcome back audio alerts
+  const lastFingerPlacedRef = useRef<boolean>(false);
+  const fingerPlacementStartTimeRef = useRef<number | null>(null);
+  const hasAnnouncedCompleteRef = useRef<boolean>(false);
+  const lastPulseTickRef = useRef<number>(0);
+  const lastCameraErrorVoiceRef = useRef<number>(0);
+  const wasCameraErrorRef = useRef<boolean>(false);
+  const lastWelcomeBackVoiceRef = useRef<number>(0);
   const telemetryRef = useRef(telemetry);
   telemetryRef.current = telemetry;
   const thresholdsRef = useRef(thresholds);
@@ -680,7 +754,7 @@ export default function App() {
         }
         if (prev.sitting < currentThresholds.longSittingSec &&
             counters.continuousSittingSeconds >= currentThresholds.longSittingSec) {
-          if (currentThresholds.soundEnabled || currentThresholds.voiceAlertEnabled) playErgonomicVoiceAlert('sit_to_stand_prompt', {
+          if (currentThresholds.soundEnabled || currentThresholds.voiceAlertEnabled) playErgonomicVoiceAlert('long_sitting', {
             playChime: currentThresholds.soundEnabled,
             playVoice: currentThresholds.voiceAlertEnabled,
           });
@@ -776,6 +850,7 @@ export default function App() {
     const isAbsent = !isCameraError && (data.postureStatus === 2 || data.trackingActive === false);
     const isStanding = !isCameraError && !isAbsent && (data.postureStatus === 5 || data.postureLabel?.toLowerCase().includes('đứng'));
     const isBadPosture = !isCameraError && !isAbsent && !isStanding && (data.postureStatus === 1 || data.postureStatus === 3);
+    const isCorrectPosture = !isCameraError && !isAbsent && !isStanding && data.postureStatus === 0;
     const isOutOfZone = !isCameraError && !isAbsent && !isStanding && data.inZone === false;
     const isAbnormalHR = data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax);
     const isAbnormalSpO2 = data.spo2 > 0 && data.spo2 < currentThresholds.spo2Min;
@@ -829,10 +904,19 @@ export default function App() {
       // 0. Cảnh báo an ninh: Khuôn mặt không khớp / Người lạ (giãn cách 30 giây)
       if (isFaceMismatch && now - lastAlertPlayedRef.current > 30000) {
         lastAlertPlayedRef.current = now;
-        playErgonomicVoiceAlert('custom', {
+        playStrangerAlert({
           playChime: canPlayAudio,
           playVoice: canPlayVoice,
-          customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp với chủ tài khoản!',
+          customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp hoặc người lạ trước trạm làm việc! Hệ thống đã tạm dừng ghi nhận dữ liệu.'
+        });
+      }
+      // 0.1 Cảnh báo phần cứng: Lỗi camera USB (giãn cách 40 giây)
+      else if (isCameraError && (!wasCameraErrorRef.current || now - lastCameraErrorVoiceRef.current > 40000)) {
+        lastCameraErrorVoiceRef.current = now;
+        lastAlertPlayedRef.current = now;
+        playCameraErrorAlert({
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
         });
       }
       // 1. Cảnh báo tư thế sai ("Xin hãy ngồi thẳng lưng lên!" hoặc "Bạn đang ngồi sai tư thế quá lâu!")
@@ -849,6 +933,22 @@ export default function App() {
             playVoice: canPlayVoice,
           });
         }
+      }
+      // 1.1 Khích lệ khi ngồi đúng tư thế trở lại sau khi sai tư thế (giãn cách 20 giây)
+      else if (wasBadPostureRef.current && isCorrectPosture && now - lastPostureCorrectVoiceRef.current > 20000) {
+        lastPostureCorrectVoiceRef.current = now;
+        playPostureCorrectAlert({
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+        });
+      }
+      // 1.2 Nhận diện chuyển sang trạng thái đứng làm việc (giãn cách 30 giây)
+      else if (!wasStandingRef.current && isStanding && now - lastStandingVoiceRef.current > 30000) {
+        lastStandingVoiceRef.current = now;
+        playStandingActiveAlert({
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+        });
       }
       // 2. Nhắc nhở ngồi ngoài vùng quan sát camera (chỉ nhắc khi tính năng bật và cách nhau tối thiểu 60 giây)
       else if (isOutOfZone && currentThresholds.outOfZoneAlertEnabled) {
@@ -872,6 +972,57 @@ export default function App() {
           customMessage: `Cảnh báo: ${alertType}! Xin hãy kiểm tra lại trạng thái cơ thể!`,
         });
       }
+    }
+
+    wasCameraErrorRef.current = isCameraError;
+    wasBadPostureRef.current = isBadPosture;
+    wasStandingRef.current = isStanding;
+
+    // === TƯƠNG TÁC ÂM THANH CẢM BIẾN MAX30102 (ĐẶT TAY, ĐANG ĐO, ĐÃ ĐO XONG, BỎ TAY) ===
+    const hasFinger = Boolean(data.bpm > 0 || data.spo2 > 0);
+    const wasFingerPlaced = lastFingerPlacedRef.current;
+
+    if (canPlayAudio || canPlayVoice) {
+      // 1. Đặt tay vào cảm biến MAX30102
+      if (!wasFingerPlaced && hasFinger) {
+        lastFingerPlacedRef.current = true;
+        fingerPlacementStartTimeRef.current = now;
+        hasAnnouncedCompleteRef.current = false;
+        playFingerPlacedAlert({
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+        });
+      }
+      // 2. Bỏ tay khỏi cảm biến MAX30102
+      else if (wasFingerPlaced && !hasFinger) {
+        lastFingerPlacedRef.current = false;
+        fingerPlacementStartTimeRef.current = null;
+        hasAnnouncedCompleteRef.current = false;
+        playFingerRemovedAlert({
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+        });
+      }
+      // 3. Đang giữ tay trên cảm biến (ĐANG ĐO & ĐÃ ĐO XONG)
+      else if (wasFingerPlaced && hasFinger) {
+        // Tiếng nhịp tim PPG y tế trong lúc đang đo (khoảng cách tối thiểu 1.4s)
+        if (canPlayAudio && now - lastPulseTickRef.current >= 1400) {
+          lastPulseTickRef.current = now;
+          playMeasuringPulseSound();
+        }
+
+        // Đã đo xong: Giữ tay ổn định ≥ 3.5s và có chỉ số sinh trắc học hợp lệ
+        const holdDuration = fingerPlacementStartTimeRef.current ? (now - fingerPlacementStartTimeRef.current) : 0;
+        if (!hasAnnouncedCompleteRef.current && holdDuration >= 3500 && data.bpm >= 45 && data.spo2 >= 85) {
+          hasAnnouncedCompleteRef.current = true;
+          playMeasureCompleteAlert(data.bpm, data.spo2, {
+            playChime: canPlayAudio,
+            playVoice: canPlayVoice,
+          });
+        }
+      }
+    } else {
+      lastFingerPlacedRef.current = hasFinger;
     }
 
     // 4. Browser Notification API (Giãn cách tối thiểu 45 giây để tránh bắn thông báo dồn dập vào màn hình)
@@ -937,6 +1088,8 @@ export default function App() {
     // Ghi nhận chuyển đổi trạng thái: Vắng mặt (Rời ghế) hoặc Quay lại bàn làm việc
     const isCurrentlyAbsent = isAbsent || data.postureStatus === 2 || !data.inZone;
     if (wasAbsentRef.current !== null && wasAbsentRef.current !== isCurrentlyAbsent) {
+      const isReturningToDesk = wasAbsentRef.current === true && isCurrentlyAbsent === false;
+      const isLeavingDesk = wasAbsentRef.current === false && isCurrentlyAbsent === true;
       const presenceText = isCurrentlyAbsent ? 'Vắng mặt (Rời ghế làm việc)' : 'Quay lại bàn làm việc';
       const presenceStatus = isCurrentlyAbsent ? 2 : (data.postureStatus >= 0 ? data.postureStatus : 0);
       const presenceTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -961,6 +1114,24 @@ export default function App() {
       setHistory(prev => [presenceEvent, ...prev.slice(0, 299)]);
       if (activeUser) {
         insertTelemetryToSupabase(presenceEvent, activeUser).catch(() => {});
+      }
+
+      // Phát âm thanh và giọng nói khi rời bàn làm việc (Vắng mặt) (giãn cách tối thiểu 30 giây)
+      if (isLeavingDesk && (canPlayAudio || canPlayVoice) && now - lastAbsentVoiceRef.current > 30000) {
+        lastAbsentVoiceRef.current = now;
+        playUserAbsentAlert({
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+        });
+      }
+
+      // Phát âm thanh và giọng nói chào mừng khi quay lại bàn làm việc (giãn cách tối thiểu 30 giây)
+      if (isReturningToDesk && (canPlayAudio || canPlayVoice) && now - lastWelcomeBackVoiceRef.current > 30000) {
+        lastWelcomeBackVoiceRef.current = now;
+        playWelcomeBackAlert(activeUser?.fullName || activeUser?.username, {
+          playChime: canPlayAudio,
+          playVoice: canPlayVoice,
+        });
       }
     }
     wasAbsentRef.current = isCurrentlyAbsent;
@@ -1131,8 +1302,9 @@ export default function App() {
           });
 
           if (thresholdsRef.current.soundEnabled || thresholdsRef.current.voiceAlertEnabled) {
-            playErgonomicVoiceAlert('custom', {
-              customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp với chủ tài khoản!'
+            playStrangerAlert({
+              playChime: thresholdsRef.current.soundEnabled,
+              playVoice: thresholdsRef.current.voiceAlertEnabled
             });
           }
 
@@ -1521,10 +1693,9 @@ export default function App() {
         } 
         // 2. Trigger sit-to-stand prompt when continuous sitting reaches threshold
         else if (newContinuous === currentThresh.longSittingSec && (currentThresh.soundEnabled || currentThresh.voiceAlertEnabled)) {
-          playErgonomicVoiceAlert('sit_to_stand_prompt', {
+          playErgonomicVoiceAlert('long_sitting', {
             playChime: currentThresh.soundEnabled,
             playVoice: currentThresh.voiceAlertEnabled,
-            customMessage: `Cảnh báo: Bạn đã ngồi làm việc liên tục ${Math.floor(currentThresh.longSittingSec / 60)} phút! Xin hãy đứng dậy làm việc trong ${targetStandingMin} phút để bảo vệ cột sống và giải phóng áp lực đĩa đệm nhé!`
           });
 
           if (currentThresh.browserNotificationEnabled) {
@@ -1541,7 +1712,6 @@ export default function App() {
           playErgonomicVoiceAlert('standing_goal_reached', {
             playChime: currentThresh.soundEnabled,
             playVoice: currentThresh.voiceAlertEnabled,
-            customMessage: `Tuyệt vời! Bạn đã hoàn thành ${targetStandingMin} phút đứng làm việc theo mục tiêu. Bạn có thể ngồi xuống tiếp tục công việc rồi nhé!`
           });
 
           if (currentThresh.browserNotificationEnabled) {
@@ -2423,8 +2593,9 @@ export default function App() {
                           time: new Date().toLocaleTimeString('vi-VN')
                         });
                         if (thresholdsRef.current.soundEnabled || thresholdsRef.current.voiceAlertEnabled) {
-                          playErgonomicVoiceAlert('custom', {
-                            customMessage: 'Cảnh báo an ninh: Phát hiện khuôn mặt không khớp với chủ tài khoản!'
+                          playStrangerAlert({
+                            playChime: thresholdsRef.current.soundEnabled,
+                            playVoice: thresholdsRef.current.voiceAlertEnabled
                           });
                         }
                       }}
@@ -2433,6 +2604,51 @@ export default function App() {
                     >
                       <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
                       <span>Thử Quét Lỗi (Lạ)</span>
+                    </button>
+
+                    <div className="h-4 w-px bg-amber-300 mx-1 hidden sm:block" />
+
+                    <button
+                      onClick={() => {
+                        playFingerPlacedAlert();
+                        setTelemetry(prev => ({ ...prev, bpm: 72, spo2: 98 }));
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Thử âm thanh và giọng nói khi người dùng vừa đặt ngón tay lên cảm biến MAX30102"
+                    >
+                      <span>👆 Đặt tay MAX</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        playMeasureCompleteAlert(76, 98);
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-sky-700 hover:bg-sky-50 border border-sky-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Thử âm thanh và giọng nói khi đã đo xong nhịp tim và SpO2"
+                    >
+                      <span>🎯 Đo xong MAX</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        playFingerRemovedAlert();
+                        setTelemetry(prev => ({ ...prev, bpm: 0, spo2: 0 }));
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Thử âm thanh khi người dùng nhấc tay ra khỏi cảm biến MAX30102"
+                    >
+                      <span>🖐️ Bỏ tay MAX</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        playWelcomeBackAlert(currentUser?.fullName || currentUser?.username);
+                        setSimPostureMode('correct');
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Thử âm thanh chào mừng khi quay lại bàn làm việc"
+                    >
+                      <span>🪑 Quay lại bàn</span>
                     </button>
                   </div>
                 </div>
@@ -2528,7 +2744,7 @@ export default function App() {
                 {/* CỘT TRÁI (LỚN - 7 CỘT): Mô Hình & Chẩn Đoán Tư Thế (Cân bằng chiều cao với Cụm 4 ô + Nhiệm vụ) */}
                 <div className={`lg:col-span-7 flex flex-col h-full ${mobileActiveTab !== 'all' && mobileActiveTab !== 'posture' ? 'hidden sm:flex' : 'flex'}`}>
                   <PostureVisualizer 
-                    telemetry={telemetry} 
+                    telemetry={effectiveTelemetry} 
                     hasData={hasReceivedData} 
                     className="w-full h-full flex flex-col justify-between"
                   />
@@ -2539,13 +2755,13 @@ export default function App() {
                   {/* Cụm 4 Thẻ Sinh Hiệu (2x2 Grid) */}
                   <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'biometrics' ? 'hidden sm:block' : 'block'}`}>
                     <MetricCards 
-                      telemetry={telemetry} 
-                      thresholds={thresholds} 
-                      hasData={hasReceivedData} 
-                      isSessionVerified={isFaceSessionVerified}
-                      gridClassName="grid grid-cols-2 gap-2.5 sm:gap-3.5"
-                    />
-                  </div>
+                    telemetry={effectiveTelemetry} 
+                    thresholds={thresholds} 
+                    hasData={hasReceivedData} 
+                    isSessionVerified={isFaceSessionVerified}
+                    gridClassName="grid grid-cols-2 gap-2.5 sm:gap-3.5"
+                  />
+                </div>
 
                   {/* Nhiệm Vụ Hôm Nay (Daily Tasks) */}
                   <div className={`${mobileActiveTab !== 'all' && mobileActiveTab !== 'tasks' ? 'hidden sm:block' : 'block'}`}>
@@ -2586,7 +2802,48 @@ export default function App() {
                   hasData={hasReceivedData}
                 />
               </div>
+
+              {/* 5. Quick Access Card to AI Prediction & Data Exploitation Hub */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0">
+                    <BrainCircuit className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                      AI Dự Đoán Sức Khỏe &amp; Bản Đồ Khai Thác Dữ Liệu (6 Ứng Dụng)
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Dự báo nguy cơ cổ/thắt lưng, xác định khung giờ vàng tập trung, tối ưu ngưỡng Pi 4 tự động và báo cáo khai thác dữ liệu ngoài tính năng suất OHPS.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMainNavTab('ai_predict')}
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Mở Phân Tích &amp; Dự Báo AI
+                </button>
+              </div>
             </div>
+          )}
+
+          {/* TAB 2: AI PREDICTION & DATA EXPLOITATION */}
+          {mainNavTab === 'ai_predict' && currentUser && (
+            <AIPredictionHub
+              currentUser={currentUser}
+              isManager={isManager}
+              allUsers={allRegisteredUsers}
+              telemetry={effectiveTelemetry}
+              history={history}
+              timeStats={timeStats}
+              thresholds={thresholds}
+              ohpsData={ohpsData}
+              tasks={userTasks}
+              onApplyThresholds={saveThresholdsForPi}
+              onOpenSettingsModal={() => isManager && setIsSettingsModalOpen(true)}
+            />
           )}
 
           {/* TAB 3: HISTORY AUDIT LOGS (Nhật ký dữ liệu) */}

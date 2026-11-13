@@ -78,6 +78,10 @@ export const TopNav: React.FC<TopNavProps> = ({
       title: 'Trợ lý AI Gemini',
       subtitle: 'Tư vấn công thái học, chẩn đoán tư thế & hỏi đáp sức khỏe thông minh'
     },
+    ai_predict: {
+      title: 'AI Dự đoán & Khai thác Dữ liệu',
+      subtitle: 'Dự báo rủi ro sức khỏe, nhịp điệu tập trung & 6 hướng khai thác dữ liệu IoT'
+    },
     admin_overview: {
       title: 'Danh mục quản trị',
       subtitle: 'Giám sát tổng thể tài khoản & chỉ số sinh trắc học thời gian thực'

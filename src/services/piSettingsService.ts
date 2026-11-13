@@ -12,13 +12,6 @@ export const DEFAULT_PI_THRESHOLDS = {
   browserNotificationEnabled: true, outOfZoneAlertEnabled: false,
 };
 
-const bounds: Record<string, [number, number]> = {
-  hrMin: [40, 90], hrMax: [90, 160], spo2Min: [85, 99],
-  incorrectPostureSec: [5, 300], longIncorrectSec: [30, 3600],
-  longSittingSec: [300, 7200], standingTargetSec: [30, 3600],
-  standingResetSec: [5, 3600],
-};
-
 function getAuthorizedDb(uid: string) {
   const config = getSavedFirebaseConfig();
   const app = initializeFirebaseApp(config);
@@ -32,15 +25,23 @@ function getAuthorizedDb(uid: string) {
 export async function savePiSettings(uid: string, input: AlertThresholds) {
   const db = getAuthorizedDb(uid);
   const settings = { ...DEFAULT_PI_THRESHOLDS, ...input };
-  for (const [key, [lo, hi]] of Object.entries(bounds)) {
-    const num = Number((settings as any)[key]);
-    if (!Number.isFinite(num) || num < lo || num > hi) {
-      throw new Error(`Ngưỡng ${key} phải trong khoảng ${lo}–${hi}.`);
+  
+  // Chuyển đổi và làm sạch giá trị số, cho phép người dùng tự do nhập bất kỳ thông số nào (không giới hạn biên độ)
+  const numericKeys = [
+    'hrMin', 'hrMax', 'spo2Min',
+    'incorrectPostureSec', 'longIncorrectSec',
+    'longSittingSec', 'standingTargetSec', 'standingResetSec'
+  ];
+  for (const key of numericKeys) {
+    const raw = (settings as any)[key];
+    if (raw !== undefined && raw !== null && raw !== '') {
+      const num = Number(raw);
+      if (Number.isFinite(num) && num >= 0) {
+        (settings as any)[key] = num;
+      }
     }
   }
-  if (settings.hrMin >= settings.hrMax || settings.longIncorrectSec < settings.incorrectPostureSec) {
-    throw new Error('Ngưỡng HR và thời gian sai tư thế chưa hợp lệ.');
-  }
+
   await setDoc(doc(db, 'users', uid, 'preferences', 'office_health'), {
     ...settings, updatedAt: serverTimestamp(), schemaVersion: 1,
   }, {merge: true});

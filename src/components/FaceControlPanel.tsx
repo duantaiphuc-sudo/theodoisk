@@ -9,6 +9,7 @@ import {
 } from '../services/faceCommandService';
 import { checkFaceTemplateStatus, deleteFaceTemplate, FaceTemplateStatus } from '../services/faceService';
 import { getCurrentUser } from '../services/authService';
+import { playFaceEnrolledAlert, playFaceVerifiedAlert } from '../services/sound';
 import type { HealthTelemetry } from '../types';
 import { 
   ScanFace, 
@@ -84,9 +85,10 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
   const [isResetting, setIsResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
 
-
-
   const watch = useRef<Unsubscribe | null>(null);
+  const workingRef = useRef(false);
+  const executeRef = useRef<(action: Command) => Promise<void>>(() => Promise.resolve());
+  const hasAutoTriggeredVerifyRef = useRef(false);
   const currentUser = getCurrentUser();
 
   const getEffectiveUid = useCallback((): string => {
@@ -131,6 +133,17 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         setSession(currentSession);
         setProgress(String(data?.progress || ''));
 
+        // Nếu Pi 4 báo REGISTERED (đã đăng ký xong 5/5), tự động kích hoạt bước quét xác thực (VERIFY)
+        if (currentSession === 'REGISTERED' && !hasAutoTriggeredVerifyRef.current && !workingRef.current) {
+          hasAutoTriggeredVerifyRef.current = true;
+          setSuccessNotice('Đăng ký 5/5 thành công trên Pi 4! Đang tự động quét xác thực phiên...');
+          setTimeout(() => {
+            executeRef.current?.('VERIFY');
+          }, 1000);
+        } else if (currentSession === 'VERIFIED') {
+          hasAutoTriggeredVerifyRef.current = false;
+        }
+
         if (data?.reason === 'OTHER_USER' || (data?.error && String(data.error).includes('VERIFY_FAILED'))) {
           const reasonText = `Cảnh báo an ninh: Phát hiện người khác trước camera Pi 4! Khuôn mặt không trùng khớp với nhân viên ${currentUser?.fullName || 'đã đăng ký'}.`;
           setSecurityMismatch({
@@ -152,7 +165,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
   }, [deviceId, currentUser?.fullName, onSecurityFaceMismatch]);
 
   const execute = useCallback(async (action: Command) => {
-    if (!deviceId || working) return;
+    if (!deviceId || workingRef.current) return;
+    workingRef.current = true;
     setWorking(true);
     setError('');
     setSuccessNotice('');
@@ -178,6 +192,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         }
 
         if (status === 'FAILED' || status === 'SUCCEEDED') {
+          workingRef.current = false;
           setWorking(false);
           
           if (status === 'FAILED') {
@@ -194,12 +209,19 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
             }
           } else if (status === 'SUCCEEDED') {
             if (action === 'ENROLL') {
-              setSuccessNotice('Đăng ký khuôn mặt thành công trên Pi 4! Đã lưu vector 128 chiều SFace và ảnh chụp. Hãy nhìn vào camera Pi 4 để kích hoạt phiên làm việc.');
+              setSuccessNotice('Đăng ký khuôn mặt thành công (5/5)! Đang tự động chuyển sang bước xác thực...');
+              playFaceEnrolledAlert();
               refreshTemplateStatus();
-              setIsFaceViewerOpen(true);
+              hasAutoTriggeredVerifyRef.current = true;
+              setTimeout(() => {
+                executeRef.current?.('VERIFY');
+              }, 1200);
             } else if (action === 'VERIFY') {
               setSuccessNotice('Xác thực khuôn mặt thành công! Phiên làm việc đã kích hoạt.');
+              playFaceVerifiedAlert();
               setSecurityMismatch(null);
+              setSession('VERIFIED');
+              hasAutoTriggeredVerifyRef.current = false;
             } else if (action === 'LOGOUT') {
               setSuccessNotice('Đã đăng xuất thiết bị an toàn.');
             }
@@ -210,9 +232,14 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      workingRef.current = false;
       setWorking(false);
     }
-  }, [deviceId, working, refreshTemplateStatus, currentUser?.fullName, onSecurityFaceMismatch]);
+  }, [deviceId, refreshTemplateStatus, currentUser?.fullName, onSecurityFaceMismatch]);
+
+  useEffect(() => {
+    executeRef.current = execute;
+  }, [execute]);
 
   const handleSimulateUnknownFace = () => {
     const reasonText = `CẢNH BÁO AN NINH: Phát hiện người khác ngồi vào trạm làm việc! Khuôn mặt quét không khớp với nhân viên ${currentUser?.fullName || 'này'}.`;
@@ -303,6 +330,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs whitespace-nowrap ${
                 isVerified
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : session === 'REGISTERED'
+                  ? 'bg-sky-50 text-sky-800 border-sky-300'
                   : isAuthFailedOrMismatch
                   ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200'
                   : isWaitLogin
@@ -313,6 +342,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
             >
               {isVerified ? (
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              ) : session === 'REGISTERED' ? (
+                <ScanFace className="w-3 h-3 text-sky-600 animate-pulse" />
               ) : isAuthFailedOrMismatch ? (
                 <ShieldAlert className="w-3 h-3 text-rose-600 animate-pulse" />
               ) : isWaitLogin ? (
@@ -323,6 +354,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
               <span>
                 {session === 'VERIFIED' 
                   ? 'Đã xác thực' 
+                  : session === 'REGISTERED'
+                  ? 'Đã lưu mẫu (Chờ xác thực)'
                   : session === 'STRANGER'
                   ? 'Người lạ'
                   : session === 'REVERIFY_REQUIRED'
@@ -565,19 +598,31 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
 
       {/* HÀNG NÚT THAO TÁC (Tự động co giãn chống tràn viền) */}
       <div className="mt-2.5 grid grid-cols-12 gap-1.5 sm:gap-2">
-        {/* Nút đăng ký chính qua Camera Pi 4 */}
+        {/* Nút 1: Đăng ký mẫu Pi 4 */}
         <button
           type="button"
           disabled={working || isResetting || !deviceId}
           onClick={() => execute('ENROLL')}
-          className="col-span-6 sm:col-span-6 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-2 sm:px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
+          className="col-span-5 sm:col-span-5 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-2 sm:px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
           title="Yêu cầu camera Raspberry Pi 4 chụp và tạo vector khuôn mặt 128 chiều"
         >
           <ScanFace className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Đăng ký mẫu Pi 4</span>
+          <span className="truncate">{working && commandStatus.includes('ENROLL') ? 'Đang lưu...' : 'Đăng ký mẫu'}</span>
         </button>
 
-        {/* Nút đặt lại mẫu khuôn mặt */}
+        {/* Nút 2: Xác thực khuôn mặt qua Camera Pi 4 (Thay thế nút Test lạ) */}
+        <button
+          type="button"
+          disabled={working || isResetting || !deviceId}
+          onClick={() => execute('VERIFY')}
+          className="col-span-4 sm:col-span-4 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold border border-emerald-300 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs transition cursor-pointer whitespace-nowrap active:scale-95 truncate disabled:opacity-50"
+          title="Yêu cầu Camera Pi 4 quét và xác thực khuôn mặt người đang ngồi"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{working && commandStatus.includes('VERIFY') ? 'Đang quét...' : 'Xác thực'}</span>
+        </button>
+
+        {/* Nút 3: Đặt lại mẫu khuôn mặt */}
         <button
           type="button"
           disabled={working || isResetting}
@@ -591,17 +636,6 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         >
           <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-700 ${isResetting ? 'animate-spin' : ''}`} />
           <span className="truncate">Đặt lại</span>
-        </button>
-
-        {/* Nút mô phỏng quét mặt người lạ (Kiểm thử cảnh báo an ninh) */}
-        <button
-          type="button"
-          onClick={handleSimulateUnknownFace}
-          className="col-span-3 sm:col-span-3 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-1.5 sm:px-2 py-1.5 text-[11px] font-bold border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 transition cursor-pointer whitespace-nowrap active:scale-95 truncate"
-          title="Mô phỏng trường hợp người lạ ngồi vào quét khuôn mặt thất bại"
-        >
-          <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-          <span className="truncate">Test lạ</span>
         </button>
       </div>
 

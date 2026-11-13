@@ -244,7 +244,9 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         postureCardBg = 'border-rose-400 animate-pulse';
         postureBadgeStyle = 'bg-rose-600 text-white border-rose-600 font-bold shadow-xs';
         postureIcon = <AlertTriangle className="w-5 h-5 text-rose-600 animate-bounce" />;
-        displayedPostureLabel = 'SAI TƯ THẾ LÂU (≥120s)';
+        displayedPostureLabel = postureLabel && postureLabel.includes('SAI TƯ THẾ LÂU')
+          ? postureLabel
+          : `SAI TƯ THẾ LÂU${thresholds.incorrectPostureSec ? ` (≥${thresholds.incorrectPostureSec}s)` : ''}`;
         break;
       case 4:
         postureCardBg = 'border-amber-300/80';

@@ -22,7 +22,8 @@ import {
   Wrench,
   PanelLeftClose,
   PanelLeftOpen,
-  Bot
+  Bot,
+  BrainCircuit
 } from 'lucide-react';
 import { AuthUser, MainNavTab } from '../types';
 
@@ -106,6 +107,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Trang chủ',
       icon: LayoutDashboard,
       badge: null
+    },
+    {
+      id: 'ai_predict' as MainNavTab,
+      label: 'AI Dự đoán & Khai thác',
+      icon: BrainCircuit,
+      badge: 'Mới',
+      badgeColor: 'bg-teal-100 text-teal-800 font-bold'
     },
     ...(isManager ? [
       {

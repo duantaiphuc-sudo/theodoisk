@@ -98,8 +98,8 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
       color: 'rose',
     },
     3: {
-      title: 'Nguy hiểm: Sai tư thế kéo dài liên tục (≥120s)!',
-      desc: 'Duy trì tư thế sai hơn 2 phút gây co thắt cơ vai gáy, chèn ép dây thần kinh và suy giảm lưu thông máu.',
+      title: 'Nguy hiểm: Sai tư thế kéo dài vượt ngưỡng an toàn!',
+      desc: 'Duy trì tư thế sai kéo dài gây co thắt cơ vai gáy, chèn ép dây thần kinh và suy giảm lưu thông máu.',
       tip: 'Hãy dừng công việc 30 giây: Xoay vai 5 vòng ra sau, ngửa cổ nhìn trần nhà.',
       color: 'rose',
     },
@@ -380,7 +380,7 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             {/* Bottom status bar in visualizer box to ground the illustration */}
             <div className="relative z-10 w-full pt-2 mt-auto border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-700">
               <span className="font-bold">
-                {isCameraError ? 'Camera USB: Ngắt kết nối' : isAbsent ? 'Ghế trống: Vắng mặt' : isStanding ? 'Tư thế: Đứng làm việc' : isGood ? 'Đốt sống: Chuẩn S' : 'Cột sống: Sai tư thế'}
+                {isCameraError ? 'Camera USB: Ngắt kết nối' : isAbsent ? 'Ghế trống: Vắng mặt' : isStanding ? 'Tư thế: Đứng làm việc' : isGood ? 'Đốt sống: Chuẩn S' : (postureStatus === 3 ? 'Cột sống: Sai tư thế lâu' : 'Cột sống: Sai tư thế')}
               </span>
               <span className="font-mono font-extrabold text-slate-800">
                 {telemetry.angleNeck !== undefined ? `${telemetry.angleNeck}° cổ` : '90°'}

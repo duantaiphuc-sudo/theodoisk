@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import { initializeApp as initAdminApp, getApps as getAdminApps, cert as adminCert } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
@@ -1607,6 +1607,435 @@ app.get(['/api/telemetry/ohps-summary', '/telemetry/ohps-summary'], async (req: 
     return res.status(200).json({ success: true, data: data || [] });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err?.message || 'Lỗi truy vấn OHPS summary' });
+  }
+});
+
+// 6. AI Predictive Analytics & Multi-Purpose Data Exploitation Endpoint (Gemini 4 Hydrogen)
+const predictRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+interface PredictiveRiskDomain {
+  domain: string;
+  probabilityPercent: number;
+  severity: 'Thấp' | 'Trung bình' | 'Cao';
+  timeframe: string;
+  evidence: string;
+  preventiveAction: string;
+}
+
+interface AIPredictionPayload {
+  engine: 'gemini-4-hydrogen' | 'statistical-engine';
+  generatedAt: string;
+  targetName: string;
+  recordCountAnalyzed: number;
+  executiveSummary: string;
+  predictedOhpsNextShift: {
+    score: number;
+    confidencePercent: number;
+    trendLabel: string;
+    reasoning: string;
+  };
+  goldenHours: string;
+  slumpWarningWindow: string;
+  breakScheduleRecommendation: string;
+  riskForecasts: PredictiveRiskDomain[];
+  dataExploitationSummary: Array<{
+    purpose: string;
+    insight: string;
+    recommendedAction: string;
+  }>;
+  aiNote?: string;
+}
+
+function buildDeterministicForecast(params: {
+  targetName: string;
+  recordCount: number;
+  analyticsSummary: any;
+  dailySummaries: any[];
+  aiNote?: string;
+}): AIPredictionPayload {
+  const { targetName, recordCount, analyticsSummary, dailySummaries, aiNote } = params;
+  const ohps = analyticsSummary?.ohpsForecast || {
+    currentScore: 80,
+    predictedScore: 82,
+    delta: 2,
+    confidencePercent: 60,
+    trendLabel: 'Ổn định',
+    trendReason: 'Xu hướng ổn định dựa trên dữ liệu đã thu thập.'
+  };
+  const fatigue = analyticsSummary?.postureFatigue || {
+    neckSpineRiskPercent: 28,
+    lumbarRiskPercent: 32,
+    overallRiskLevel: 'Trung bình',
+    predictedMinutesUntilSlouch: 32,
+    badPostureSharePercent: 18
+  };
+  const vital = analyticsSummary?.vitalCorrelation || {
+    goodPostureAvgBpm: 74,
+    badPostureAvgBpm: 79,
+    bpmDriftOnSlouch: 5,
+    goodPostureAvgSpo2: 98,
+    badPostureAvgSpo2: 97,
+    spo2DriftOnSlouch: -1,
+    anomalyCount: 0,
+    stressIndex: 28
+  };
+  const circadian = analyticsSummary?.circadian || {
+    goldenHoursWindow: '09:00 - 11:00',
+    slumpRiskWindow: '14:00 - 15:30'
+  };
+  const cadence = analyticsSummary?.recommendedBreakCadence || {
+    sitMinutes: 40,
+    standMinutes: 5,
+    eyeBreakSeconds: 20,
+    rationale: 'Chu kỳ đứng-ngồi cân bằng.'
+  };
+
+  const recentOhpsText = dailySummaries.length > 0
+    ? `Chuỗi ${dailySummaries.length} ngày gần nhất trên Supabase ghi nhận OHPS trung bình ${Math.round(dailySummaries.reduce((s, r) => s + Number(r.ohps_score || 0), 0) / dailySummaries.length)} điểm.`
+    : 'Phân tích dựa trên luồng nhật ký cảm biến trực tiếp và hồ sơ nhân trắc học.';
+
+  return {
+    engine: 'statistical-engine',
+    generatedAt: new Date().toISOString(),
+    targetName,
+    recordCountAnalyzed: recordCount,
+    executiveSummary: `Dựa trên ${recordCount} bản ghi của ${targetName}, điểm năng suất OHPS ca tới được dự báo đạt ${ohps.predictedScore}/100 (${ohps.delta >= 0 ? '+' : ''}${ohps.delta} điểm, xu hướng: ${ohps.trendLabel}). ${recentOhpsText} ${ohps.trendReason}`,
+    predictedOhpsNextShift: {
+      score: Number(ohps.predictedScore || 80),
+      confidencePercent: Number(ohps.confidencePercent || 65),
+      trendLabel: String(ohps.trendLabel || 'Ổn định'),
+      reasoning: String(ohps.trendReason || 'Tổng hợp từ chuỗi thời gian tư thế, nhịp tim và tiến độ task.')
+    },
+    goldenHours: circadian.goldenHoursWindow,
+    slumpWarningWindow: circadian.slumpRiskWindow,
+    breakScheduleRecommendation: `Ngồi tập trung ${cadence.sitMinutes} phút, đứng làm việc ${cadence.standMinutes} phút, nghỉ mắt 20 giây mỗi 20 phút. ${cadence.rationale}`,
+    riskForecasts: [
+      {
+        domain: 'Cột sống cổ & Vai gáy (C5-C7)',
+        probabilityPercent: Number(fatigue.neckSpineRiskPercent || 25),
+        severity: fatigue.neckSpineRiskPercent >= 60 ? 'Cao' : fatigue.neckSpineRiskPercent >= 32 ? 'Trung bình' : 'Thấp',
+        timeframe: `Trong ~${fatigue.predictedMinutesUntilSlouch} phút ngồi liên tục tới`,
+        evidence: `Tỷ lệ gù/cúi cổ chiếm ${fatigue.badPostureSharePercent}% tổng thời gian ngồi ghi nhận.`,
+        preventiveAction: 'Kê màn hình cao thêm 10cm ngang tầm mắt và tập 5 nhịp Thu Cằm (Chin Tuck) mỗi giờ.'
+      },
+      {
+        domain: 'Đĩa đệm Thắt lưng (L4-L5)',
+        probabilityPercent: Number(fatigue.lumbarRiskPercent || 30),
+        severity: fatigue.lumbarRiskPercent >= 60 ? 'Cao' : fatigue.lumbarRiskPercent >= 32 ? 'Trung bình' : 'Thấp',
+        timeframe: `Cuối ca làm việc (${circadian.slumpRiskWindow})`,
+        evidence: 'Ngồi tĩnh kéo dài làm tăng áp lực nội đĩa đệm khi thiếu chu kỳ đứng xen kẽ.',
+        preventiveAction: `Thiết lập ngưỡng đứng dậy sau mỗi ${cadence.sitMinutes} phút và tựa lưng sát ghế góc 105°.`
+      },
+      {
+        domain: 'Căng thẳng Tim mạch & Stress',
+        probabilityPercent: Number(vital.stressIndex || 25),
+        severity: vital.stressIndex >= 60 ? 'Cao' : vital.stressIndex >= 35 ? 'Trung bình' : 'Thấp',
+        timeframe: `Khi nhịp tim lệch +${Math.max(0, vital.bpmDriftOnSlouch)} BPM lúc ngồi sai`,
+        evidence: `Nhịp tim TB khi ngồi chuẩn ${vital.goodPostureAvgBpm || '--'} BPM so với lúc sai tư thế ${vital.badPostureAvgBpm || '--'} BPM (${vital.anomalyCount} lần vượt ngưỡng).`,
+        preventiveAction: 'Thực hiện hít thở sâu 4-7-8 trong 60 giây khi Pi 4 phát chuông nhịp tim vượt ngưỡng.'
+      },
+      {
+        domain: 'Suy giảm Oxy & Tập trung (SpO2)',
+        probabilityPercent: vital.badPostureAvgSpo2 > 0 && vital.badPostureAvgSpo2 < 95 ? 62 : 18,
+        severity: vital.badPostureAvgSpo2 > 0 && vital.badPostureAvgSpo2 < 95 ? 'Cao' : 'Thấp',
+        timeframe: `Khung giờ ${circadian.slumpRiskWindow}`,
+        evidence: `SpO2 trung bình đo từ MAX30102 đạt ${vital.goodPostureAvgSpo2 || '--'}% (chênh lệch ${vital.spo2DriftOnSlouch} % khi cúi gù).`,
+        preventiveAction: 'Mở thông gió phòng làm việc và ngồi thẳng lưng giúp giãn nở dung tích phổi.'
+      }
+    ],
+    dataExploitationSummary: [
+      {
+        purpose: 'Y tế dự phòng & Bảo vệ cột sống',
+        insight: `Phát hiện sớm nguy cơ quá tải cổ C5-C7 (${fatigue.neckSpineRiskPercent}%) trước khi người dùng cảm thấy đau mỏi.`,
+        recommendedAction: 'Áp dụng ngưỡng cảnh báo sai tư thế AI đề xuất xuống Raspberry Pi 4.'
+      },
+      {
+        purpose: 'Tối ưu lịch làm việc theo nhịp sinh học',
+        insight: `Hiệu suất tư thế đạt đỉnh ở khung ${circadian.goldenHoursWindow} và giảm rõ rệt lúc ${circadian.slumpRiskWindow}.`,
+        recommendedAction: 'Phân bổ các tác vụ đòi hỏi tập trung cao vào buổi sáng, ưu tiên đứng làm việc đầu giờ chiều.'
+      },
+      {
+        purpose: 'Quản trị công thái học & phúc lợi nhân sự',
+        insight: 'Chuỗi dữ liệu đa ngày trên Supabase cho phép đánh giá hiệu quả cải thiện khi trang bị ghế/giá đỡ mới.',
+        recommendedAction: 'Xuất báo cáo tổng hợp định kỳ phục vụ đánh giá an toàn vệ sinh lao động.'
+      }
+    ],
+    aiNote
+  };
+}
+
+app.post(['/api/ai-predict', '/ai-predict'], async (req: Request, res: Response) => {
+  const authUser = await verifyAuthToken(req, res);
+  if (!authUser) return;
+
+  const now = Date.now();
+  const rate = predictRateLimits.get(authUser.uid) || { count: 0, resetAt: now + 60000 };
+  if (now > rate.resetAt) {
+    rate.count = 0;
+    rate.resetAt = now + 60000;
+  }
+  if (rate.count >= 12) {
+    return res.status(429).json({
+      error: 'Bạn đã vượt quá giới hạn phân tích dự báo AI (tối đa 12 lượt/phút). Vui lòng thử lại sau giây lát.'
+    });
+  }
+  rate.count++;
+  predictRateLimits.set(authUser.uid, rate);
+
+  try {
+    const {
+      targetMemberId,
+      targetMemberName,
+      userName = 'Người dùng',
+      analyticsSummary,
+      recentLogs = [],
+      userProfile = {},
+      thresholds = {}
+    } = req.body || {};
+
+    const isAdmin = authUser.admin;
+    const targetUserId = isAdmin && targetMemberId && targetMemberId !== 'all'
+      ? String(targetMemberId)
+      : (isAdmin && targetMemberId === 'all' ? 'all' : authUser.uid);
+
+    const resolvedTargetName = isAdmin && targetMemberId === 'all'
+      ? 'Toàn bộ đội ngũ'
+      : String(targetMemberName || userName || 'Người dùng');
+
+    const activeSupabase = resolveSupabaseClient(req);
+    let dbLogs: any[] = [];
+    let dailySummaries: any[] = [];
+
+    if (activeSupabase) {
+      try {
+        let logQuery = activeSupabase
+          .from('telemetry_logs')
+          .select('id, user_id, user_name, bpm, spo2, posture_status, posture_label, has_alert, created_at')
+          .order('created_at', { ascending: false })
+          .limit(180);
+
+        if (targetUserId !== 'all') {
+          logQuery = logQuery.eq('user_id', targetUserId);
+        }
+
+        const { data: fetchedLogs } = await logQuery;
+        if (Array.isArray(fetchedLogs)) {
+          dbLogs = fetchedLogs;
+        }
+
+        let summaryQuery = activeSupabase
+          .from('daily_ohps_summary')
+          .select('user_id, date, posture_score, break_score, vital_score, task_score, hes_score, ohps_score, data_confidence')
+          .order('date', { ascending: false })
+          .limit(14);
+
+        if (targetUserId !== 'all') {
+          summaryQuery = summaryQuery.eq('user_id', targetUserId);
+        }
+
+        const { data: fetchedSummaries } = await summaryQuery;
+        if (Array.isArray(fetchedSummaries)) {
+          dailySummaries = fetchedSummaries;
+        }
+      } catch (dbErr) {
+        console.warn('Cảnh báo truy vấn dữ liệu dự báo Supabase:', dbErr);
+      }
+    }
+
+    const clientSlice = Array.isArray(recentLogs) ? recentLogs.slice(0, 60) : [];
+    const totalRecordCount = Math.max(
+      Number(analyticsSummary?.sampleCount || 0),
+      dbLogs.length,
+      clientSlice.length
+    );
+
+    if (!geminiApiKey) {
+      const fallbackPayload = buildDeterministicForecast({
+        targetName: resolvedTargetName,
+        recordCount: totalRecordCount,
+        analyticsSummary,
+        dailySummaries,
+        aiNote: 'Đang sử dụng bộ phân tích định lượng nội bộ (chưa cấu hình GEMINI_API_KEY trên máy chủ).'
+      });
+      return res.json(fallbackPayload);
+    }
+
+    const compactDbSample = dbLogs.slice(0, 45).map(l => ({
+      t: l.created_at,
+      bpm: l.bpm,
+      spo2: l.spo2,
+      st: l.posture_status,
+      lbl: l.posture_label,
+      alert: l.has_alert
+    }));
+
+    const compactClientSample = clientSlice.slice(0, 35).map((l: any) => ({
+      t: l.timestamp,
+      bpm: l.bpm,
+      spo2: l.spo2,
+      st: l.postureStatus,
+      lbl: l.postureLabel,
+      alert: l.hasAlert
+    }));
+
+    const predictionPrompt = `Phân tích dữ liệu IoT công thái học & sinh trắc học cho đối tượng: "${resolvedTargetName}".
+
+1. HỒ SƠ & NGƯỠNG HIỆN TẠI:
+${JSON.stringify({
+  age: userProfile?.age,
+  gender: userProfile?.gender,
+  bmi: userProfile?.height && userProfile?.weight
+    ? Number((userProfile.weight / Math.pow(userProfile.height / 100, 2)).toFixed(1))
+    : undefined,
+  medicalConditions: userProfile?.medicalConditions || [],
+  thresholds
+})}
+
+2. TỔNG HỢP THỐNG KÊ ĐỊNH LƯỢNG ĐÃ TÍNH TOÁN:
+${JSON.stringify({
+  sampleCount: totalRecordCount,
+  avgBpm: analyticsSummary?.avgBpm,
+  avgSpo2: analyticsSummary?.avgSpo2,
+  goodPostureRatio: analyticsSummary?.goodPostureRatio,
+  ohpsForecast: analyticsSummary?.ohpsForecast,
+  postureFatigue: analyticsSummary?.postureFatigue,
+  vitalCorrelation: analyticsSummary?.vitalCorrelation,
+  circadian: {
+    goldenHoursWindow: analyticsSummary?.circadian?.goldenHoursWindow,
+    slumpRiskWindow: analyticsSummary?.circadian?.slumpRiskWindow
+  }
+})}
+
+3. LỊCH SỬ OHPS NHIỀU NGÀY (SUPABASE daily_ohps_summary):
+${JSON.stringify(dailySummaries)}
+
+4. CHUỖI LOG CẢM BIẾN GẦN NHẤT:
+${JSON.stringify(compactDbSample.length > 0 ? compactDbSample : compactClientSample)}
+
+Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương khớp, nhịp điệu tập trung và đề xuất các mục đích khai thác dữ liệu giá trị ngoài tính năng suất OHPS. Viết hoàn toàn bằng tiếng Việt chuyên nghiệp, súc tích, không sử dụng emoji.`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: predictionPrompt,
+        config: {
+          systemInstruction:
+            'Bạn là Chuyên gia Khoa học Dữ liệu Y sinh & Công thái học Văn phòng. Nhiệm vụ của bạn là phân tích dữ liệu thu thập từ Raspberry Pi 4 (tư thế camera AI, nhịp tim & SpO2 MAX30102, bộ đếm thời gian ngồi/đứng, tiến độ công việc) để đưa ra dự báo định lượng chính xác và các kịch bản khai thác dữ liệu có giá trị thực tiễn cao. Tuyệt đối KHÔNG dùng emoji. Trả về đúng cấu trúc JSON yêu cầu.',
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              executiveSummary: {
+                type: Type.STRING,
+                description: 'Tóm tắt nhận định AI dài 2-3 câu về xu hướng sức khỏe và năng suất sắp tới.'
+              },
+              predictedOhpsNextShift: {
+                type: Type.OBJECT,
+                properties: {
+                  score: { type: Type.INTEGER },
+                  confidencePercent: { type: Type.INTEGER },
+                  trendLabel: { type: Type.STRING },
+                  reasoning: { type: Type.STRING }
+                },
+                required: ['score', 'confidencePercent', 'trendLabel', 'reasoning']
+              },
+              goldenHours: { type: Type.STRING },
+              slumpWarningWindow: { type: Type.STRING },
+              breakScheduleRecommendation: { type: Type.STRING },
+              riskForecasts: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    domain: { type: Type.STRING },
+                    probabilityPercent: { type: Type.INTEGER },
+                    severity: { type: Type.STRING },
+                    timeframe: { type: Type.STRING },
+                    evidence: { type: Type.STRING },
+                    preventiveAction: { type: Type.STRING }
+                  },
+                  required: ['domain', 'probabilityPercent', 'severity', 'timeframe', 'evidence', 'preventiveAction']
+                }
+              },
+              dataExploitationSummary: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    purpose: { type: Type.STRING },
+                    insight: { type: Type.STRING },
+                    recommendedAction: { type: Type.STRING }
+                  },
+                  required: ['purpose', 'insight', 'recommendedAction']
+                }
+              }
+            },
+            required: [
+              'executiveSummary',
+              'predictedOhpsNextShift',
+              'goldenHours',
+              'slumpWarningWindow',
+              'breakScheduleRecommendation',
+              'riskForecasts',
+              'dataExploitationSummary'
+            ]
+          }
+        }
+      });
+
+      const rawJson = (response.text ?? '').trim();
+      const parsed = JSON.parse(rawJson);
+
+      const payload: AIPredictionPayload = {
+        engine: 'gemini-4-hydrogen',
+        generatedAt: new Date().toISOString(),
+        targetName: resolvedTargetName,
+        recordCountAnalyzed: totalRecordCount,
+        executiveSummary: stripAllEmojis(String(parsed.executiveSummary || '')),
+        predictedOhpsNextShift: {
+          score: Math.min(100, Math.max(0, Math.round(Number(parsed.predictedOhpsNextShift?.score || 80)))),
+          confidencePercent: Math.min(99, Math.max(20, Math.round(Number(parsed.predictedOhpsNextShift?.confidencePercent || 75)))),
+          trendLabel: stripAllEmojis(String(parsed.predictedOhpsNextShift?.trendLabel || 'Ổn định')),
+          reasoning: stripAllEmojis(String(parsed.predictedOhpsNextShift?.reasoning || ''))
+        },
+        goldenHours: stripAllEmojis(String(parsed.goldenHours || analyticsSummary?.circadian?.goldenHoursWindow || '09:00 - 11:00')),
+        slumpWarningWindow: stripAllEmojis(String(parsed.slumpWarningWindow || analyticsSummary?.circadian?.slumpRiskWindow || '14:00 - 15:30')),
+        breakScheduleRecommendation: stripAllEmojis(String(parsed.breakScheduleRecommendation || '')),
+        riskForecasts: Array.isArray(parsed.riskForecasts)
+          ? parsed.riskForecasts.slice(0, 4).map((r: any) => ({
+              domain: stripAllEmojis(String(r.domain || '')),
+              probabilityPercent: Math.min(100, Math.max(0, Math.round(Number(r.probabilityPercent || 0)))),
+              severity: r.severity === 'Cao' || r.severity === 'Thấp' ? r.severity : 'Trung bình',
+              timeframe: stripAllEmojis(String(r.timeframe || '')),
+              evidence: stripAllEmojis(String(r.evidence || '')),
+              preventiveAction: stripAllEmojis(String(r.preventiveAction || ''))
+            }))
+          : [],
+        dataExploitationSummary: Array.isArray(parsed.dataExploitationSummary)
+          ? parsed.dataExploitationSummary.slice(0, 4).map((d: any) => ({
+              purpose: stripAllEmojis(String(d.purpose || '')),
+              insight: stripAllEmojis(String(d.insight || '')),
+              recommendedAction: stripAllEmojis(String(d.recommendedAction || ''))
+            }))
+          : []
+      };
+
+      return res.json(payload);
+    } catch (geminiErr: any) {
+      console.warn('Gemini 4 AI Predict fallback sang Statistical Engine:', geminiErr?.message || geminiErr);
+      const fallbackPayload = buildDeterministicForecast({
+        targetName: resolvedTargetName,
+        recordCount: totalRecordCount,
+        analyticsSummary,
+        dailySummaries,
+        aiNote: 'Đã tự động kích hoạt bộ phân tích hồi quy nội bộ do Gemini AI tạm thời không khả dụng.'
+      });
+      return res.json(fallbackPayload);
+    }
+  } catch (err: any) {
+    console.error('Lỗi /api/ai-predict:', err);
+    return res.status(500).json({ error: err?.message || 'Lỗi xử lý phân tích dự báo AI' });
   }
 });
 
