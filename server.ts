@@ -128,16 +128,33 @@ async function verifyAuthToken(req: Request, res: Response): Promise<AuthContext
   }
 }
 
-// 3. Initialize GoogleGenAI SDK
-const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
-const ai = new GoogleGenAI({
-  apiKey: geminiApiKey,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
+// 3. Dynamic GoogleGenAI SDK Helper (reads live env key & strips accidental whitespace/quotes)
+function getResolvedGeminiApiKey(): string {
+  const raw = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+  const cleaned = raw.trim().replace(/^['"]|['"]$/g, '').trim();
+  if (
+    !cleaned ||
+    cleaned === 'MY_GEMINI_API_KEY' ||
+    cleaned === 'YOUR_GEMINI_API_KEY' ||
+    cleaned === 'YOUR_API_KEY'
+  ) {
+    return '';
   }
-});
+  return cleaned;
+}
+
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = getResolvedGeminiApiKey();
+  if (!apiKey) return null;
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
+    }
+  });
+}
 
 // 4. Initialize Supabase Client (Supports Service Role Key or Anon Key for query fallback)
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
@@ -1166,20 +1183,19 @@ function generateErgonomicAnalysisServer(params: {
     `Nếu bạn có thắc mắc cụ thể về tư thế ngồi, các mốc thời gian làm việc hay muốn kiểm tra chỉ số đo đạc hôm nay, hãy nhắn cho tôi nhé!`;
 }
 
-  const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const geminiFallback = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash';
+  const geminiModel = process.env.GEMINI_MODEL || 'gemini-4-hydrogen';
+  const activeAi = getGeminiClient();
 
   let responseText = '';
 
-  // Thử gọi Gemini API nếu có API key
-  if (geminiApiKey) {
+  // Thử gọi Gemini API nếu có API key hợp lệ
+  if (activeAi) {
     try {
-      const response = await ai.models.generateContent({
+      const response = await activeAi.models.generateContent({
         model: geminiModel,
         contents: prompt,
         config: {
           systemInstruction,
-          temperature: 0.2,
         }
       });
       responseText = response.text || '';
@@ -1187,26 +1203,27 @@ function generateErgonomicAnalysisServer(params: {
       const primaryMsg = String(primaryErr?.message || primaryErr || '');
       const isApiKeyIssue = primaryMsg.includes('API key not valid') || 
                             primaryMsg.includes('API_KEY_INVALID') || 
+                            primaryMsg.includes('PERMISSION_DENIED') ||
                             primaryErr?.status === 400 || 
                             primaryErr?.status === 403;
 
-      if (!isApiKeyIssue) {
-        // Chỉ thử fallback model nếu là lỗi tạm thời của model, không gọi lại nếu do API key sai
+      if (!isApiKeyIssue && geminiModel !== 'gemini-4-hydrogen') {
         try {
-          const fallbackResponse = await ai.models.generateContent({
-            model: geminiFallback,
+          const fallbackResponse = await activeAi.models.generateContent({
+            model: 'gemini-4-hydrogen',
             contents: prompt,
             config: {
               systemInstruction,
-              temperature: 0.2,
             }
           });
           responseText = fallbackResponse.text || '';
-        } catch (fallbackErr: any) {
-          console.warn('Gemini fallback model không phản hồi, kích hoạt bộ phân tích nội bộ:', fallbackErr?.message || fallbackErr);
+        } catch {
+          console.info('Gemini AI tạm thời chuyển sang bộ phân tích công thái học nội bộ.');
         }
+      } else if (isApiKeyIssue) {
+        console.info('GEMINI_API_KEY chưa hợp lệ; /api/chat sử dụng bộ phân tích công thái học chuẩn quy tắc.');
       } else {
-        console.warn('Gemini API key không khả dụng hoặc chưa hợp lệ. Tự động chuyển sang bộ máy phân tích công thái học chuẩn quy tắc.');
+        console.info('Gemini AI không phản hồi; /api/chat sử dụng bộ phân tích công thái học chuẩn quy tắc.');
       }
     }
   }
@@ -1849,13 +1866,14 @@ app.post(['/api/ai-predict', '/ai-predict'], async (req: Request, res: Response)
       clientSlice.length
     );
 
-    if (!geminiApiKey) {
+    const activeAi = getGeminiClient();
+    if (!activeAi) {
       const fallbackPayload = buildDeterministicForecast({
         targetName: resolvedTargetName,
         recordCount: totalRecordCount,
         analyticsSummary,
         dailySummaries,
-        aiNote: 'Đang sử dụng bộ phân tích định lượng nội bộ (chưa cấu hình GEMINI_API_KEY trên máy chủ).'
+        aiNote: 'Đang sử dụng bộ phân tích định lượng nội bộ. Hãy kiểm tra hoặc thiết lập GEMINI_API_KEY trong Settings > Secrets để bật Gemini 4 AI.'
       });
       return res.json(fallbackPayload);
     }
@@ -1915,7 +1933,7 @@ ${JSON.stringify(compactDbSample.length > 0 ? compactDbSample : compactClientSam
 Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương khớp, nhịp điệu tập trung và đề xuất các mục đích khai thác dữ liệu giá trị ngoài tính năng suất OHPS. Viết hoàn toàn bằng tiếng Việt chuyên nghiệp, súc tích, không sử dụng emoji.`;
 
     try {
-      const response = await ai.models.generateContent({
+      const response = await activeAi.models.generateContent({
         model: 'gemini-4-hydrogen',
         contents: predictionPrompt,
         config: {
@@ -2023,13 +2041,27 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
 
       return res.json(payload);
     } catch (geminiErr: any) {
-      console.warn('Gemini 4 AI Predict fallback sang Statistical Engine:', geminiErr?.message || geminiErr);
+      const errMsg = String(geminiErr?.message || geminiErr || '');
+      const isApiKeyIssue = errMsg.includes('API key not valid') ||
+                            errMsg.includes('API_KEY_INVALID') ||
+                            errMsg.includes('PERMISSION_DENIED') ||
+                            geminiErr?.status === 400 ||
+                            geminiErr?.status === 403;
+
+      if (isApiKeyIssue) {
+        console.info('GEMINI_API_KEY chưa hợp lệ; /api/ai-predict chuyển sang Statistical Trend Engine.');
+      } else {
+        console.info('Gemini 4 AI tạm thời gián đoạn; /api/ai-predict chuyển sang Statistical Trend Engine.');
+      }
+
       const fallbackPayload = buildDeterministicForecast({
         targetName: resolvedTargetName,
         recordCount: totalRecordCount,
         analyticsSummary,
         dailySummaries,
-        aiNote: 'Đã tự động kích hoạt bộ phân tích hồi quy nội bộ do Gemini AI tạm thời không khả dụng.'
+        aiNote: isApiKeyIssue
+          ? 'GEMINI_API_KEY hiện tại không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra và cập nhật lại API key trong mục Settings > Secrets; hệ thống đang sử dụng bộ phân tích định lượng nội bộ.'
+          : 'Đã tự động kích hoạt bộ phân tích hồi quy nội bộ do dịch vụ Gemini AI tạm thời không phản hồi.'
       });
       return res.json(fallbackPayload);
     }
