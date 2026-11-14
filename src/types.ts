@@ -128,6 +128,7 @@ export interface AlertThresholds {
   hrMin: number;
   hrMax: number;
   spo2Min: number;
+  biometricReminderSec?: number; // Chu kỳ nhắc nhở đo nhịp tim & SpO2 bằng âm thanh (giây, 0 = tắt)
   incorrectPostureSec: number;
   longIncorrectSec: number;
   longSittingSec: number;

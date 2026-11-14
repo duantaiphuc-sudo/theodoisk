@@ -1,8 +1,25 @@
-import React, { useState } from 'react';
-import { X, Settings, Volume2, RotateCcw, Mic, Play, Radio, Bell, BellRing, CheckCircle2 } from 'lucide-react';
-import { AlertThresholds } from '../types';
-import { 
-  playAlertChime, 
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  X,
+  Settings,
+  Volume2,
+  RotateCcw,
+  Mic,
+  Play,
+  Radio,
+  Bell,
+  BellRing,
+  CheckCircle2,
+  Users,
+  Sparkles,
+  Loader2,
+  Clock,
+  ShieldCheck,
+  Database,
+} from 'lucide-react';
+import { AlertThresholds, AuthUser } from '../types';
+import {
+  playAlertChime,
   playErgonomicVoiceAlert,
   playFingerPlacedAlert,
   playMeasuringPulseSound,
@@ -15,15 +32,36 @@ import {
   playStandingActiveAlert,
   playUserAbsentAlert,
   playFaceEnrolledAlert,
-  playFaceVerifiedAlert
+  playFaceVerifiedAlert,
+  playBiometricReminderAlert,
 } from '../services/sound';
 import { notificationManager } from '../services/notificationService';
+import {
+  DEFAULT_PI_THRESHOLDS,
+  fetchPiSettingsWithMeta,
+  PiSettingsServerMeta,
+} from '../services/piSettingsService';
+import { calculateAdaptiveThresholds } from '../utils/adaptiveThresholds';
 
 interface AlertSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   thresholds: AlertThresholds;
   onSave: (newThresholds: AlertThresholds) => Promise<void> | void;
+  currentUser?: AuthUser | null;
+  allUsers?: AuthUser[];
+  isManager?: boolean;
+  initialTargetUserId?: string;
+  onSaveForUser?: (targetUid: string, newThresholds: AlertThresholds) => Promise<void>;
+}
+
+function formatDurationHint(secondsRaw?: number): string {
+  const sec = Math.max(0, Number(secondsRaw) || 0);
+  if (sec === 0) return 'Đã tắt (0s)';
+  if (sec < 60) return `${sec} giây`;
+  const mins = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return rem > 0 ? `${mins}p ${rem}s` : `${mins} phút`;
 }
 
 export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
@@ -31,35 +69,118 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
   onClose,
   thresholds,
   onSave,
+  currentUser,
+  allUsers = [],
+  isManager = false,
+  initialTargetUserId,
+  onSaveForUser,
 }) => {
-  const [local, setLocal] = useState<AlertThresholds>({ 
-    voiceAlertEnabled: true,
-    outOfZoneAlertEnabled: true,
-    browserNotificationEnabled: true,
-    ...thresholds 
+  const defaultUid = initialTargetUserId || currentUser?.id || '';
+  const [targetUserId, setTargetUserId] = useState<string>(defaultUid);
+  const [isLoadingUser, setIsLoadingUser] = useState(false);
+  const [adaptiveNote, setAdaptiveNote] = useState<string | null>(null);
+  const [serverMeta, setServerMeta] = useState<PiSettingsServerMeta | null>(null);
+
+  const [local, setLocal] = useState<AlertThresholds>({
+    ...DEFAULT_PI_THRESHOLDS,
+    ...thresholds,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState('');
   const [testPlaying, setTestPlaying] = useState<string | null>(null);
   const [notifPermission, setNotifPermission] = useState<string>(() => notificationManager.getPermission());
   const [testNotifSent, setTestNotifSent] = useState(false);
 
-  React.useEffect(() => {
-    if (isOpen) {
-      setLocal({ 
-        voiceAlertEnabled: true,
-        outOfZoneAlertEnabled: true,
-        browserNotificationEnabled: true,
-        ...thresholds 
-      });
-      setTestPlaying(null);
-      setSaveError('');
-      setNotifPermission(notificationManager.getPermission());
-      setTestNotifSent(false);
+  const userOptions = useMemo(() => {
+    const map = new Map<string, AuthUser>();
+    if (currentUser?.id) {
+      map.set(currentUser.id, currentUser);
     }
-  }, [isOpen, thresholds]);
+    for (const u of allUsers) {
+      if (u?.id && !map.has(u.id)) {
+        map.set(u.id, u);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.id === currentUser?.id) return -1;
+      if (b.id === currentUser?.id) return 1;
+      return (a.fullName || a.email || '').localeCompare(b.fullName || b.email || '');
+    });
+  }, [allUsers, currentUser]);
+
+  const selectedTargetUser = useMemo(
+    () => userOptions.find(u => u.id === targetUserId) || currentUser || null,
+    [userOptions, targetUserId, currentUser]
+  );
+
+  // Sync target user only when modal opens (never reset mid-edit on background snapshots)
+  useEffect(() => {
+    if (!isOpen) return;
+    const nextUid = initialTargetUserId || currentUser?.id || '';
+    setTargetUserId(nextUid);
+    setTestPlaying(null);
+    setSaveError('');
+    setSaveSuccess('');
+    setAdaptiveNote(null);
+    setNotifPermission(notificationManager.getPermission());
+    setTestNotifSent(false);
+  }, [isOpen, initialTargetUserId, currentUser?.id]);
+
+  // Fetch live Firestore server state whenever targetUserId changes
+  useEffect(() => {
+    if (!isOpen || !targetUserId) return;
+
+    let cancelled = false;
+    setIsLoadingUser(true);
+    setSaveError('');
+    setSaveSuccess('');
+    setAdaptiveNote(null);
+
+    if (targetUserId === currentUser?.id) {
+      setLocal({
+        ...DEFAULT_PI_THRESHOLDS,
+        ...thresholds,
+      });
+    }
+
+    fetchPiSettingsWithMeta(targetUserId)
+      .then(meta => {
+        if (!cancelled) {
+          setServerMeta(meta);
+          setLocal({
+            ...DEFAULT_PI_THRESHOLDS,
+            ...meta.settings,
+          });
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setServerMeta(null);
+          setSaveError(
+            err instanceof Error
+              ? `Không thể đọc ngưỡng từ Firestore: ${err.message}`
+              : 'Không thể đọc ngưỡng từ Firestore.'
+          );
+          if (targetUserId === currentUser?.id) {
+            setLocal({ ...DEFAULT_PI_THRESHOLDS, ...thresholds });
+          } else {
+            setLocal({ ...DEFAULT_PI_THRESHOLDS });
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingUser(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, targetUserId, currentUser?.id]);
 
   if (!isOpen) return null;
+
+  const isEditingOtherUser = Boolean(isManager && targetUserId && currentUser?.id && targetUserId !== currentUser.id);
 
   const handleRequestNotificationPermission = async () => {
     const perm = await notificationManager.requestPermission();
@@ -78,41 +199,47 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
   };
 
   const handleReset = () => {
-    setLocal({
-      hrMin: 50,
-      hrMax: 110,
-      spo2Min: 94,
-      incorrectPostureSec: 30,
-      longIncorrectSec: 120,
-      longSittingSec: 3600,
-      standingTargetSec: 300,
-      standingResetSec: 300,
-      soundEnabled: true,
-      voiceAlertEnabled: true,
-      outOfZoneAlertEnabled: true,
-      browserNotificationEnabled: true,
-    });
+    setLocal({ ...DEFAULT_PI_THRESHOLDS });
+    setAdaptiveNote(null);
   };
 
-  const handleTestVoice = (type: 
-    | 'posture_incorrect' 
-    | 'out_of_zone' 
-    | 'long_sitting' 
-    | 'sit_to_stand_prompt' 
-    | 'standing_goal_reached' 
-    | 'finger_placed'
-    | 'measuring_pulse'
-    | 'measure_complete'
-    | 'finger_removed'
-    | 'stranger_detected'
-    | 'camera_error'
-    | 'welcome_back'
-    | 'user_absent'
-    | 'posture_correct'
-    | 'standing_active'
-    | 'face_enrolled'
-    | 'face_verified'
-    | 'chime'
+  const handleApplyAdaptiveForTarget = () => {
+    if (!selectedTargetUser) return;
+    const result = calculateAdaptiveThresholds(selectedTargetUser);
+    setLocal(prev => ({
+      ...prev,
+      ...result.thresholds,
+      soundEnabled: prev.soundEnabled,
+      voiceAlertEnabled: prev.voiceAlertEnabled,
+      outOfZoneAlertEnabled: prev.outOfZoneAlertEnabled,
+      browserNotificationEnabled: prev.browserNotificationEnabled,
+    }));
+    setAdaptiveNote(result.clinicalSummary);
+  };
+
+  const handleTestVoice = (
+    type:
+      | 'posture_incorrect'
+      | 'long_incorrect'
+      | 'out_of_zone'
+      | 'long_sitting'
+      | 'sit_to_stand_prompt'
+      | 'standing_goal_reached'
+      | 'vital_abnormal'
+      | 'biometric_reminder'
+      | 'finger_placed'
+      | 'measuring_pulse'
+      | 'measure_complete'
+      | 'finger_removed'
+      | 'stranger_detected'
+      | 'camera_error'
+      | 'welcome_back'
+      | 'user_absent'
+      | 'posture_correct'
+      | 'standing_active'
+      | 'face_enrolled'
+      | 'face_verified'
+      | 'chime'
   ) => {
     setTestPlaying(type);
     if (type === 'chime') {
@@ -130,6 +257,15 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
     } else if (type === 'finger_removed') {
       playFingerRemovedAlert({ playChime: local.soundEnabled, playVoice: local.voiceAlertEnabled });
       setTimeout(() => setTestPlaying(null), 2800);
+    } else if (type === 'biometric_reminder') {
+      playBiometricReminderAlert({ playChime: local.soundEnabled, playVoice: local.voiceAlertEnabled });
+      setTimeout(() => setTestPlaying(null), 2600);
+    } else if (type === 'vital_abnormal') {
+      playErgonomicVoiceAlert('vital_abnormal', {
+        playChime: local.soundEnabled,
+        playVoice: local.voiceAlertEnabled,
+      });
+      setTimeout(() => setTestPlaying(null), 3200);
     } else if (type === 'stranger_detected') {
       playStrangerAlert({ playChime: local.soundEnabled, playVoice: local.voiceAlertEnabled });
       setTimeout(() => setTestPlaying(null), 4000);
@@ -154,47 +290,81 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
     } else if (type === 'standing_active') {
       playStandingActiveAlert({ playChime: local.soundEnabled, playVoice: local.voiceAlertEnabled });
       setTimeout(() => setTestPlaying(null), 2500);
+    } else if (type === 'long_incorrect') {
+      playErgonomicVoiceAlert('long_incorrect', {
+        playChime: local.soundEnabled,
+        playVoice: local.voiceAlertEnabled,
+      });
+      setTimeout(() => setTestPlaying(null), 3000);
     } else if (type === 'sit_to_stand_prompt' || type === 'long_sitting') {
       playErgonomicVoiceAlert('long_sitting', {
         playChime: local.soundEnabled,
-        playVoice: local.voiceAlertEnabled
+        playVoice: local.voiceAlertEnabled,
       });
       setTimeout(() => setTestPlaying(null), 2500);
     } else if (type === 'standing_goal_reached') {
       playErgonomicVoiceAlert('standing_goal_reached', {
         playChime: local.soundEnabled,
-        playVoice: local.voiceAlertEnabled
+        playVoice: local.voiceAlertEnabled,
       });
       setTimeout(() => setTestPlaying(null), 2500);
     } else {
-      playErgonomicVoiceAlert(type, { playChime: local.soundEnabled });
+      playErgonomicVoiceAlert(type, {
+        playChime: local.soundEnabled,
+        playVoice: local.voiceAlertEnabled,
+      });
       setTimeout(() => setTestPlaying(null), 3000);
     }
   };
 
   const handleSave = async () => {
-    if (isSaving) return;
+    if (isSaving || isLoadingUser) return;
     setSaveError('');
+    setSaveSuccess('');
     setIsSaving(true);
     try {
       const standReset = Number(local.standingResetSec ?? 300);
+      const bioReminder = Number(local.biometricReminderSec ?? 1800);
       const longInc = Number(
-        local.longIncorrectSec !== undefined && local.longIncorrectSec !== null && !isNaN(Number(local.longIncorrectSec))
+        local.longIncorrectSec !== undefined &&
+          local.longIncorrectSec !== null &&
+          !isNaN(Number(local.longIncorrectSec))
           ? Number(local.longIncorrectSec)
           : Math.max(Number(local.incorrectPostureSec || 10) * 2, 60)
       );
-      await onSave({
+
+      const payload: AlertThresholds = {
         ...local,
         incorrectPostureSec: Number(local.incorrectPostureSec || 0),
         longIncorrectSec: longInc,
         longSittingSec: Number(local.longSittingSec || 0),
         standingTargetSec: Number(local.standingTargetSec || 0),
         standingResetSec: Number.isFinite(standReset) ? standReset : 300,
+        biometricReminderSec: Number.isFinite(bioReminder) ? bioReminder : 1800,
         hrMin: Number(local.hrMin || 0),
         hrMax: Number(local.hrMax || 0),
         spo2Min: Number(local.spo2Min || 0),
-      });
-      onClose();
+      };
+
+      if (isManager && onSaveForUser && targetUserId) {
+        await onSaveForUser(targetUserId, payload);
+      } else {
+        await onSave(payload);
+      }
+
+      const freshMeta = targetUserId ? await fetchPiSettingsWithMeta(targetUserId).catch(() => null) : null;
+      if (freshMeta) {
+        setServerMeta(freshMeta);
+      }
+
+      setSaveSuccess(
+        isEditingOtherUser
+          ? `✅ Đã đồng bộ lên Firestore (users/${targetUserId}/preferences/office_health) cho ${selectedTargetUser?.fullName || 'người dùng'}.`
+          : `✅ Đã đồng bộ lên Firestore (users/${targetUserId || currentUser?.id}/preferences/office_health) cho Raspberry Pi.`
+      );
+      setTimeout(() => {
+        onClose();
+      }, 750);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -203,283 +373,426 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xl text-slate-800 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xl text-slate-800 max-h-[92vh] overflow-y-auto">
+        {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur-xs z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Cài Đặt Ngưỡng Cảnh Báo</h3>
-              <p className="text-xs text-slate-500">Thiết lập linh hoạt các tiêu chuẩn sinh trắc học và thời gian</p>
+              <h3 className="text-base font-bold text-slate-900">Cài Đặt Ngưỡng Cảnh Báo & Nhắc Nhở</h3>
+              <p className="text-xs text-slate-500">
+                Thiết lập tiêu chuẩn sinh trắc học, nhắc đo định kỳ và chu kỳ công thái học
+              </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            className="w-10 h-10 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer shrink-0"
+            aria-label="Đóng cửa sổ"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="mt-4 space-y-3.5 text-xs">
-          {/* Nhóm 1: Tiêu chuẩn Sinh trắc học */}
-          <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/90 space-y-2">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              <span>1. Tiêu chuẩn sinh trắc học (MAX30102)</span>
+          {/* Admin Multi-User Selector */}
+          {isManager && userOptions.length > 0 && (
+            <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200/90 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center border border-sky-200 shrink-0">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-sky-900 flex items-center gap-1.5">
+                      <span>Quản trị ngưỡng theo tài khoản</span>
+                      <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
+                    </div>
+                    <p className="text-[11px] text-sky-700">
+                      Xem & điều chỉnh ngưỡng cá nhân hóa cho từng nhân viên trên Raspberry Pi
+                    </p>
+                  </div>
+                </div>
+
+                {selectedTargetUser && (
+                  <button
+                    type="button"
+                    onClick={handleApplyAdaptiveForTarget}
+                    disabled={isLoadingUser}
+                    className="h-9 px-3 rounded-lg bg-white hover:bg-sky-100/80 text-sky-700 border border-sky-200 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-2xs disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                    <span className="whitespace-nowrap">Gợi ý theo hồ sơ</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <select
+                  value={targetUserId}
+                  onChange={e => setTargetUserId(e.target.value)}
+                  className="flex-1 h-10 px-3 rounded-xl bg-white border border-sky-200 text-slate-900 font-semibold text-xs focus:outline-none focus:border-sky-500 cursor-pointer"
+                >
+                  {userOptions.map(u => {
+                    const isSelf = u.id === currentUser?.id;
+                    const devLabel = u.deviceId || u.device ? ` • ${u.deviceId || u.device}` : '';
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.username || u.email} ({u.email}){isSelf ? ' — Tài khoản của bạn' : devLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {selectedTargetUser && (
+                  <div className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-white border border-sky-200/80 text-[11px] font-mono text-slate-700 shrink-0">
+                    <Radio
+                      className={`w-3.5 h-3.5 ${
+                        selectedTargetUser.deviceId || selectedTargetUser.device ? 'text-emerald-600' : 'text-slate-400'
+                      }`}
+                    />
+                    <span className="whitespace-nowrap">
+                      {selectedTargetUser.deviceId || selectedTargetUser.device || 'Chưa gán Pi'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {isLoadingUser && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-700">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang tải ngưỡng đã lưu từ Firestore...</span>
+                </div>
+              )}
+
+              {adaptiveNote && (
+                <div className="p-2 rounded-lg bg-white/90 border border-sky-200 text-[11px] text-sky-900 leading-relaxed">
+                  {adaptiveNote}
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-2.5">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
-                  HR min (BPM):
+          )}
+
+          {/* Nhóm 1: Tiêu chuẩn Sinh trắc học & Nhắc đo định kỳ (4 cột cân đối) */}
+          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2.5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>1. Tiêu chuẩn sinh trắc học & nhắc đo định kỳ (MAX30102)</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-stretch">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  HR min (BPM)
                 </label>
                 <input
                   type="number"
                   value={local.hrMin ?? ''}
-                  onChange={e => setLocal({ ...local, hrMin: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-amber-500 transition"
+                  onChange={e =>
+                    setLocal({ ...local, hrMin: e.target.value === '' ? ('' as any) : Number(e.target.value) })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
                   placeholder="50"
                 />
+                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">Nhịp tim tối thiểu</span>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
-                  HR max (BPM):
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  HR max (BPM)
                 </label>
                 <input
                   type="number"
                   value={local.hrMax ?? ''}
-                  onChange={e => setLocal({ ...local, hrMax: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-amber-500 transition"
+                  onChange={e =>
+                    setLocal({ ...local, hrMax: e.target.value === '' ? ('' as any) : Number(e.target.value) })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
                   placeholder="110"
                 />
+                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">Nhịp tim tối đa</span>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
-                  SpO₂ min (%):
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  SpO₂ min (%)
                 </label>
                 <input
                   type="number"
                   value={local.spo2Min ?? ''}
-                  onChange={e => setLocal({ ...local, spo2Min: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-amber-500 transition"
+                  onChange={e =>
+                    setLocal({ ...local, spo2Min: e.target.value === '' ? ('' as any) : Number(e.target.value) })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
                   placeholder="94"
                 />
+                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">Oxy an toàn</span>
+              </div>
+
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-rose-50/40 border border-rose-200/90">
+                <label className="flex items-center gap-1 text-rose-800 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  <Clock className="w-3 h-3 text-rose-600 shrink-0" />
+                  <span>Nhắc đo (giây)</span>
+                </label>
+                <input
+                  type="number"
+                  value={local.biometricReminderSec ?? ''}
+                  onChange={e =>
+                    setLocal({
+                      ...local,
+                      biometricReminderSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                    })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-white border border-rose-200 text-rose-950 font-mono text-xs focus:outline-none focus:border-rose-500 transition"
+                  placeholder="1800"
+                />
+                <span className="text-[10px] text-rose-700 font-medium mt-1.5 block whitespace-nowrap">
+                  {Number(local.biometricReminderSec ?? 0) === 0
+                    ? '0 = Tắt nhắc đo'
+                    : `${formatDurationHint(local.biometricReminderSec)} / lần`}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Nhóm 2: Cảnh báo tư thế ngồi (Sai nhẹ & Sai lâu) */}
-          <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/90 space-y-2">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          {/* Nhóm 2: Cảnh báo tư thế ngồi (2 cột cân đối) */}
+          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2.5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
               <span>2. Thời gian cảnh báo tư thế (Posture)</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  Sai tư thế (giây):
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  Sai tư thế (giây)
                 </label>
                 <input
                   type="number"
                   value={local.incorrectPostureSec ?? ''}
-                  onChange={e => setLocal({ ...local, incorrectPostureSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-amber-500 transition"
-                  placeholder="5"
+                  onChange={e =>
+                    setLocal({
+                      ...local,
+                      incorrectPostureSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                    })
+                  }
+                  className="w-full h-9 px-3 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  placeholder="30"
                 />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">{local.incorrectPostureSec || 0}s bắt đầu nhắc tư thế</span>
+                <span className="text-[10px] text-slate-500 mt-1.5 block">
+                  {local.incorrectPostureSec || 0}s bắt đầu nhắc tư thế
+                </span>
               </div>
 
-              <div>
-                <label className="block text-rose-700 font-semibold mb-1">
-                  Sai tư thế quá lâu (giây):
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-rose-50/40 border border-rose-200/90">
+                <label className="block text-rose-800 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  Sai tư thế quá lâu (giây)
                 </label>
                 <input
                   type="number"
                   value={local.longIncorrectSec ?? ''}
-                  onChange={e => setLocal({ ...local, longIncorrectSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded-lg bg-rose-50/50 border border-rose-200 text-rose-950 font-mono text-xs focus:outline-none focus:border-rose-500 transition"
+                  onChange={e =>
+                    setLocal({
+                      ...local,
+                      longIncorrectSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                    })
+                  }
+                  className="w-full h-9 px-3 rounded-lg bg-white border border-rose-200 text-rose-950 font-mono text-xs focus:outline-none focus:border-rose-500 transition"
                   placeholder="120"
                 />
-                <span className="text-[10px] text-rose-600 mt-0.5 block">{local.longIncorrectSec || 0}s báo động sai lâu (Mã 3)</span>
+                <span className="text-[10px] text-rose-700 mt-1.5 block">
+                  {local.longIncorrectSec || 0}s báo động sai lâu (Mã 3)
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Nhóm 3: Chu kỳ làm việc Đứng - Ngồi Sit-to-Stand */}
-          <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/90 space-y-2">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+          {/* Nhóm 3: Chu kỳ làm việc Đứng - Ngồi Sit-to-Stand (3 cột thẳng hàng) */}
+          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2.5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
               <span>3. Chu kỳ làm việc Đứng - Ngồi (Sit-to-Stand)</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  Ngồi lâu (giây):
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-stretch">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  Ngồi lâu (giây)
                 </label>
                 <input
                   type="number"
                   value={local.longSittingSec ?? ''}
-                  onChange={e => setLocal({ ...local, longSittingSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-amber-500 transition"
+                  onChange={e =>
+                    setLocal({ ...local, longSittingSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
                   placeholder="3600"
                 />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">{Math.floor((Number(local.longSittingSec) || 0) / 60)} phút ngồi</span>
+                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">
+                  {formatDurationHint(local.longSittingSec)} ngồi
+                </span>
               </div>
 
-              <div>
-                <label className="block text-indigo-900 font-semibold mb-1">
-                  Mục tiêu đứng (giây):
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-200/90">
+                <label className="block text-indigo-900 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  Mục tiêu đứng (giây)
                 </label>
                 <input
                   type="number"
                   value={local.standingTargetSec ?? ''}
-                  onChange={e => setLocal({ ...local, standingTargetSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-indigo-50/50 border border-indigo-200 text-indigo-950 font-mono text-xs focus:outline-none focus:border-indigo-500 transition"
+                  onChange={e =>
+                    setLocal({
+                      ...local,
+                      standingTargetSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                    })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-white border border-indigo-200 text-indigo-950 font-mono text-xs focus:outline-none focus:border-indigo-500 transition"
                   placeholder="300"
                 />
-                <span className="text-[10px] text-indigo-600 mt-0.5 block">{Math.floor((Number(local.standingTargetSec) || 0) / 60)} phút đứng</span>
+                <span className="text-[10px] text-indigo-700 mt-1.5 block whitespace-nowrap">
+                  {formatDurationHint(local.standingTargetSec)} đứng
+                </span>
               </div>
 
-              <div>
-                <label className="block text-indigo-900 font-semibold mb-1">
-                  Đứng để reset ngồi (giây):
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-200/90">
+                <label className="block text-indigo-900 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+                  Đứng reset ngồi (giây)
                 </label>
                 <input
                   type="number"
                   value={local.standingResetSec ?? ''}
-                  onChange={e => setLocal({ ...local, standingResetSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-indigo-50/50 border border-indigo-200 text-indigo-950 font-mono text-xs focus:outline-none focus:border-indigo-500 transition"
+                  onChange={e =>
+                    setLocal({
+                      ...local,
+                      standingResetSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                    })
+                  }
+                  className="w-full h-9 px-2.5 rounded-lg bg-white border border-indigo-200 text-indigo-950 font-mono text-xs focus:outline-none focus:border-indigo-500 transition"
                   placeholder="300"
                 />
-                <span className="text-[10px] text-indigo-600 mt-0.5 block">{local.standingResetSec ?? 300}s để xóa ngồi</span>
+                <span className="text-[10px] text-indigo-700 mt-1.5 block whitespace-nowrap">
+                  {local.standingResetSec ?? 300}s để xóa ngồi
+                </span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-500 pt-1">
+
+            <p className="text-[11px] text-slate-500 leading-relaxed">
               * Khi đứng ít hơn số giây reset, chu kỳ ngồi chỉ tạm dừng. Đứng đủ thời gian mới reset bộ đếm ngồi liên tục về 0.
             </p>
           </div>
 
-          {/* Nhóm 4: Bật / Tắt âm thanh, giọng nói và thông báo */}
-          <div className="pt-2.5 space-y-2 border-t border-slate-100">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={local.soundEnabled}
-                onChange={e => setLocal({ ...local, soundEnabled: e.target.checked })}
-                className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-amber-600 focus:ring-0 cursor-pointer"
-              />
-              <span className="text-slate-700 font-medium flex items-center gap-1.5">
-                <Volume2 className="w-4 h-4 text-amber-600" />
-                Phát âm thanh chuông bíp khi có sự cố sinh trắc
-              </span>
-            </label>
+          {/* Nhóm 4: Bật / Tắt âm thanh, giọng nói và thông báo (Lưới 2x2 cân đối) */}
+          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 cursor-pointer select-none transition">
+                <input
+                  type="checkbox"
+                  checked={local.soundEnabled}
+                  onChange={e => setLocal({ ...local, soundEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-amber-600 focus:ring-0 cursor-pointer shrink-0"
+                />
+                <Volume2 className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-slate-700 font-semibold text-xs">Chuông bíp cảnh báo</span>
+              </label>
 
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={local.voiceAlertEnabled}
-                onChange={e => setLocal({ ...local, voiceAlertEnabled: e.target.checked })}
-                className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-sky-600 focus:ring-0 cursor-pointer"
-              />
-              <span className="text-slate-700 font-medium flex items-center gap-1.5">
-                <Mic className="w-4 h-4 text-sky-600" />
-                Phát giọng nói tiếng Việt nhắc nhở trực tiếp (TTS)
-              </span>
-            </label>
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-sky-300 cursor-pointer select-none transition">
+                <input
+                  type="checkbox"
+                  checked={local.voiceAlertEnabled}
+                  onChange={e => setLocal({ ...local, voiceAlertEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-sky-600 focus:ring-0 cursor-pointer shrink-0"
+                />
+                <Mic className="w-4 h-4 text-sky-600 shrink-0" />
+                <span className="text-slate-700 font-semibold text-xs">Giọng nói tiếng Việt (TTS)</span>
+              </label>
 
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={local.outOfZoneAlertEnabled}
-                onChange={e => setLocal({ ...local, outOfZoneAlertEnabled: e.target.checked })}
-                className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer"
-              />
-              <span className="text-slate-700 font-medium flex items-center gap-1.5">
-                <Radio className="w-4 h-4 text-indigo-600" />
-                Cảnh báo bằng giọng nói khi rời ngoài vùng camera AI
-              </span>
-            </label>
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 cursor-pointer select-none transition">
+                <input
+                  type="checkbox"
+                  checked={local.outOfZoneAlertEnabled}
+                  onChange={e => setLocal({ ...local, outOfZoneAlertEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer shrink-0"
+                />
+                <Radio className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span className="text-slate-700 font-semibold text-xs">Nhắc khi rời vùng camera AI</span>
+              </label>
 
-            {/* Browser Notification API Toggle & Permission */}
-            <div className="pt-2 border-t border-slate-100">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-sky-300 cursor-pointer select-none transition">
                 <input
                   type="checkbox"
                   checked={local.browserNotificationEnabled}
                   onChange={e => setLocal({ ...local, browserNotificationEnabled: e.target.checked })}
-                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-sky-600 focus:ring-0 cursor-pointer"
+                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-sky-600 focus:ring-0 cursor-pointer shrink-0"
                 />
-                <span className="text-slate-800 font-semibold flex items-center gap-1.5">
-                  <Bell className="w-4 h-4 text-sky-600" />
-                  Gửi thông báo trình duyệt khi thu nhỏ / ẩn tab
-                </span>
+                <Bell className="w-4 h-4 text-sky-600 shrink-0" />
+                <span className="text-slate-700 font-semibold text-xs">Pop-up trình duyệt khi ẩn tab</span>
               </label>
-              <p className="text-[11px] text-slate-500 pl-6 mt-0.5">
-                Hiển thị cửa sổ pop-up thông báo của hệ điều hành ngay cả khi bạn đang làm việc trên ứng dụng khác.
-              </p>
+            </div>
 
-              <div className="pl-6 mt-2 flex flex-wrap items-center gap-2">
-                {notifPermission === 'granted' ? (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      Đã cấp quyền trình duyệt
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleSendTestNotification}
-                      className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition cursor-pointer flex items-center gap-1"
-                    >
-                      <BellRing className="w-3 h-3" />
-                      <span>{testNotifSent ? '✅ Đã gửi pop-up!' : 'Thử gửi thông báo'}</span>
-                    </button>
-                  </div>
-                ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+              <p className="text-[11px] text-slate-500">
+                Hiển thị cửa sổ thông báo hệ điều hành ngay cả khi thu nhỏ trình duyệt.
+              </p>
+              {notifPermission === 'granted' ? (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 whitespace-nowrap">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Đã cấp quyền
+                  </span>
                   <button
                     type="button"
-                    onClick={handleRequestNotificationPermission}
-                    className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    onClick={handleSendTestNotification}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
                   >
-                    <BellRing className="w-3.5 h-3.5" />
-                    <span>Cho phép nhận thông báo trình duyệt</span>
+                    <BellRing className="w-3 h-3" />
+                    <span>{testNotifSent ? '✅ Đã gửi!' : 'Thử pop-up'}</span>
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRequestNotificationPermission}
+                  className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <BellRing className="w-3.5 h-3.5" />
+                  <span>Cho phép nhận thông báo</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Interactive Audio & Voice Test Section */}
-          <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          {/* Interactive Audio & Voice Test Section (Các hàng 3x2 cân đối) */}
+          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                <Play className="w-3 h-3 text-emerald-600" />
-                Kiểm tra loa & âm thanh tương tác:
+                <Play className="w-3.5 h-3.5 text-emerald-600" />
+                Kiểm tra loa & âm thanh tương tác
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">Bấm để nghe thử</span>
+              <span className="text-[10px] text-slate-500 font-medium">Bấm từng nút để nghe thử</span>
             </div>
 
-            {/* 1. Nhóm âm thanh tương tác cảm biến MAX30102 */}
+            {/* 1. Nhóm âm thanh cảm biến MAX30102 (6 nút = 3x2) */}
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-1 flex items-center gap-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-1.5 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                 <span>Cảm biến MAX30102 (Nhịp tim & SpO₂)</span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => handleTestVoice('finger_placed')}
                   disabled={testPlaying !== null}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'finger_placed'
                       ? 'bg-emerald-100 border-emerald-400 text-emerald-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200'
                   }`}
                 >
-                  <span className="truncate">👆 1. Đặt tay đo</span>
+                  <span className="truncate whitespace-nowrap">👆 Đặt tay đo</span>
                   <Play className="w-3 h-3 text-emerald-600 shrink-0 ml-1" />
                 </button>
 
@@ -487,13 +800,13 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   type="button"
                   onClick={() => handleTestVoice('measuring_pulse')}
                   disabled={testPlaying !== null}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'measuring_pulse'
                       ? 'bg-rose-100 border-rose-400 text-rose-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
                   }`}
                 >
-                  <span className="truncate">💓 2. Đang đo (Pulse)</span>
+                  <span className="truncate whitespace-nowrap">💓 Đang đo</span>
                   <Play className="w-3 h-3 text-rose-500 shrink-0 ml-1" />
                 </button>
 
@@ -501,13 +814,13 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   type="button"
                   onClick={() => handleTestVoice('measure_complete')}
                   disabled={testPlaying !== null}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'measure_complete'
                       ? 'bg-sky-100 border-sky-400 text-sky-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-200'
                   }`}
                 >
-                  <span className="truncate">🎯 3. Đã đo xong</span>
+                  <span className="truncate whitespace-nowrap">🎯 Đã đo xong</span>
                   <Play className="w-3 h-3 text-sky-600 shrink-0 ml-1" />
                 </button>
 
@@ -515,198 +828,271 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   type="button"
                   onClick={() => handleTestVoice('finger_removed')}
                   disabled={testPlaying !== null}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'finger_removed'
                       ? 'bg-slate-200 border-slate-400 text-slate-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <span className="truncate">🖐️ 4. Đã bỏ tay</span>
+                  <span className="truncate whitespace-nowrap">🖐️ Đã bỏ tay</span>
                   <Play className="w-3 h-3 text-slate-500 shrink-0 ml-1" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTestVoice('biometric_reminder')}
+                  disabled={testPlaying !== null}
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                    testPlaying === 'biometric_reminder'
+                      ? 'bg-amber-100 border-amber-400 text-amber-900 animate-pulse'
+                      : 'bg-amber-50/60 border-amber-200 text-amber-900 hover:bg-amber-100/80'
+                  }`}
+                >
+                  <span className="truncate whitespace-nowrap">⏰ Nhắc đo định kỳ</span>
+                  <Play className="w-3 h-3 text-amber-600 shrink-0 ml-1" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTestVoice('vital_abnormal')}
+                  disabled={testPlaying !== null}
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                    testPlaying === 'vital_abnormal'
+                      ? 'bg-rose-100 border-rose-400 text-rose-900 animate-pulse'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
+                  }`}
+                >
+                  <span className="truncate whitespace-nowrap">🚨 Chỉ số bất thường</span>
+                  <Play className="w-3 h-3 text-rose-600 shrink-0 ml-1" />
                 </button>
               </div>
             </div>
 
-            {/* 2. Nhóm An ninh, Camera & Hiện diện */}
+            {/* 2. Nhóm An ninh, Camera & Hiện diện (6 nút = 3x2) */}
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-1 flex items-center gap-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-1.5 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
                 <span>An ninh, Camera & Hiện diện</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => handleTestVoice('stranger_detected')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'stranger_detected'
                       ? 'bg-rose-100 border-rose-400 text-rose-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
                   }`}
                 >
-                  <span className="truncate">🚨 Người lạ</span>
-                  <Play className="w-2.5 h-2.5 text-rose-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🚨 Người lạ</span>
+                  <Play className="w-3 h-3 text-rose-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('camera_error')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'camera_error'
                       ? 'bg-amber-100 border-amber-400 text-amber-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-200'
                   }`}
                 >
-                  <span className="truncate">🔌 Lỗi Cam</span>
-                  <Play className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🔌 Lỗi Cam</span>
+                  <Play className="w-3 h-3 text-amber-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('welcome_back')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'welcome_back'
                       ? 'bg-indigo-100 border-indigo-400 text-indigo-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-900 hover:border-indigo-200'
                   }`}
                 >
-                  <span className="truncate">🪑 Quay lại</span>
-                  <Play className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🪑 Quay lại</span>
+                  <Play className="w-3 h-3 text-indigo-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('user_absent')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'user_absent'
                       ? 'bg-slate-200 border-slate-400 text-slate-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <span className="truncate">🚪 Vắng mặt</span>
-                  <Play className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🚪 Vắng mặt</span>
+                  <Play className="w-3 h-3 text-slate-500 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('face_enrolled')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'face_enrolled'
                       ? 'bg-emerald-100 border-emerald-400 text-emerald-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200'
                   }`}
                 >
-                  <span className="truncate">📸 ĐK xong</span>
-                  <Play className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">📸 ĐK xong</span>
+                  <Play className="w-3 h-3 text-emerald-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('face_verified')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'face_verified'
                       ? 'bg-sky-100 border-sky-400 text-sky-900 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-200'
                   }`}
                 >
-                  <span className="truncate">🔑 Đã xác thực</span>
-                  <Play className="w-2.5 h-2.5 text-sky-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🔑 Đã xác thực</span>
+                  <Play className="w-3 h-3 text-sky-600 shrink-0" />
                 </button>
               </div>
             </div>
 
-            {/* 3. Nhóm nhắc nhở Công thái học */}
+            {/* 3. Nhóm nhắc nhở Công thái học (6 nút = 3x2) */}
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
                 <span>Nhắc nhở Công thái học & Tư thế</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => handleTestVoice('posture_correct')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'posture_correct'
                       ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200'
                   }`}
                 >
-                  <span className="truncate">✅ Ngồi đúng</span>
-                  <Play className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">✅ Ngồi đúng</span>
+                  <Play className="w-3 h-3 text-emerald-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('posture_incorrect')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'posture_incorrect'
                       ? 'bg-rose-100 border-rose-400 text-rose-800 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <span className="truncate">🗣️ Ngồi thẳng</span>
-                  <Play className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🗣️ Ngồi thẳng</span>
+                  <Play className="w-3 h-3 text-slate-400 shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTestVoice('long_incorrect')}
+                  disabled={testPlaying !== null}
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                    testPlaying === 'long_incorrect'
+                      ? 'bg-rose-100 border-rose-400 text-rose-800 animate-pulse'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
+                  }`}
+                >
+                  <span className="truncate whitespace-nowrap">⚠️ Sai tư thế lâu</span>
+                  <Play className="w-3 h-3 text-rose-500 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('standing_active')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'standing_active'
                       ? 'bg-indigo-100 border-indigo-400 text-indigo-800 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-900 hover:border-indigo-200'
                   }`}
                 >
-                  <span className="truncate">🧍 Đang đứng</span>
-                  <Play className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🧍 Đang đứng</span>
+                  <Play className="w-3 h-3 text-indigo-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('long_sitting')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'long_sitting' || testPlaying === 'sit_to_stand_prompt'
                       ? 'bg-amber-100 border-amber-400 text-amber-800 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <span className="truncate">🚶 Ngồi lâu</span>
-                  <Play className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🚶 Ngồi lâu</span>
+                  <Play className="w-3 h-3 text-amber-500 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('standing_goal_reached')}
                   disabled={testPlaying !== null}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'standing_goal_reached'
                       ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-pulse'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <span className="truncate">🏆 Đạt mục tiêu</span>
-                  <Play className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                  <span className="truncate whitespace-nowrap">🏆 Đạt mục tiêu</span>
+                  <Play className="w-3 h-3 text-emerald-500 shrink-0" />
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {saveError && <div role="alert" className="mt-3 text-xs text-rose-700 font-semibold">{saveError}</div>}
-        <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-100">
+        {/* Firestore Sync Status Strip */}
+        {targetUserId && (
+          <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px]">
+            <div className="flex items-center gap-1.5 text-slate-700 min-w-0">
+              <Database className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <span className="font-mono truncate">users/{targetUserId}/preferences/office_health</span>
+            </div>
+            {serverMeta ? (
+              serverMeta.existsOnServer && serverMeta.missingKeys.length === 0 ? (
+                <span className="text-emerald-700 font-semibold whitespace-nowrap">
+                  ✅ Đã đồng bộ{serverMeta.updatedAtIso ? ` (${new Date(serverMeta.updatedAtIso).toLocaleTimeString('vi-VN')})` : ''}
+                </span>
+              ) : (
+                <span className="text-amber-700 font-semibold whitespace-nowrap">
+                  ⚠️ Thiếu {serverMeta.missingKeys.length} field mới trên Firestore — bấm Lưu để đồng bộ
+                </span>
+              )
+            ) : null}
+          </div>
+        )}
+
+        {saveError && (
+          <div role="alert" className="mt-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold">
+            {saveError}
+          </div>
+        )}
+        {saveSuccess && (
+          <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-semibold">
+            {saveSuccess}
+          </div>
+        )}
+
+        <div className="mt-5 flex items-center justify-between pt-4 border-t border-slate-100">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer font-medium"
+            className="flex items-center gap-1.5 h-10 px-2.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer font-medium whitespace-nowrap"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Mặc định</span>
@@ -716,17 +1102,21 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              className="h-10 px-4 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer whitespace-nowrap"
             >
               Hủy
             </button>
             <button
               type="button"
               onClick={handleSave}
-              disabled={isSaving}
-              className="px-4 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-xs cursor-pointer"
+              disabled={isSaving || isLoadingUser}
+              className="h-10 px-4 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
-              {isSaving ? 'Đang đồng bộ Pi...' : 'Lưu Cài Đặt'}
+              {isSaving
+                ? 'Đang đồng bộ Pi...'
+                : isEditingOtherUser
+                ? 'Lưu cho tài khoản này'
+                : 'Lưu Cài Đặt'}
             </button>
           </div>
         </div>

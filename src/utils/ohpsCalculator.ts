@@ -25,6 +25,7 @@ export interface OHPSCalculationResult {
   dataConfidence: number;   // % Độ tin cậy dữ liệu (0-100%)
   hasVitalData: boolean;    // Cờ báo có dữ liệu cảm biến sinh hiệu hay không
   hasActualData: boolean;   // Cờ báo có dữ liệu đo đạc thực tế hay không
+  sqiScore?: number;        // Chỉ số chất lượng tín hiệu sinh trắc học MAX30102 (0-100)
   evaluation: {
     level: string;
     badgeColor: string;
@@ -152,20 +153,50 @@ export function calculateOHPSFromLogs(
   const safeCompletedBreaks = Math.max(0, completedBreaksCount);
   const S_break = Math.min(100, Math.max(0, Math.round((safeCompletedBreaks / safeRequiredBreaks) * 100)));
 
-  // 3. TÍNH ĐIỂM SINH HIỆU (S_vital - Trọng số 15%) & KIỂM TRA MẤT CẢM BIẾN
+  // 3. TÍNH ĐIỂM SINH HIỆU (S_vital - Trọng số 15%) & CHẤT LƯỢNG TÍN HIỆU (SQI THỰC TẾ)
   const validVitalLogs = logs.filter(l => l.bpm > 0 && l.spo2 > 0);
   const hasVitalData = validVitalLogs.length > 0;
 
   let S_vital = -1;
+  let sqiScore = 0;
   if (hasVitalData) {
     const avgBpm = validVitalLogs.reduce((acc, l) => acc + l.bpm, 0) / validVitalLogs.length;
     const avgSpo2 = validVitalLogs.reduce((acc, l) => acc + l.spo2, 0) / validVitalLogs.length;
 
+    // Tính Signal Quality Index (SQI) dựa trên:
+    // 1) Tính hợp lệ sinh lý (BPM 40-200, SpO2 80-100)
+    // 2) Tỷ lệ nhiễu chuyển động (Motion Artifact: |ΔBPM| > 35 giữa 2 mẫu liên tiếp)
+    // 3) Độ ổn định biến thiên (CV của BPM)
+    const physiologicalValidCount = validVitalLogs.filter(
+      l => l.bpm >= 40 && l.bpm <= 200 && l.spo2 >= 80 && l.spo2 <= 100
+    ).length;
+    const plausibilityRatio = physiologicalValidCount / validVitalLogs.length;
+
+    let motionArtifacts = 0;
+    for (let i = 1; i < validVitalLogs.length; i++) {
+      if (Math.abs(validVitalLogs[i].bpm - validVitalLogs[i - 1].bpm) > 35) {
+        motionArtifacts++;
+      }
+    }
+    const artifactPenalty = validVitalLogs.length > 1
+      ? (motionArtifacts / (validVitalLogs.length - 1)) * 40
+      : 0;
+
+    const varianceBpm = validVitalLogs.reduce((acc, l) => acc + Math.pow(l.bpm - avgBpm, 2), 0) / validVitalLogs.length;
+    const stdBpm = Math.sqrt(varianceBpm);
+    const cvBpm = avgBpm > 0 ? stdBpm / avgBpm : 0;
+    const stabilityPenalty = cvBpm > 0.18 ? Math.min(25, (cvBpm - 0.18) * 120) : 0;
+    const sampleBonus = Math.min(10, validVitalLogs.length * 1.5);
+
+    sqiScore = Math.min(
+      100,
+      Math.max(25, Math.round(plausibilityRatio * 90 + sampleBonus - artifactPenalty - stabilityPenalty))
+    );
+
     const S_HR = (avgBpm >= 60 && avgBpm <= 100) ? 100 : (avgBpm > 0 ? 60 : 0);
     const S_SpO2 = avgSpo2 >= 95 ? 100 : (avgSpo2 >= 90 ? 70 : 40);
-    const S_SQI = 90; // Mặc định độ ổn định tín hiệu 90%
 
-    S_vital = Math.min(100, Math.max(0, Math.round((0.5 * S_HR) + (0.3 * S_SpO2) + (0.2 * S_SQI))));
+    S_vital = Math.min(100, Math.max(0, Math.round((0.5 * S_HR) + (0.3 * S_SpO2) + (0.2 * sqiScore))));
   }
 
   // 4. TÍNH ĐIỂM TIẾN ĐỘ CÔNG VIỆC (S_task - Trọng số 30%)
@@ -214,6 +245,7 @@ export function calculateOHPSFromLogs(
     dataConfidence,
     hasVitalData,
     hasActualData: true,
+    sqiScore: hasVitalData ? sqiScore : undefined,
     evaluation: getOHPSEvaluation(ohpsScore),
     breakdown: {
       S_posture,

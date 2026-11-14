@@ -103,31 +103,32 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
 
   const strokeDashoffset = circumference - (Math.min(100, currentPercent) / 100) * circumference;
   const strokeColor = goalMode === 'ohps'
-    ? (ohpsScore >= 80 ? '#2dd4bf' : ohpsScore >= 70 ? '#fbbf24' : '#f43f5e')
+    ? (ohpsScore >= 80 ? '#14b8a6' : ohpsScore >= 70 ? '#fbbf24' : '#f43f5e')
     : goalMode === 'standing'
-    ? '#2dd4bf'
+    ? '#6366f1'
     : (sittingPercent >= 100 ? '#f43f5e' : '#38bdf8');
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-white/40 shadow-xl flex flex-col justify-between p-4 sm:p-5 lg:p-6 group transition-all text-white ${className || ''}`}>
-      {/* 1. 100% Sharp & Crisp Background Image - ZERO blur, ZERO darkening overlay across whole photo */}
+    <div className={`relative overflow-hidden rounded-2xl border border-white/60 shadow-lg flex flex-col justify-between p-4 sm:p-5 lg:p-6 group transition-all text-white ${className || ''}`}>
+      {/* 1. Sharp & Crisp Background Image */}
       <img 
         src={wallpaperUrl || '/nenweb.png'} 
         alt="Health Office Background" 
+        referrerPolicy="no-referrer"
         className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none transition-transform duration-700"
         onError={(e) => {
           (e.target as HTMLImageElement).src = '/nenweb.png';
         }}
       />
 
-      {/* 2. Main Content Container (Zero blur overlay - 100% sharp clear background image) */}
+      {/* 2. Main Content Container */}
       <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5 w-full items-stretch">
         
-        {/* Left Section: Transparent container with high-contrast text drop shadows */}
-        <div className="md:col-span-7 lg:col-span-8 p-3 sm:p-4 rounded-2xl bg-black/25 sm:bg-black/20 border border-white/20 shadow-lg flex flex-col justify-between space-y-3 h-full">
+        {/* Left Section: Ultra-transparent glass frame over sharp background */}
+        <div className="md:col-span-7 lg:col-span-8 p-3 sm:p-4 rounded-2xl bg-slate-950/10 backdrop-blur-[1.5px] border border-white/25 shadow-sm flex flex-col justify-between space-y-3 h-full">
           {/* Header Row: Date Chip + OHPS Quick Badge + Bonus Chip */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/25 text-white/95 text-xs font-semibold shadow-xs">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/35 border border-white/25 text-white/95 text-xs font-semibold shadow-xs">
               <Calendar className="w-3.5 h-3.5 text-teal-300" />
               <span className="whitespace-nowrap">{displayDate}</span>
             </div>
@@ -137,10 +138,10 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                 <button
                   type="button"
                   onClick={onOpenOHPSModal}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-400/20 hover:bg-teal-400/30 border border-teal-400/40 text-teal-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-400/20 hover:bg-teal-400/30 border border-teal-400/40 text-teal-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]"
                   title="Bấm để xem chi tiết điểm năng suất OHPS từ Supabase"
                 >
-                  <Award className="w-3.5 h-3.5 text-teal-400" />
+                  <Award className="w-3.5 h-3.5 text-teal-300" />
                   <span>OHPS: {ohpsScore}đ • {ohpsLevel}</span>
                   <ChevronRight className="w-3 h-3" />
                 </button>
@@ -149,7 +150,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                 <button
                   type="button"
                   onClick={onOpenOHPSModal}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 font-mono"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 font-mono drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]"
                   title="Bấm để xem chính sách thưởng công thái học của công ty"
                 >
                   <Gift className="w-3.5 h-3.5 text-amber-300" />
@@ -159,23 +160,22 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
             )}
           </div>
 
-
           {/* Heading */}
           <div>
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
               {greetingTime},{' '}
-              <span className="text-teal-300 drop-shadow-[0_0_14px_rgba(45,212,191,0.6)]">
+              <span className="text-teal-300 drop-shadow-[0_0_14px_rgba(45,212,191,0.55)]">
                 {userDisplayName}
               </span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-100 mt-1.5 italic leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]">
+            <p className="text-xs sm:text-sm text-slate-100 mt-1.5 italic leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
               &ldquo;Bạn không cần hoàn hảo, bạn chỉ cần bắt đầu ngồi đúng tư thế hôm nay.&rdquo;
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="pt-1 flex flex-wrap items-center gap-2 sm:gap-3">
-            {/* Glowing Mint Pill Button: Switch Donut Widget Mode */}
+            {/* Primary Teal Pill Button: Switch Donut Widget Mode */}
             <button
               type="button"
               onClick={() => {
@@ -185,7 +185,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                   return 'ohps';
                 });
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold bg-teal-400 hover:bg-teal-300 text-slate-950 shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all cursor-pointer whitespace-nowrap active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-extrabold bg-teal-400 hover:bg-teal-300 text-slate-950 shadow-[0_0_20px_rgba(45,212,191,0.45)] transition-all cursor-pointer whitespace-nowrap active:scale-95"
             >
               <Award className="w-3.5 h-3.5" />
               <span>
@@ -203,7 +203,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
               <button
                 type="button"
                 onClick={onResetTimers}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-semibold bg-black/40 hover:bg-black/60 text-white border border-white/25 shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-semibold bg-slate-950/35 hover:bg-slate-950/55 text-white border border-white/25 shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-200" />
                 <span>Đặt lại bộ đếm</span>
@@ -212,8 +212,8 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
           </div>
         </div>
 
-        {/* Right Section: Circular Donut Widget (OHPS Điểm Năng Suất / Đứng / Ngồi) */}
-        <div className="md:col-span-5 lg:col-span-4 p-3.5 sm:p-4 rounded-2xl bg-black/35 border border-white/25 text-white shadow-lg flex flex-col items-center justify-between text-center h-full">
+        {/* Right Section: Circular Donut Widget (Ultra-transparent glass frame) */}
+        <div className="md:col-span-5 lg:col-span-4 p-3.5 sm:p-4 rounded-2xl bg-slate-950/15 backdrop-blur-[1.5px] border border-white/25 text-white shadow-sm flex flex-col items-center justify-between text-center h-full">
           {/* Donut Gauge Header Toggle */}
           <button
             type="button"
@@ -224,13 +224,19 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                 return 'ohps';
               });
             }}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-teal-300 hover:text-teal-200 transition drop-shadow-sm cursor-pointer"
+            className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold transition drop-shadow-sm cursor-pointer ${
+              goalMode === 'ohps'
+                ? 'text-teal-300 hover:text-teal-200'
+                : goalMode === 'standing'
+                ? 'text-indigo-300 hover:text-indigo-200'
+                : 'text-sky-300 hover:text-sky-200'
+            }`}
             title="Nhấp để chuyển đổi giữa Điểm Năng Suất, Mục Tiêu Đứng và Giới Hạn Ngồi"
           >
             {goalMode === 'ohps' ? (
               <Sparkles className="w-3.5 h-3.5 text-teal-400" />
             ) : (
-              <Activity className="w-3.5 h-3.5 text-teal-400" />
+              <Activity className={`w-3.5 h-3.5 ${goalMode === 'standing' ? 'text-indigo-400' : 'text-sky-400'}`} />
             )}
             <span>
               {goalMode === 'ohps' 
@@ -318,7 +324,7 @@ export const GreetingGoalCard: React.FC<GreetingGoalCardProps> = ({
                 <div className="text-xs font-bold text-slate-200">
                   Mục tiêu hôm nay
                 </div>
-                <div className="text-[11px] text-teal-300 font-semibold font-mono mt-0.5">
+                <div className={`text-[11px] font-semibold font-mono mt-0.5 ${goalMode === 'standing' ? 'text-indigo-300' : 'text-sky-300'}`}>
                   {currentPercent}% hoàn thành
                 </div>
               </div>

@@ -37,11 +37,66 @@ html, body {
   animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+:root,
+.theme-light-glass {
+  --subcard-bg: rgba(248, 250, 252, 0.78);
+  --subcard-border: rgba(203, 213, 225, 0.78);
+  --subcard-hover-bg: rgba(255, 255, 255, 0.92);
+}
+
+.theme-dark-glass,
+body.theme-dark-glass {
+  color: #f8fafc;
+  --subcard-bg: rgba(255, 255, 255, 0.06);
+  --subcard-border: rgba(255, 255, 255, 0.14);
+  --subcard-hover-bg: rgba(255, 255, 255, 0.11);
+}
+
 .glass-panel {
   background-color: var(--card-glass-bg, rgba(255, 255, 255, 0.78)) !important;
   border-color: var(--card-glass-border, rgba(255, 255, 255, 0.65)) !important;
   backdrop-filter: blur(var(--card-glass-blur, 16px));
   -webkit-backdrop-filter: blur(var(--card-glass-blur, 16px));
+}
+
+.glass-subcard {
+  background-color: var(--subcard-bg, rgba(248, 250, 252, 0.78));
+  border-color: var(--subcard-border, rgba(203, 213, 225, 0.78));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.glass-subcard-interactive {
+  background-color: var(--subcard-bg, rgba(248, 250, 252, 0.78));
+  border-color: var(--subcard-border, rgba(203, 213, 225, 0.78));
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.glass-subcard-interactive:hover {
+  background-color: var(--subcard-hover-bg, rgba(255, 255, 255, 0.92));
+}
+
+.glass-greeting-shell {
+  background-color: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.glass-drawer {
+  background-color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(226, 232, 240, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* =========================================================
@@ -63,16 +118,24 @@ html, body {
    DARK GLASS TONE (TÔNG ĐEN & ĐỘ TRONG SUỐT ĐỒNG BỘ 100%)
    Eliminates all unharmonized white patches, light boxes, and glaring backgrounds
    ========================================================= */
-.theme-dark-glass,
-body.theme-dark-glass {
-  color: #f8fafc;
-}
-
 .theme-dark-glass .glass-panel,
 body.theme-dark-glass .glass-panel {
   background-color: var(--card-glass-bg, rgba(15, 23, 42, 0.82)) !important;
   border-color: var(--card-glass-border, rgba(255, 255, 255, 0.16)) !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+.theme-dark-glass .glass-subcard,
+body.theme-dark-glass .glass-subcard,
+.theme-dark-glass .glass-subcard-interactive,
+body.theme-dark-glass .glass-subcard-interactive {
+  background-color: var(--subcard-bg, rgba(255, 255, 255, 0.06)) !important;
+  border-color: var(--subcard-border, rgba(255, 255, 255, 0.14)) !important;
+}
+
+.theme-dark-glass .glass-subcard-interactive:hover,
+body.theme-dark-glass .glass-subcard-interactive:hover {
+  background-color: var(--subcard-hover-bg, rgba(255, 255, 255, 0.11)) !important;
 }
 
 /* Typography contrast on dark glass */
@@ -106,7 +169,7 @@ body.theme-dark-glass .text-slate-400 {
   color: #64748b !important;
 }
 
-/* Neutral borders in dark glass */
+/* Neutral borders & dividers in dark glass */
 .theme-dark-glass [class*="border-slate-100"],
 .theme-dark-glass [class*="border-slate-200"],
 .theme-dark-glass [class*="border-slate-300"],
@@ -114,6 +177,13 @@ body.theme-dark-glass [class*="border-slate-100"],
 body.theme-dark-glass [class*="border-slate-200"],
 body.theme-dark-glass [class*="border-slate-300"] {
   border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.theme-dark-glass [class*="divide-slate-100"] > :not(:first-child),
+.theme-dark-glass [class*="divide-slate-200"] > :not(:first-child),
+body.theme-dark-glass [class*="divide-slate-100"] > :not(:first-child),
+body.theme-dark-glass [class*="divide-slate-200"] > :not(:first-child) {
+  border-color: rgba(255, 255, 255, 0.10) !important;
 }
 
 /* Neutral inner surfaces & containers (resolves white boxes in cards) */
@@ -129,12 +199,52 @@ body.theme-dark-glass [class*="bg-slate-200"] {
   background-color: rgba(255, 255, 255, 0.12) !important;
 }
 
+.theme-dark-glass [class*="hover:bg-slate-50"]:hover,
+.theme-dark-glass [class*="hover:bg-slate-100"]:hover,
+.theme-dark-glass [class*="hover:bg-white"]:hover,
+body.theme-dark-glass [class*="hover:bg-slate-50"]:hover,
+body.theme-dark-glass [class*="hover:bg-slate-100"]:hover,
+body.theme-dark-glass [class*="hover:bg-white"]:hover {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.theme-dark-glass .glass-greeting-shell,
+body.theme-dark-glass .glass-greeting-shell {
+  background-color: rgba(15, 23, 42, 0.30) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.theme-dark-glass .glass-drawer,
+body.theme-dark-glass .glass-drawer,
+.theme-dark-glass .fixed > div[class*="bg-white"],
+body.theme-dark-glass .fixed > div[class*="bg-white"],
+.theme-dark-glass .fixed > aside[class*="bg-white"],
+body.theme-dark-glass .fixed > aside[class*="bg-white"] {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  color: #f8fafc !important;
+}
+
 /* Internal white surfaces (nested cards, status boxes) */
-.theme-dark-glass div[class*="bg-white"],
+.theme-dark-glass div[class*="bg-white"]:not(.glass-greeting-shell),
+.theme-dark-glass aside[class*="bg-white"]:not(.glass-drawer),
+.theme-dark-glass header[class*="bg-white"],
+.theme-dark-glass footer[class*="bg-white"],
+.theme-dark-glass nav[class*="bg-white"],
+.theme-dark-glass form[class*="bg-white"],
 .theme-dark-glass section[class*="bg-white"],
 .theme-dark-glass p[class*="bg-white"],
 .theme-dark-glass span[class*="bg-white"]:not(.text-white),
-body.theme-dark-glass div[class*="bg-white"],
+body.theme-dark-glass div[class*="bg-white"]:not(.glass-greeting-shell),
+body.theme-dark-glass aside[class*="bg-white"]:not(.glass-drawer),
+body.theme-dark-glass header[class*="bg-white"],
+body.theme-dark-glass footer[class*="bg-white"],
+body.theme-dark-glass nav[class*="bg-white"],
+body.theme-dark-glass form[class*="bg-white"],
 body.theme-dark-glass section[class*="bg-white"],
 body.theme-dark-glass p[class*="bg-white"],
 body.theme-dark-glass span[class*="bg-white"]:not(.text-white) {
@@ -164,12 +274,22 @@ body.theme-dark-glass button[class*="bg-slate-100"]:not(:hover) {
 .theme-dark-glass input[class*="bg-white"],
 .theme-dark-glass select[class*="bg-white"],
 .theme-dark-glass textarea[class*="bg-white"],
+.theme-dark-glass select.glass-subcard,
+.theme-dark-glass input.glass-subcard,
 body.theme-dark-glass input[class*="bg-white"],
 body.theme-dark-glass select[class*="bg-white"],
-body.theme-dark-glass textarea[class*="bg-white"] {
+body.theme-dark-glass textarea[class*="bg-white"],
+body.theme-dark-glass select.glass-subcard,
+body.theme-dark-glass input.glass-subcard {
   background-color: rgba(15, 23, 42, 0.85) !important;
   color: #ffffff !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.theme-dark-glass select option,
+body.theme-dark-glass select option {
+  background-color: #0f172a;
+  color: #f8fafc;
 }
 
 /* Semantic Tinted Boxes (Sky / Cyan) */
@@ -196,6 +316,58 @@ body.theme-dark-glass [class*="text-sky-800"],
 body.theme-dark-glass [class*="text-sky-900"],
 body.theme-dark-glass [class*="text-sky-950"] {
   color: #7dd3fc !important;
+}
+
+/* Semantic Tinted Boxes (Blue) */
+.theme-dark-glass [class*="bg-blue-50"],
+body.theme-dark-glass [class*="bg-blue-50"] {
+  background-color: rgba(59, 130, 246, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-blue-100"],
+body.theme-dark-glass [class*="bg-blue-100"] {
+  background-color: rgba(59, 130, 246, 0.22) !important;
+}
+.theme-dark-glass [class*="border-blue-200"],
+.theme-dark-glass [class*="border-blue-300"],
+body.theme-dark-glass [class*="border-blue-200"],
+body.theme-dark-glass [class*="border-blue-300"] {
+  border-color: rgba(96, 165, 250, 0.35) !important;
+}
+.theme-dark-glass [class*="text-blue-700"],
+.theme-dark-glass [class*="text-blue-800"],
+.theme-dark-glass [class*="text-blue-900"],
+body.theme-dark-glass [class*="text-blue-700"],
+body.theme-dark-glass [class*="text-blue-800"],
+body.theme-dark-glass [class*="text-blue-900"] {
+  color: #93c5fd !important;
+}
+
+/* Semantic Tinted Boxes (Teal / AI & OHPS) */
+.theme-dark-glass [class*="bg-teal-50"],
+body.theme-dark-glass [class*="bg-teal-50"] {
+  background-color: rgba(20, 184, 166, 0.14) !important;
+}
+.theme-dark-glass [class*="bg-teal-100"],
+body.theme-dark-glass [class*="bg-teal-100"] {
+  background-color: rgba(20, 184, 166, 0.22) !important;
+}
+.theme-dark-glass [class*="border-teal-200"],
+.theme-dark-glass [class*="border-teal-300"],
+.theme-dark-glass [class*="border-teal-400"],
+body.theme-dark-glass [class*="border-teal-200"],
+body.theme-dark-glass [class*="border-teal-300"],
+body.theme-dark-glass [class*="border-teal-400"] {
+  border-color: rgba(45, 212, 191, 0.35) !important;
+}
+.theme-dark-glass [class*="text-teal-700"],
+.theme-dark-glass [class*="text-teal-800"],
+.theme-dark-glass [class*="text-teal-900"],
+.theme-dark-glass [class*="text-teal-950"],
+body.theme-dark-glass [class*="text-teal-700"],
+body.theme-dark-glass [class*="text-teal-800"],
+body.theme-dark-glass [class*="text-teal-900"],
+body.theme-dark-glass [class*="text-teal-950"] {
+  color: #5eead4 !important;
 }
 
 /* Semantic Tinted Boxes (Emerald / Green) */
@@ -302,4 +474,22 @@ body.theme-dark-glass [class*="text-indigo-800"],
 body.theme-dark-glass [class*="text-indigo-900"],
 body.theme-dark-glass [class*="text-indigo-950"] {
   color: #a5b4fc !important;
+}
+
+/* SVG / Recharts text contrast in dark glass */
+.theme-dark-glass svg text.fill-slate-400,
+.theme-dark-glass svg text.fill-slate-500,
+body.theme-dark-glass svg text.fill-slate-400,
+body.theme-dark-glass svg text.fill-slate-500 {
+  fill: #94a3b8 !important;
+}
+
+.theme-dark-glass .recharts-cartesian-axis-tick-value,
+body.theme-dark-glass .recharts-cartesian-axis-tick-value {
+  fill: #cbd5e1 !important;
+}
+
+.theme-dark-glass .recharts-cartesian-grid line,
+body.theme-dark-glass .recharts-cartesian-grid line {
+  stroke: rgba(255, 255, 255, 0.10) !important;
 }

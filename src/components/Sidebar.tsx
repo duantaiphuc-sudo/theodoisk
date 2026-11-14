@@ -145,11 +145,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!mobileOpen && onOpenMobile && (
         <button
           onClick={onOpenMobile}
-          className="fixed top-1/2 -translate-y-1/2 left-0 z-30 lg:hidden py-3 px-1 rounded-r-xl bg-white/95 border-y border-r border-slate-300 shadow-md flex flex-col items-center gap-1 cursor-pointer hover:bg-slate-50 transition active:scale-95"
+          className="fixed top-1/2 -translate-y-1/2 left-0 z-30 lg:hidden py-3 px-1 rounded-r-xl glass-panel border-y border-r border-white/60 shadow-md flex flex-col items-center gap-1 cursor-pointer hover:opacity-95 transition active:scale-95"
           title="Ấn cạnh bên để mở menu"
           aria-label="Ấn cạnh bên để mở menu"
         >
-          <span className="w-1 h-4 bg-sky-500 rounded-full"></span>
+          <span className="w-1 h-4 bg-sky-600 rounded-full"></span>
           <span className="text-[9px] font-bold text-slate-700 [writing-mode:vertical-rl] rotate-180 tracking-widest uppercase">
             Menu
           </span>
@@ -186,7 +186,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Top: Brand Header */}
         <div
-          className={`border-b border-slate-100 flex items-center transition-all duration-300 ${
+          className={`border-b border-slate-200/70 flex items-center transition-all duration-300 ${
             isExpanded ? 'p-4 sm:p-5 justify-between' : 'p-3 justify-center'
           }`}
         >
@@ -196,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title={collapsed ? "Nhấn để về Trang chủ & Mở rộng menu" : "Nhấn để về Trang chủ & Thu gọn menu dạng logo"}
             aria-label="Về Trang chủ và chuyển trạng thái menu"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 shrink-0 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-600 text-white flex items-center justify-center shadow-md shadow-sky-600/20 shrink-0 group-hover:scale-105 transition-transform">
               <Activity className="w-5 h-5 animate-pulse" />
             </div>
 
@@ -273,12 +273,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isExpanded
                     ? `justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm ${
                         isActive
-                          ? 'bg-slate-900 text-white shadow-xs'
+                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/20'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`
                     : `justify-center w-11 h-11 mx-auto rounded-xl ${
                         isActive
-                          ? 'bg-slate-900 text-white shadow-xs'
+                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/20'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`
                 }`}
@@ -318,13 +318,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               isExpanded
                 ? `justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm ${
                     isChatbotOpen
-                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs'
-                      : 'text-slate-700 hover:bg-teal-50/80 hover:text-teal-900 border border-teal-200/60'
+                      ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/20'
+                      : 'text-slate-700 bg-teal-50/60 hover:bg-teal-50 hover:text-teal-900 border border-teal-200/80'
                   }`
                 : `justify-center w-11 h-11 mx-auto rounded-xl ${
                     isChatbotOpen
-                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs'
-                      : 'text-slate-700 hover:bg-teal-50/80 hover:text-teal-900 border border-teal-200/60'
+                      ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/20'
+                      : 'text-slate-700 bg-teal-50/60 hover:bg-teal-50 hover:text-teal-900 border border-teal-200/80'
                   }`
             }`}
           >
@@ -334,7 +334,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {isExpanded && (
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-teal-500/20 text-teal-700 border border-teal-400/30">
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                isChatbotOpen
+                  ? 'bg-white/20 text-white border-white/30'
+                  : 'bg-teal-100 text-teal-800 border-teal-200'
+              }`}>
                 AI
               </span>
             )}
@@ -345,7 +349,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           {/* Quick controls section */}
-          <div className="pt-3 mt-2 border-t border-slate-100 space-y-1">
+          <div className="pt-3 mt-2 border-t border-slate-200/70 space-y-1">
             {isExpanded ? (
               <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Công Cụ Nhanh
@@ -542,8 +546,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   className={`w-full flex items-center transition text-left group ${
                     isExpanded
-                      ? 'justify-between px-3 py-2 rounded-xl text-xs font-semibold text-indigo-700 hover:bg-indigo-50/90 cursor-pointer'
-                      : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-indigo-50/90 cursor-pointer'
+                      ? 'justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
+                      : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-slate-100 cursor-pointer'
                   }`}
                   title="Quản lý danh sách tài khoản & phân quyền hệ thống"
                 >
@@ -553,7 +557,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     {isExpanded && <span className="truncate whitespace-nowrap">Quản lý tài khoản</span>}
                   </div>
-                  {isExpanded && <span className="text-[10px] text-indigo-500 font-mono shrink-0">Users</span>}
+                  {isExpanded && <span className="text-[10px] text-indigo-600 font-bold font-mono shrink-0">Users</span>}
                 </button>
               )}
             </div>
@@ -562,13 +566,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom: Connection Status & Current User Card */}
         <div
-          className={`border-t border-white/20 bg-white/10 dark:bg-slate-900/20 backdrop-blur-xs transition-all duration-300 ${
+          className={`border-t border-slate-200/70 transition-all duration-300 ${
             isExpanded ? 'p-3 space-y-2.5' : 'p-2 space-y-2 flex flex-col items-center'
           }`}
         >
           {/* Live Connection Pill */}
           {isExpanded ? (
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl glass-panel bg-white/50 hover:bg-white/70 border border-white/30 text-xs backdrop-blur-md shadow-2xs transition-all">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl glass-subcard border text-xs shadow-2xs transition-all">
               <div className="flex items-center gap-2">
                 {isConnected ? (
                   <>
@@ -596,7 +600,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <div
               title={isConnected ? "Firebase IoT: Trực tuyến (LIVE)" : "Firebase IoT: Chưa kết nối (OFFLINE)"}
-              className="w-10 h-7 rounded-lg glass-panel bg-white/50 border border-white/30 flex items-center justify-center cursor-help backdrop-blur-md"
+              className="w-10 h-7 rounded-lg glass-subcard border flex items-center justify-center cursor-help"
             >
               {isConnected ? (
                 <span className="relative flex h-2.5 w-2.5">
@@ -612,7 +616,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* User Account Card */}
           {currentUser && (
             isExpanded ? (
-              <div className="flex items-center justify-between gap-2 p-2 rounded-xl glass-panel bg-white/50 hover:bg-white/70 border border-white/30 shadow-2xs backdrop-blur-md transition-all">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl glass-subcard glass-subcard-interactive border shadow-2xs transition-all">
                 <button
                   onClick={onOpenProfile}
                   className="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80 transition cursor-pointer"

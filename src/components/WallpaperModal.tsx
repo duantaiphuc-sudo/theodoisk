@@ -206,18 +206,18 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl rounded-3xl bg-slate-900/90 border border-white/20 shadow-2xl backdrop-blur-xl text-white overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-3xl rounded-2xl bg-slate-900/90 border border-white/20 shadow-2xl backdrop-blur-xl text-white overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-white/10 bg-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-teal-500/20 text-teal-300 border border-teal-400/30 flex items-center justify-center shrink-0">
-              <ImageIcon className="w-5 h-5 text-teal-300" />
+            <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-400/30 flex items-center justify-center shrink-0">
+              <ImageIcon className="w-5 h-5 text-sky-300" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 Không Gian & Hình Nền Dashboard
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
                   Glassmorphism
                 </span>
               </h2>
@@ -232,7 +232,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white border border-white/20 text-xs font-semibold transition cursor-pointer active:scale-95"
                 title="Khôi phục toàn bộ cài đặt hình nền, độ mờ và hiệu ứng kính về ban đầu"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-teal-300" />
+                <RotateCcw className="w-3.5 h-3.5 text-sky-300" />
                 <span className="hidden sm:inline">Trở về mặc định</span>
                 <span className="sm:hidden">Mặc định</span>
               </button>
@@ -259,7 +259,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                   selectedCategory === cat
-                    ? 'bg-teal-400 text-slate-950 shadow-[0_0_12px_rgba(45,212,191,0.4)]'
+                    ? 'bg-sky-600 text-white shadow-[0_0_12px_rgba(14,165,233,0.4)]'
                     : 'bg-white/10 text-slate-300 hover:bg-white/15 hover:text-white'
                 }`}
               >
@@ -279,7 +279,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   onClick={() => onSelectWallpaper(preset.url)}
                   className={`group relative rounded-2xl overflow-hidden aspect-video sm:aspect-4/3 text-left transition-all border cursor-pointer ${
                     isSelected 
-                      ? 'border-teal-400 ring-2 ring-teal-400/50 shadow-lg scale-[1.02]' 
+                      ? 'border-sky-400 ring-2 ring-sky-400/50 shadow-lg scale-[1.02]' 
                       : 'border-white/10 hover:border-white/30 hover:scale-[1.01]'
                   }`}
                 >
@@ -288,13 +288,14 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                     alt={preset.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent p-2.5 flex flex-col justify-end">
                     <span className="text-xs font-bold text-white line-clamp-1">{preset.name}</span>
-                    <span className="text-[10px] text-teal-300/90 line-clamp-1">{preset.category}</span>
+                    <span className="text-[10px] text-sky-300/90 line-clamp-1">{preset.category}</span>
                   </div>
                   {isSelected && (
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-teal-400 text-slate-950 flex items-center justify-center shadow-md">
+                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-md">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
                     </div>
                   )}
@@ -307,7 +308,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
           <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-teal-300" />
+                <Sliders className="w-4 h-4 text-sky-300" />
                 <span>Tùy Chỉnh Kính Mờ (Glassmorphism & Độ Trong Suốt)</span>
               </span>
               <button
@@ -318,7 +319,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   onChangeGlassTone('dark');
                   onChangeCardOpacity(60);
                 }}
-                className="text-[11px] text-teal-300 hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-[11px] text-sky-300 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Mặc định</span>
@@ -334,11 +335,11 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   onClick={() => onChangeGlassTone('dark')}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                     glassTone === 'dark'
-                      ? 'bg-slate-950/80 border-teal-400 text-teal-300 shadow-[0_0_12px_rgba(45,212,191,0.3)]'
+                      ? 'bg-slate-950/80 border-sky-400 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
                       : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <Moon className="w-3.5 h-3.5 text-teal-300" />
+                  <Moon className="w-3.5 h-3.5 text-sky-300" />
                   <span>Kính Mờ Tông Đen (Khuyên dùng)</span>
                 </button>
                 <button
@@ -346,7 +347,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   onClick={() => onChangeGlassTone('light')}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                     glassTone === 'light'
-                      ? 'bg-white/80 border-teal-400 text-slate-900 shadow-md'
+                      ? 'bg-white/80 border-sky-400 text-slate-900 shadow-md'
                       : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
                   }`}
                 >
@@ -361,7 +362,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-300">
                   <span>Độ mờ thẻ (Card Opacity)</span>
-                  <span className="font-mono text-teal-300 font-bold">
+                  <span className="font-mono text-sky-300 font-bold">
                     {cardOpacity < 0 
                       ? `${cardOpacity}% (Âm / Kính tối)` 
                       : cardOpacity === 0 
@@ -376,7 +377,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   step="5"
                   value={cardOpacity}
                   onChange={(e) => onChangeCardOpacity(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
                   title="Kéo sang trái (< 0%) để tạo lớp kính tối tương phản cao, = 0% để trong suốt hoàn toàn"
                 />
               </div>
@@ -385,7 +386,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-300">
                   <span>Độ nhòe ảnh nền (Blur)</span>
-                  <span className="font-mono text-teal-300 font-bold">{blurIntensity}px</span>
+                  <span className="font-mono text-sky-300 font-bold">{blurIntensity}px</span>
                 </div>
                 <input
                   type="range"
@@ -394,7 +395,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   step="1"
                   value={blurIntensity}
                   onChange={(e) => onChangeBlur(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
                 />
               </div>
 
@@ -402,7 +403,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-300">
                   <span>Lớp phủ nền toàn trang</span>
-                  <span className="font-mono text-teal-300 font-bold">{overlayOpacity}%</span>
+                  <span className="font-mono text-sky-300 font-bold">{overlayOpacity}%</span>
                 </div>
                 <input
                   type="range"
@@ -411,7 +412,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   step="5"
                   value={overlayOpacity}
                   onChange={(e) => onChangeOpacity(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
                 />
               </div>
             </div>
@@ -432,11 +433,11 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   setCustomError('');
                 }}
                 placeholder="https://example.com/hinh-nen-cua-ban.jpg"
-                className="flex-1 px-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-teal-400 transition"
+                className="flex-1 px-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 transition"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-bold text-xs transition cursor-pointer whitespace-nowrap shadow-xs"
+                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition cursor-pointer whitespace-nowrap shadow-xs"
               >
                 Áp dụng
               </button>
@@ -452,9 +453,9 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               <button
                 type="button"
                 onClick={onResetDefaults}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-400/30 text-xs font-semibold transition cursor-pointer active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/30 text-xs font-semibold transition cursor-pointer active:scale-95"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-teal-300" />
+                <RotateCcw className="w-3.5 h-3.5 text-sky-300" />
                 <span>Khôi phục mặc định ban đầu</span>
               </button>
             )}

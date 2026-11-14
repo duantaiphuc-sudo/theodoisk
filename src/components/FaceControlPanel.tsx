@@ -298,9 +298,9 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;
 
   return (
-    <section className={`rounded-3xl glass-panel border border-white/60 p-3.5 sm:p-5 shadow-lg transition-all overflow-hidden ${className || ''}`} aria-label="Xác thực khuôn mặt">
+    <section className={`rounded-2xl glass-panel border border-white/60 p-3.5 sm:p-5 shadow-lg transition-all overflow-hidden ${className || ''}`} aria-label="Xác thực khuôn mặt">
       {/* Header Panel - Thiết kế tự co giãn gọn gàng, chống tràn viền tuyệt đối */}
-      <div className="flex flex-col gap-2.5 pb-3 border-b border-slate-100">
+      <div className="flex flex-col gap-2.5 pb-3 border-b border-slate-200/70">
         <div className="flex items-start justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
@@ -308,7 +308,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                 : isAuthFailedOrMismatch
                 ? 'bg-rose-50 text-rose-700 border-rose-300'
-                : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                : 'bg-sky-50 text-sky-700 border-sky-200'
             }`}>
               <ScanFace className="w-5 h-5" />
             </div>
@@ -405,7 +405,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
       )}
 
       {/* THANH TRẠNG THÁI MẪU KHUÔN MẶT GỌN GÀNG */}
-      <div className="mt-2.5 px-3 py-2 rounded-xl bg-slate-50/90 border border-slate-200 flex items-center justify-between gap-2 text-xs">
+      <div className="mt-2.5 px-3 py-2 rounded-xl glass-subcard border flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0">
           {/* Thumbnail ảnh chụp từ Pi nếu có */}
           {capturedFaceImage ? (
@@ -473,11 +473,11 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
 
       {/* KHUNG GIẢI THÍCH CHI TIẾT CÁCH HOẠT ĐỘNG (Ẩn/Hiện khi bấm icon Info) */}
       {isExplanationOpen && (
-        <div className="mt-2.5 p-3 rounded-xl bg-indigo-50/90 border border-indigo-200 text-xs text-indigo-950 leading-relaxed animate-fadeIn">
+        <div className="mt-2.5 p-3 rounded-xl bg-sky-50/90 border border-sky-200 text-xs text-sky-950 leading-relaxed animate-fadeIn">
           <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
+            <Info className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
             <div className="space-y-1.5 flex-1">
-              <p className="font-bold text-indigo-900">Cơ chế nhận diện tự động & lưu ảnh Camera Pi 4:</p>
+              <p className="font-bold text-sky-900">Cơ chế nhận diện tự động & lưu ảnh Camera Pi 4:</p>
               <p className="text-slate-800 font-medium">
                 1. <b>Tự động xác thực:</b> Khi bạn ngồi trước camera Raspberry Pi 4, hệ thống Web nhận diện sự có mặt và tự động kích hoạt nhận dạng khuôn mặt (SFace 128D) để mở khóa phiên làm việc.
               </p>
@@ -542,8 +542,8 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
 
       {/* Thông báo tiến trình lệnh hoặc lỗi */}
       {commandStatus && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl">
-          <Loader2 className={`w-3.5 h-3.5 text-indigo-600 ${working ? 'animate-spin' : ''}`} />
+        <div className="mt-3 flex items-center gap-2 text-xs text-slate-700 glass-subcard border px-3 py-2 rounded-xl">
+          <Loader2 className={`w-3.5 h-3.5 text-sky-600 ${working ? 'animate-spin' : ''}`} />
           <span>Tiến trình lệnh: <b className="font-mono">{commandStatus}</b></span>
         </div>
       )}
@@ -603,7 +603,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           type="button"
           disabled={working || isResetting || !deviceId}
           onClick={() => execute('ENROLL')}
-          className="col-span-5 sm:col-span-5 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 px-2 sm:px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
+          className="col-span-5 sm:col-span-5 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 px-2 sm:px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
           title="Yêu cầu camera Raspberry Pi 4 chụp và tạo vector khuôn mặt 128 chiều"
         >
           <ScanFace className="w-3.5 h-3.5 shrink-0" />
@@ -615,7 +615,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           type="button"
           disabled={working || isResetting || !deviceId}
           onClick={() => execute('VERIFY')}
-          className="col-span-4 sm:col-span-4 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold border border-emerald-300 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs transition cursor-pointer whitespace-nowrap active:scale-95 truncate disabled:opacity-50"
+          className="col-span-4 sm:col-span-4 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs transition cursor-pointer whitespace-nowrap active:scale-95 truncate disabled:opacity-50"
           title="Yêu cầu Camera Pi 4 quét và xác thực khuôn mặt người đang ngồi"
         >
           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
@@ -627,14 +627,14 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           type="button"
           disabled={working || isResetting}
           onClick={() => setShowConfirmReset(prev => !prev)}
-          className={`col-span-3 sm:col-span-3 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer border whitespace-nowrap truncate ${
+          className={`col-span-3 sm:col-span-3 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold shadow-2xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer border whitespace-nowrap truncate ${
             showConfirmReset 
               ? 'bg-amber-100 text-amber-950 border-amber-400' 
-              : 'bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border-amber-300'
+              : 'glass-subcard glass-subcard-interactive text-slate-700 hover:text-amber-800 hover:border-amber-300'
           }`}
           title="Xóa mẫu khuôn mặt đã lưu của tài khoản này để quét lại mẫu mới"
         >
-          <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-700 ${isResetting ? 'animate-spin' : ''}`} />
+          <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-600 ${isResetting ? 'animate-spin' : ''}`} />
           <span className="truncate">Đặt lại</span>
         </button>
       </div>

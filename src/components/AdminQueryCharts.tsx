@@ -206,8 +206,8 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-8 text-center space-y-3 shadow-xs">
-        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+      <div className="glass-panel rounded-2xl border border-white/60 p-8 text-center space-y-3 shadow-lg">
+        <div className="w-12 h-12 rounded-2xl glass-subcard text-slate-400 flex items-center justify-center mx-auto">
           <PieChartIcon className="w-6 h-6" />
         </div>
         <h4 className="text-sm font-bold text-slate-800">Chưa Có Dữ Liệu Biểu Đồ Trực Quan</h4>
@@ -219,11 +219,11 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm space-y-5 animate-fadeIn">
+    <div className="glass-panel rounded-2xl border border-white/60 p-5 sm:p-6 shadow-lg space-y-5 animate-fadeIn">
       {/* Header with Segmented Tab Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-200/60">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-sky-600 text-white flex items-center justify-center shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-600 text-white flex items-center justify-center shadow-xs">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
@@ -231,7 +231,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
               <h4 className="text-base font-bold text-slate-900 tracking-tight">
                 Phân Tích Trực Quan Dữ Liệu Đo Đạc
               </h4>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
                 {data.length} mẫu dữ liệu
               </span>
             </div>
@@ -242,13 +242,13 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
         </div>
 
         {/* View Mode Segmented Switcher */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-stretch sm:self-auto overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 p-1 rounded-xl glass-subcard self-stretch sm:self-auto overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'overview'
-                ? 'bg-white text-emerald-700 shadow-2xs border border-slate-200/90'
+                ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -261,7 +261,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
             onClick={() => setActiveTab('timeline')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'timeline'
-                ? 'bg-white text-sky-700 shadow-2xs border border-slate-200/90'
+                ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -275,7 +275,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
               onClick={() => setActiveTab('comparison')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'comparison'
-                  ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/90'
+                  ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -290,7 +290,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Left: Interactive Donut Gauge */}
-          <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80">
+          <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 glass-subcard rounded-2xl">
             <div className="relative flex items-center justify-center">
               <svg 
                 width={donutSize} 
@@ -408,9 +408,9 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
             </div>
 
             {/* Quick Diagnostic Callout */}
-            <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+            <div className="mt-3 p-3 rounded-xl glass-subcard flex items-center justify-between text-xs text-slate-600">
               <div className="flex items-center gap-2">
-                <Info className="w-4 h-4 text-emerald-600 shrink-0" />
+                <Info className="w-4 h-4 text-sky-600 shrink-0" />
                 <span>
                   {stats.goodPostureRatio >= 80 
                     ? 'Xuất sắc! Đội ngũ duy trì cột sống thẳng trên 80% thời lượng làm việc.'
@@ -449,7 +449,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
           </div>
 
           {/* SVG Multi-Line Chart Container */}
-          <div className="relative border border-slate-200/90 rounded-2xl bg-slate-50/60 p-2 sm:p-4 overflow-x-auto">
+          <div className="relative rounded-2xl glass-subcard p-2 sm:p-4 overflow-x-auto">
             <svg
               viewBox={`0 0 ${svgWidth} ${svgHeight}`}
               className="w-full h-auto min-w-[550px] overflow-visible"
@@ -609,9 +609,9 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
             {hoveredPointIndex !== null && hourlyTimelinePoints[hoveredPointIndex] && (() => {
               const p = hourlyTimelinePoints[hoveredPointIndex];
               return (
-                <div className="mt-2.5 p-3 rounded-xl bg-white border border-slate-200 shadow-md flex items-center justify-between text-xs animate-fadeIn">
+                <div className="mt-2.5 p-3 rounded-xl glass-subcard shadow-md flex items-center justify-between text-xs animate-fadeIn">
                   <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                    <span className="font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
                       Khung giờ: {p.timeRangeLabel}
                     </span>
                     <span className="text-slate-500 font-medium">
@@ -669,7 +669,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                 <div 
                   key={member.userId}
                   onClick={() => onSelectMember?.(member.userId)}
-                  className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group space-y-2"
+                  className="p-3.5 rounded-xl glass-subcard-interactive hover:border-sky-300 hover:shadow-xs transition-all cursor-pointer group space-y-2"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -678,7 +678,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                       }`}>
                         #{idx + 1}
                       </span>
-                      <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition text-xs sm:text-sm">
+                      <span className="font-bold text-slate-900 group-hover:text-sky-600 transition text-xs sm:text-sm">
                         {member.userName}
                       </span>
                       {isBest && (
@@ -723,7 +723,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                       <span>SpO₂: <b>{member.countSpo2 > 0 ? `${(member.sumSpo2 / member.countSpo2).toFixed(1)}%` : '--'}</b></span>
                       <span>Cảnh báo: <b className={member.alerts > 0 ? 'text-rose-600' : 'text-slate-700'}>{member.alerts}</b></span>
                     </div>
-                    <span className="text-indigo-600 font-bold group-hover:underline flex items-center gap-0.5">
+                    <span className="text-sky-600 font-bold group-hover:underline flex items-center gap-0.5">
                       <Eye className="w-3 h-3" />
                       <span>Xem chi tiết</span>
                     </span>

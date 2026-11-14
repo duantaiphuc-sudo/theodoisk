@@ -126,7 +126,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                 value={policy.companyName}
                 onChange={(e) => setPolicy({ ...policy, companyName: e.target.value })}
                 placeholder="Ví dụ: Công ty Cổ phần Công nghệ ABC..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-teal-500 font-medium"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-sky-500 font-medium"
               />
             </div>
 
@@ -143,7 +143,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                     onClick={() => setPolicy({ ...policy, cycle })}
                     className={`py-1.5 px-2 rounded-lg text-xs font-bold transition cursor-pointer text-center ${
                       policy.cycle === cycle
-                        ? 'bg-white text-teal-700 shadow-xs'
+                        ? 'bg-sky-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -212,7 +212,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                   max="100"
                   value={policy.minScoreToReward}
                   onChange={(e) => setPolicy({ ...policy, minScoreToReward: Math.min(100, Math.max(0, Number(e.target.value))) })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                 />
                 <span className="text-xs text-slate-600 font-bold">điểm</span>
               </div>
@@ -240,7 +240,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                       perfectPostureBonus: Math.max(0, Number(e.target.value))
                     }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                 />
                 <span className="text-xs text-slate-600 font-bold whitespace-nowrap">VNĐ</span>
               </div>
@@ -266,7 +266,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                       fullBreakBonus: Math.max(0, Number(e.target.value))
                     }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                 />
                 <span className="text-xs text-slate-600 font-bold whitespace-nowrap">VNĐ</span>
               </div>
@@ -289,7 +289,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                       taskCompletedBonus: Math.max(0, Number(e.target.value))
                     }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                 />
                 <span className="text-xs text-slate-600 font-bold whitespace-nowrap">VNĐ</span>
               </div>
@@ -359,7 +359,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-md shadow-teal-600/20 active:scale-95 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-md shadow-sky-600/20 active:scale-95 transition cursor-pointer"
             >
               {saveSuccess ? (
                 <>

@@ -13,13 +13,34 @@ import {
   ArrowRight,
   PanelRightClose,
   Clock,
-  Heart
+  Heart,
+  Camera,
+  X,
+  Volume2,
+  VolumeX,
+  CheckCircle2,
+  Sliders,
+  ListPlus,
+  Wrench
 } from 'lucide-react';
-import { HealthTelemetry, TelemetryLog, AuthUser, TimeCalculations } from '../types';
+import { HealthTelemetry, TelemetryLog, AuthUser, TimeCalculations, AlertThresholds } from '../types';
 import { getAuth } from 'firebase/auth';
 import { getSavedFirebaseConfig, initializeFirebaseApp } from '../services/firebase';
 import { getSavedSupabaseConfig, fetchSupabaseHistory } from '../services/supabaseService';
 import { loadCompanyBonusPolicy, calculateEmployeeBonus, formatCurrencyVND } from '../utils/bonusPolicy';
+
+export interface PendingChatbotAction {
+  type: 'apply_thresholds' | 'create_task';
+  summary: string;
+  thresholdsPatch?: Record<string, number>;
+  task?: {
+    title: string;
+    content: string;
+    priority: 'normal' | 'high' | 'urgent';
+    targetUserName?: string;
+    deadline?: string;
+  };
+}
 
 interface ChatMessage {
   id: string;
@@ -27,6 +48,12 @@ interface ChatMessage {
   text: string;
   time: string;
   isSupabaseQueried?: boolean;
+  image?: string;
+  toolCallsUsed?: string[];
+  sqiScore?: number | null;
+  pendingAction?: PendingChatbotAction | null;
+  actionExecuted?: boolean;
+  actionResultText?: string;
 }
 
 interface HealthChatbotProps {
@@ -43,7 +70,27 @@ interface HealthChatbotProps {
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   initialSelectedMemberId?: string;
+  thresholds?: AlertThresholds;
+  onApplyThresholds?: (nextThresholds: AlertThresholds) => Promise<void> | void;
+  onCreateTask?: (task: {
+    title: string;
+    content: string;
+    priority: 'normal' | 'high' | 'urgent';
+    targetUserName?: string;
+    deadline?: string;
+  }) => Promise<void> | void;
 }
+
+const THRESHOLD_LABELS: Record<string, { label: string; unit: string }> = {
+  hrMin: { label: 'HR Min', unit: 'BPM' },
+  hrMax: { label: 'HR Max', unit: 'BPM' },
+  spo2Min: { label: 'SpO2 Min', unit: '%' },
+  incorrectPostureSec: { label: 'Sai tư thế', unit: 'giây' },
+  longIncorrectSec: { label: 'Sai tư thế lâu', unit: 'giây' },
+  longSittingSec: { label: 'Ngồi lâu', unit: 'giây' },
+  standingTargetSec: { label: 'Mục tiêu đứng', unit: 'giây' },
+  biometricReminderSec: { label: 'Nhắc đo sinh hiệu', unit: 'giây' },
+};
 
 // Clean text helper removing stray asterisks
 function cleanText(str: string): string {
@@ -162,11 +209,18 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   allUsers = [],
   isOpen: controlledIsOpen,
   onOpenChange,
-  initialSelectedMemberId
+  initialSelectedMemberId,
+  thresholds,
+  onApplyThresholds,
+  onCreateTask
 }) => {
   const isAdmin = role === 'admin' || role === 'manager';
   const [selectedMemberId, setSelectedMemberId] = useState<string>(initialSelectedMemberId || 'all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [cameraNotice, setCameraNotice] = useState<string | null>(null);
+  const [executingActionMsgId, setExecutingActionMsgId] = useState<string | null>(null);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialSelectedMemberId) {
@@ -177,11 +231,23 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
   const setIsOpen = (open: boolean) => {
+    if (!open && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+    }
     if (controlledIsOpen === undefined) {
       setInternalIsOpen(open);
     }
     onOpenChange?.(open);
   };
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -190,8 +256,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       id: 'welcome-1',
       sender: 'bot',
       text: isAdmin
-        ? `Xin chào Quản trị viên **${userName}**!\n\nTôi là **Trợ Lý AI Công Thái Học & Quản Trị Sức Khỏe**.\n\nTôi có thể hỗ trợ bạn theo dõi tiến trình làm việc, phát hiện nguy cơ sai tư thế và lập báo cáo sức khỏe trực quan cho từng thành viên trong tổ chức.`
-        : `Xin chào **${userName}**!\n\nTôi là **Trợ Lý Sức Khỏe & Công Thái Học** của bạn. Tôi được kết nối với hệ thống cảm biến thông minh để theo dõi trạng thái làm việc theo thời gian thực.\n\nBạn có thể hỏi tôi về lịch sử đo đạc, phân tích nhịp tim, nồng độ SpO₂, góc nghiêng cột sống hoặc gợi ý bài tập giãn cơ. Hãy thử đặt câu hỏi bên dưới nhé!`,
+        ? `Xin chào Quản trị viên **${userName}**!\n\nTôi là **Trợ Lý AI Công Thái Học & Quản Trị Sức Khỏe** (Agent hỗ trợ truy vấn SQL, phân tích Camera AI và đề xuất đồng bộ ngưỡng Pi 4).\n\nBạn có thể hỏi tiến trình đội ngũ, đính kèm ảnh chụp Camera Pi 4, hoặc yêu cầu tạo nhiệm vụ / chỉnh ngưỡng ngay trong khung chat này.`
+        : `Xin chào **${userName}**!\n\nTôi là **Trợ Lý Sức Khỏe & Công Thái Học** của bạn. Ngoài tư vấn tư thế, nhịp tim, SpO₂ và bài tập giãn cơ, bạn có thể đính kèm ảnh Camera Pi 4 để tôi chấm tư thế hoặc yêu cầu đặt nhắc nhở / tinh chỉnh ngưỡng cảnh báo ngay tại đây.`,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       isSupabaseQueried: true
     }
@@ -219,19 +285,116 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
     } catch {}
   };
 
+  const handleSpeakMessage = (id: string, text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (speakingMsgId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const spokenText = cleanText(text).replace(/[#`•]/g, ' ').replace(/\s+/g, ' ').trim();
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    utterance.lang = 'vi-VN';
+    utterance.rate = 1.02;
+    utterance.onend = () => setSpeakingMsgId(null);
+    utterance.onerror = () => setSpeakingMsgId(null);
+    setSpeakingMsgId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleAttachCameraSnapshot = () => {
+    const rawImg = telemetry?.image;
+    if (!rawImg || rawImg.trim().length < 32) {
+      setCameraNotice('Camera Pi 4 chưa gửi khung hình trực tiếp. Hãy bật Camera hoặc ngồi trong vùng quan sát.');
+      setTimeout(() => setCameraNotice(null), 4000);
+      return;
+    }
+    const formatted = rawImg.startsWith('data:image')
+      ? rawImg
+      : `data:image/jpeg;base64,${rawImg}`;
+    setAttachedImage(formatted);
+    setCameraNotice(null);
+    if (!input.trim()) {
+      setInput('Phân tích tư thế ngồi của tôi qua ảnh Camera Pi 4 này');
+    }
+    textareaRef.current?.focus();
+  };
+
+  const handleExecutePendingAction = async (msgId: string, action: PendingChatbotAction) => {
+    if (executingActionMsgId) return;
+    setExecutingActionMsgId(msgId);
+    try {
+      if (action.type === 'apply_thresholds' && action.thresholdsPatch) {
+        if (!onApplyThresholds || !thresholds) {
+          throw new Error('Chức năng đồng bộ ngưỡng chưa sẵn sàng trong phiên này.');
+        }
+        const nextThresholds: AlertThresholds = {
+          ...thresholds,
+          ...action.thresholdsPatch,
+        };
+        await onApplyThresholds(nextThresholds);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === msgId
+              ? {
+                  ...m,
+                  actionExecuted: true,
+                  actionResultText: 'Đã đồng bộ bộ ngưỡng mới lên Firestore & Raspberry Pi 4.',
+                }
+              : m
+          )
+        );
+      } else if (action.type === 'create_task' && action.task) {
+        if (!onCreateTask) {
+          throw new Error('Chức năng tạo nhiệm vụ chưa sẵn sàng trong phiên này.');
+        }
+        await onCreateTask(action.task);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === msgId
+              ? {
+                  ...m,
+                  actionExecuted: true,
+                  actionResultText: `Đã tạo và gửi nhiệm vụ "${action.task?.title}".`,
+                }
+              : m
+          )
+        );
+      }
+    } catch (err: any) {
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === msgId
+            ? {
+                ...m,
+                actionResultText: err?.message || 'Không thể thực thi thao tác. Vui lòng thử lại.',
+              }
+            : m
+        )
+      );
+    } finally {
+      setExecutingActionMsgId(null);
+    }
+  };
+
   const handleSendMessage = async (customText?: string) => {
-    const textToSend = (customText || input).trim();
+    const currentAttachment = attachedImage;
+    const rawText = (customText || input).trim();
+    const textToSend = rawText || (currentAttachment ? 'Phân tích tư thế ngồi và công thái học từ ảnh Camera Pi 4 này.' : '');
     if (!textToSend || loading) return;
 
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
       sender: 'user',
       text: textToSend,
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      image: currentAttachment || undefined,
     };
 
     setMessages(prev => [...prev, userMsg]);
     if (!customText) setInput('');
+    setAttachedImage(null);
     setLoading(true);
 
     try {
@@ -296,6 +459,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           targetMemberId: selectedMemberId,
           targetMemberName,
           allUsers,
+          thresholds,
+          image: currentAttachment || undefined,
           bonusPolicy: currentBonusPolicy,
           bonusResult: currentBonusResult,
           conversationHistory: messages.slice(-8).map(m => ({
@@ -318,7 +483,10 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         sender: 'bot',
         text: botReply,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        isSupabaseQueried: Boolean(supaConfig.url && supaConfig.anonKey)
+        isSupabaseQueried: Boolean(supaConfig.url && supaConfig.anonKey),
+        toolCallsUsed: Array.isArray(data.toolCallsUsed) ? data.toolCallsUsed : undefined,
+        sqiScore: typeof data.sqiScore === 'number' ? data.sqiScore : null,
+        pendingAction: data.pendingAction || null,
       };
       setMessages(prev => [...prev, botMsg]);
     } catch (err: any) {
@@ -513,20 +681,20 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         />
       )}
 
-      {/* Modern Right Side Drawer Panel (Full Light Mode per UI/UX Pro Max) */}
+      {/* Modern Right Side Drawer Panel (Light & Dark Glass synchronized) */}
       <aside
-        className={`fixed top-0 bottom-0 right-0 z-50 w-full sm:w-[460px] md:w-[490px] bg-white border-l border-slate-200/90 shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 right-0 z-50 w-full sm:w-[460px] md:w-[490px] glass-drawer border-l shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        {/* Top Header (Light Mode) */}
-        <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+        {/* Top Header */}
+        <div className="px-5 py-4 glass-subcard border-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-200 shadow-xs">
                 <Bot className="w-5 h-5 text-teal-700" />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -558,14 +726,14 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                 }
               ])}
               title="Làm mới hội thoại"
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
               onClick={() => setIsOpen(false)}
               title="Thu gọn cửa sổ"
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
             >
               <PanelRightClose className="w-4 h-4" />
             </button>
@@ -573,7 +741,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         </div>
 
         {/* Live Status & Telemetry Context Bar */}
-        <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs font-mono text-slate-600 shrink-0">
+        <div className="px-4 py-2.5 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between text-xs font-mono text-slate-600 shrink-0">
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-rose-700 font-semibold">
               <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-600" />
@@ -598,15 +766,15 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
 
         {/* Admin Member Filter Bar */}
         {isAdmin && allUsers.length > 0 && (
-          <div className="px-4 py-2 bg-indigo-50/70 border-b border-indigo-100 flex items-center justify-between gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-indigo-900 flex items-center gap-1.5 shrink-0">
-              <Shield className="w-3.5 h-3.5 text-indigo-600" />
+          <div className="px-4 py-2 bg-sky-50/70 border-b border-sky-200/70 flex items-center justify-between gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5 shrink-0">
+              <Shield className="w-3.5 h-3.5 text-sky-600" />
               <span>Phạm vi tra cứu:</span>
             </span>
             <select
               value={selectedMemberId}
               onChange={e => setSelectedMemberId(e.target.value)}
-              className="text-xs font-semibold bg-white border border-indigo-200 rounded-lg px-2.5 py-1 text-slate-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[220px] truncate cursor-pointer"
+              className="text-xs font-semibold bg-white border border-sky-200 rounded-lg px-2.5 py-1 text-slate-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-sky-500 max-w-[220px] truncate cursor-pointer"
             >
               <option value="all">Toàn bộ thành viên ({allUsers.length})</option>
               {allUsers.map(u => (
@@ -619,7 +787,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         )}
 
         {/* Messages Body (Stream) */}
-        <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 bg-slate-50/40 scrollbar-thin">
+        <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 bg-transparent scrollbar-thin">
           {messages.map(msg => (
             <div
               key={msg.id}
@@ -634,32 +802,180 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
               )}
 
               <div
-                className={`group relative max-w-[86%] sm:max-w-[82%] px-4 py-3 rounded-2xl shadow-xs ${
+                className={`group relative max-w-[88%] sm:max-w-[84%] px-4 py-3 rounded-2xl shadow-xs ${
                   msg.sender === 'user'
-                    ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-br-xs'
-                    : 'bg-white text-slate-800 border border-slate-200/90 rounded-bl-xs'
+                    ? 'bg-sky-600 text-white rounded-br-xs'
+                    : 'glass-subcard text-slate-800 border rounded-bl-xs'
                 }`}
               >
+                {/* Bot Tool Calls & SQI Metadata Strip */}
+                {msg.sender === 'bot' && ((msg.toolCallsUsed && msg.toolCallsUsed.length > 0) || typeof msg.sqiScore === 'number') && (
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2 pb-2 border-b border-slate-200/70">
+                    {msg.toolCallsUsed?.map((toolName, tIdx) => (
+                      <span
+                        key={tIdx}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-semibold"
+                      >
+                        <Wrench className="w-2.5 h-2.5 shrink-0" />
+                        <span>{toolName}</span>
+                      </span>
+                    ))}
+                    {typeof msg.sqiScore === 'number' && msg.sqiScore > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-mono font-semibold">
+                        <Activity className="w-2.5 h-2.5 shrink-0" />
+                        <span>SQI {msg.sqiScore}/100</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* User Attached Camera Snapshot */}
+                {msg.sender === 'user' && msg.image && (
+                  <div className="mb-2 overflow-hidden rounded-xl border border-white/25 bg-slate-900/20">
+                    <img
+                      src={msg.image}
+                      alt="Ảnh Camera Pi 4 đính kèm"
+                      className="w-full max-h-40 object-cover"
+                    />
+                  </div>
+                )}
+
                 {/* Formatted Content */}
                 <div className="text-xs sm:text-[13px]">
-                  {renderFormattedMessage(msg.text)}
+                  {msg.sender === 'user' ? (
+                    <p className="text-white leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  ) : (
+                    renderFormattedMessage(msg.text)
+                  )}
                 </div>
 
-                {/* Footer Meta: Time, Copy Button */}
+                {/* Human-in-the-loop Pending Action Confirmation Card */}
+                {msg.sender === 'bot' && msg.pendingAction && (
+                  <div className="mt-3 p-3 rounded-xl bg-sky-50/70 border border-sky-200 space-y-2.5">
+                    <div className="flex items-start gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0 mt-0.5">
+                        {msg.pendingAction.type === 'apply_thresholds' ? (
+                          <Sliders className="w-3.5 h-3.5" />
+                        ) : (
+                          <ListPlus className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-900">
+                          {msg.pendingAction.type === 'apply_thresholds'
+                            ? 'Đề xuất đồng bộ ngưỡng Pi 4'
+                            : 'Đề xuất tạo nhiệm vụ nhắc nhở'}
+                        </div>
+                        <p className="text-xs text-slate-700 mt-0.5 leading-snug">
+                          {msg.pendingAction.summary}
+                        </p>
+                      </div>
+                    </div>
+
+                    {msg.pendingAction.type === 'apply_thresholds' && msg.pendingAction.thresholdsPatch && (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {Object.entries(msg.pendingAction.thresholdsPatch).map(([k, val]) => {
+                          const meta = THRESHOLD_LABELS[k] || { label: k, unit: '' };
+                          return (
+                            <div
+                              key={k}
+                              className="px-2.5 py-1.5 rounded-lg glass-subcard border text-[11px] flex items-center justify-between gap-1"
+                            >
+                              <span className="text-slate-600 truncate">{meta.label}:</span>
+                              <span className="font-mono font-bold text-slate-900 whitespace-nowrap">
+                                {val} {meta.unit}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {msg.pendingAction.type === 'create_task' && msg.pendingAction.task && (
+                      <div className="p-2.5 rounded-lg glass-subcard border text-[11px] space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900 truncate">{msg.pendingAction.task.title}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-mono text-[10px] uppercase shrink-0">
+                            {msg.pendingAction.task.priority}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 leading-snug">{msg.pendingAction.task.content}</p>
+                        {(msg.pendingAction.task.targetUserName || msg.pendingAction.task.deadline) && (
+                          <div className="text-[10px] text-slate-500 font-mono pt-0.5">
+                            {msg.pendingAction.task.targetUserName ? `Người nhận: ${msg.pendingAction.task.targetUserName}` : ''}
+                            {msg.pendingAction.task.targetUserName && msg.pendingAction.task.deadline ? ' • ' : ''}
+                            {msg.pendingAction.task.deadline ? `Hạn: ${msg.pendingAction.task.deadline}` : ''}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {msg.actionExecuted ? (
+                      <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{msg.actionResultText || 'Đã xác nhận và thực thi thành công.'}</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleExecutePendingAction(msg.id, msg.pendingAction!)}
+                          disabled={executingActionMsgId === msg.id}
+                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                        >
+                          {executingActionMsgId === msg.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Đang đồng bộ thực thi...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Xác nhận thực thi</span>
+                            </>
+                          )}
+                        </button>
+                        {msg.actionResultText && (
+                          <p className="text-[11px] text-rose-700 font-medium">{msg.actionResultText}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer Meta: Time, TTS & Copy Buttons */}
                 <div className={`flex items-center justify-between gap-3 mt-2 pt-1 border-t text-[10px] ${
-                  msg.sender === 'user' ? 'border-white/20 text-white/80' : 'border-slate-100 text-slate-400'
+                  msg.sender === 'user' ? 'border-white/20 text-white/85' : 'border-slate-200/70 text-slate-500'
                 }`}>
                   <span className="flex items-center gap-1 font-mono">
                     <Clock className="w-3 h-3 opacity-70" />
                     <span>{msg.time}</span>
                   </span>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {msg.sender === 'bot' && typeof window !== 'undefined' && 'speechSynthesis' in window && (
+                      <button
+                        type="button"
+                        onClick={() => handleSpeakMessage(msg.id, msg.text)}
+                        className={`transition p-1 rounded cursor-pointer flex items-center gap-1 ${
+                          speakingMsgId === msg.id
+                            ? 'text-teal-700 font-semibold opacity-100'
+                            : 'opacity-70 group-hover:opacity-100 hover:text-slate-900'
+                        }`}
+                        title={speakingMsgId === msg.id ? 'Dừng đọc giọng nói' : 'Đọc phản hồi bằng giọng nói'}
+                      >
+                        {speakingMsgId === msg.id ? (
+                          <VolumeX className="w-3.5 h-3.5" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
                     {msg.sender === 'bot' && (
                       <button
                         type="button"
                         onClick={() => handleCopyMessage(msg.id, msg.text)}
-                        className="opacity-0 group-hover:opacity-100 transition p-1 hover:text-slate-800 rounded cursor-pointer"
+                        className="opacity-70 group-hover:opacity-100 transition p-1 hover:text-slate-900 rounded cursor-pointer"
                         title="Sao chép nội dung"
                       >
                         {copiedId === msg.id ? (
@@ -677,7 +993,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
               </div>
 
               {msg.sender === 'user' && (
-                <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                <div className="w-7 h-7 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                   <User className="w-4 h-4" />
                 </div>
               )}
@@ -685,33 +1001,75 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           ))}
 
           {loading && (
-            <div className="flex items-center gap-2.5 text-xs text-slate-600 p-3 rounded-2xl bg-white border border-slate-200 shadow-xs w-fit animate-pulse">
+            <div className="flex items-center gap-2.5 text-xs text-slate-600 p-3 rounded-2xl glass-subcard border shadow-xs w-fit animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-              <span className="text-[11px] font-medium">Đang tra cứu dữ liệu đo đạc & phân tích...</span>
+              <span className="text-[11px] font-medium">Đang chạy Agent &amp; phân tích dữ liệu đo đạc...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Suggestions Chips (Light Mode) */}
+        {/* Quick Suggestions Chips */}
         {messages.length <= 4 && (
-          <div className="px-4 py-2 bg-white border-t border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <div className="px-4 py-2.5 bg-transparent border-t border-slate-200/80 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
             {quickQuestions.map((q, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => handleSendMessage(q)}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 hover:text-slate-900 text-[11px] font-medium whitespace-nowrap transition cursor-pointer border border-slate-200 shrink-0 flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                className="px-3 py-1.5 rounded-xl glass-subcard-interactive text-slate-700 hover:text-slate-900 text-[11px] font-medium whitespace-nowrap transition cursor-pointer border shrink-0 flex items-center gap-1.5 active:scale-95 shadow-2xs"
               >
                 <span>{q}</span>
-                <ArrowRight className="w-3 h-3 text-teal-600" />
+                <ArrowRight className="w-3 h-3 text-sky-600" />
               </button>
             ))}
           </div>
         )}
 
-        {/* Input Bar (Light Mode) */}
-        <div className="p-3 sm:p-4 bg-white border-t border-slate-200 shrink-0">
+        {/* Input Bar */}
+        <div className="p-3 sm:p-4 bg-transparent border-t border-slate-200/80 shrink-0 space-y-2">
+          {cameraNotice && (
+            <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center justify-between gap-2">
+              <span>{cameraNotice}</span>
+              <button
+                type="button"
+                onClick={() => setCameraNotice(null)}
+                className="p-0.5 hover:opacity-75 cursor-pointer"
+                aria-label="Đóng thông báo camera"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {attachedImage && (
+            <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl glass-subcard border">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src={attachedImage}
+                  alt="Khung hình Camera Pi 4"
+                  className="w-12 h-9 rounded-lg object-cover border border-slate-200 shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold text-slate-900 truncate">
+                    Ảnh chụp Camera Pi 4 đính kèm
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    AI Vision sẽ chấm trục cổ-vai-lưng từ khung hình này
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedImage(null)}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0"
+                title="Gỡ ảnh đính kèm"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -719,7 +1077,19 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
             }}
             className="flex items-end gap-2"
           >
-            <div className="flex-1 relative rounded-2xl bg-slate-50 border border-slate-200 focus-within:border-teal-600 focus-within:bg-white focus-within:ring-1 focus-within:ring-teal-600/30 transition">
+            <button
+              type="button"
+              onClick={handleAttachCameraSnapshot}
+              disabled={loading}
+              className={`h-11 w-11 rounded-2xl glass-subcard-interactive border flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95 ${
+                attachedImage ? 'border-teal-400 text-teal-700 bg-teal-50' : 'text-slate-600 hover:text-sky-700'
+              }`}
+              title="Đính kèm ảnh chụp Camera Pi 4 để AI phân tích tư thế"
+            >
+              <Camera className="w-5 h-5" />
+            </button>
+
+            <div className="flex-1 relative rounded-2xl glass-subcard border focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500/30 transition">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -731,22 +1101,22 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                   }
                 }}
                 rows={2}
-                placeholder="Đặt câu hỏi về tư thế, nhịp tim, bài tập giãn cơ..."
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-transparent text-slate-900 placeholder-slate-400 resize-none focus:outline-none scrollbar-none"
+                placeholder="Hỏi tư thế, gắn ảnh Camera, hoặc yêu cầu tạo task / chỉnh ngưỡng..."
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-transparent text-slate-900 placeholder:text-slate-500 resize-none focus:outline-none scrollbar-none"
                 disabled={loading}
               />
             </div>
             <button
               type="submit"
-              disabled={loading || !input.trim()}
-              className="h-11 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95 shadow-sm"
+              disabled={loading || (!input.trim() && !attachedImage)}
+              className="h-11 px-4 rounded-2xl bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white font-bold flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95 shadow-sm"
               title="Gửi câu hỏi"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </button>
           </form>
-          <p className="text-[10px] text-slate-500 text-center mt-2">
-            Nhấn Enter để gửi tin nhắn • Shift + Enter để xuống dòng
+          <p className="text-[10px] text-slate-500 text-center">
+            Enter để gửi • Shift + Enter xuống dòng • Biểu tượng Camera để gửi ảnh Pi 4
           </p>
         </div>
       </aside>

@@ -100,7 +100,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
   const latestActivePoint = activeHourlyPoints[activeHourlyPoints.length - 1];
 
   return (
-    <div className="rounded-2xl glass-panel bg-white/75 backdrop-blur-xl border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
+    <div className="rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
@@ -108,7 +108,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
             <span>Xu Hướng Sinh Trắc Học Theo Giờ (HR & SpO₂)</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-indigo-500" />
+            <Clock className="w-3.5 h-3.5 text-sky-600" />
             <span>Tổng hợp trung bình theo từng khung giờ làm việc trong ngày (08:00 - 18:00)</span>
           </p>
         </div>
@@ -144,7 +144,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
       </div>
 
       {/* SVG Chart Area */}
-      <div className="relative w-full h-[240px] bg-slate-50 rounded-xl border border-slate-200 p-2 overflow-hidden">
+      <div className="relative w-full h-[240px] glass-subcard rounded-xl border p-2 overflow-hidden">
         {!hasData || activeHourlyPoints.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 text-xs px-4 text-center">
             <Activity className="w-7 h-7 mb-2 text-slate-400 animate-pulse" />
@@ -296,9 +296,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
 
       {/* Hover Tooltip Overlay */}
       {hoveredIndex !== null && hourlyData[hoveredIndex] && (
-        <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs animate-fadeIn">
+        <div className="mt-2.5 p-3 rounded-xl glass-subcard border flex items-center justify-between text-xs animate-fadeIn">
           <div className="flex items-center gap-2">
-            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+            <span className="font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
               Khung giờ: {hourlyData[hoveredIndex].timeRangeLabel}
             </span>
             <span className="text-slate-500 font-medium">
@@ -330,7 +330,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
           <span className="inline-block w-2 h-0.5 bg-rose-500"></span>
           Trục trái: Nhịp tim trung bình theo giờ (BPM)
         </span>
-        <span className="font-mono text-indigo-600 font-semibold flex items-center gap-1">
+        <span className="font-mono text-sky-600 font-semibold flex items-center gap-1">
           <Clock className="w-3 h-3" />
           Tổng hợp theo từng giờ làm việc
         </span>

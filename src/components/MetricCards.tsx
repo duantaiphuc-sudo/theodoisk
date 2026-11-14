@@ -45,13 +45,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
     return (
       <div className={gridClassName || "grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5"}>
         {/* 1. Nhịp tim (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
-              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
                 Nhịp Tim
               </span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/90 text-slate-600 border border-slate-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg glass-subcard text-slate-600 border flex items-center justify-center shrink-0">
                 <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
               </div>
             </div>
@@ -66,7 +66,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
                 ? 'bg-amber-100 text-amber-900 border-amber-300' 
                 : isUnverified 
                 ? 'bg-sky-100 text-sky-900 border-sky-300' 
-                : 'bg-slate-200 text-slate-800 border-slate-300'
+                : 'bg-slate-100 text-slate-700 border-slate-200'
             }`}>
               {emptyBadgeText}
             </span>
@@ -75,13 +75,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         {/* 2. Nồng độ SpO2 (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
-              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
                 SpO₂ Oxy
               </span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/90 text-slate-600 border border-slate-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg glass-subcard text-slate-600 border flex items-center justify-center shrink-0">
                 <Wind className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
               </div>
             </div>
@@ -96,7 +96,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
                 ? 'bg-amber-100 text-amber-900 border-amber-300' 
                 : isUnverified 
                 ? 'bg-sky-100 text-sky-900 border-sky-300' 
-                : 'bg-slate-200 text-slate-800 border-slate-300'
+                : 'bg-slate-100 text-slate-700 border-slate-200'
             }`}>
               {emptyBadgeText}
             </span>
@@ -105,13 +105,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         {/* 3. Tư thế làm việc (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
-              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
                 Tư Thế Ngồi
               </span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/90 text-slate-600 border border-slate-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg glass-subcard text-slate-600 border flex items-center justify-center shrink-0">
                 {isUnassigned ? (
                   <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
                 ) : (
@@ -121,7 +121,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             </div>
             <div className="mt-2">
               <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold border shadow-2xs whitespace-nowrap ${
-                isUnassigned ? 'bg-amber-100 text-amber-900 border-amber-300' : (isUnverified ? 'bg-sky-100 text-sky-900 border-sky-300' : 'bg-slate-200 text-slate-800 border-slate-300')
+                isUnassigned ? 'bg-amber-100 text-amber-900 border-amber-300' : (isUnverified ? 'bg-sky-100 text-sky-900 border-sky-300' : 'bg-slate-100 text-slate-700 border-slate-200')
               }`}>
                 {isUnassigned ? 'Chưa gán thiết bị' : (isUnverified ? 'Chờ xác thực SFace' : 'Chờ Camera')}
               </div>
@@ -134,13 +134,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
 
         {/* 4. Vùng Giám Sát (Empty) */}
-        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-1.5">
-              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
                 Vùng Giám Sát
               </span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/90 text-slate-600 border border-slate-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg glass-subcard text-slate-600 border flex items-center justify-center shrink-0">
                 <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
               </div>
             </div>
@@ -199,49 +199,49 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   const isOutOfZone = !isCameraError && !isStanding && !isVerifying && (inZone === false || Boolean(postureLabel && postureLabel.toLowerCase().includes('ngoài vùng')));
   const isAbsent = !isCameraError && !isStanding && !isVerifying && (postureStatus === 2 || isOutOfZone || Boolean(postureLabel && postureLabel.toLowerCase().includes('vắng')));
 
-  let postureCardBg = 'border-slate-200';
+  let postureCardBg = '';
   let postureBadgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
   let postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
   let displayedPostureLabel = postureLabel || 'Tư thế ĐÚNG';
 
   if (isCameraError) {
-    postureCardBg = 'bg-rose-50/70 border-rose-200';
+    postureCardBg = 'ring-1 ring-rose-400/80';
     postureBadgeStyle = 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
     postureIcon = <CameraOff className="w-5 h-5 text-rose-600" />;
     displayedPostureLabel = postureLabel && postureLabel.toLowerCase().includes('lỗi')
       ? (postureLabel.toLowerCase() === 'lỗi ai' ? 'Lỗi kết nối Camera' : postureLabel)
       : 'Lỗi kết nối Camera';
   } else if (isStanding) {
-    postureCardBg = 'border-indigo-300/80';
+    postureCardBg = 'ring-1 ring-indigo-300/80';
     postureBadgeStyle = 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold';
     postureIcon = <Activity className="w-5 h-5 text-indigo-600" />;
     displayedPostureLabel = 'Tư thế ĐỨNG (Làm việc)';
   } else if (isVerifying) {
-    postureCardBg = 'border-sky-300/80';
+    postureCardBg = 'ring-1 ring-sky-300/80';
     postureBadgeStyle = 'bg-sky-100 text-sky-800 border-sky-300 font-bold';
     postureIcon = <Clock className="w-5 h-5 text-sky-600 animate-spin" />;
     displayedPostureLabel = 'Đang xác nhận tư thế...';
   } else if (isAbsent) {
-    postureCardBg = 'border-slate-300/80';
+    postureCardBg = '';
     postureBadgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
     postureIcon = <UserX className="w-5 h-5 text-slate-500" />;
     displayedPostureLabel = inZone === false ? 'Ngoài vùng quan sát' : 'Vắng / Không phát hiện';
   } else {
     switch (postureStatus) {
       case 0:
-        postureCardBg = 'border-emerald-300/80';
+        postureCardBg = 'ring-1 ring-emerald-300/80';
         postureBadgeStyle = 'bg-emerald-100 text-emerald-800 border-emerald-300';
         postureIcon = <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
         displayedPostureLabel = 'Tư thế ĐÚNG';
         break;
       case 1:
-        postureCardBg = 'border-rose-300/80';
+        postureCardBg = 'ring-1 ring-rose-300/80';
         postureBadgeStyle = 'bg-rose-100 text-rose-800 border-rose-300';
         postureIcon = <AlertTriangle className="w-5 h-5 text-rose-600" />;
         displayedPostureLabel = 'Tư thế SAI (Cúi gù)';
         break;
       case 3:
-        postureCardBg = 'border-rose-400 animate-pulse';
+        postureCardBg = 'ring-2 ring-rose-400 animate-pulse';
         postureBadgeStyle = 'bg-rose-600 text-white border-rose-600 font-bold shadow-xs';
         postureIcon = <AlertTriangle className="w-5 h-5 text-rose-600 animate-bounce" />;
         displayedPostureLabel = postureLabel && postureLabel.includes('SAI TƯ THẾ LÂU')
@@ -249,13 +249,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
           : `SAI TƯ THẾ LÂU${thresholds.incorrectPostureSec ? ` (≥${thresholds.incorrectPostureSec}s)` : ''}`;
         break;
       case 4:
-        postureCardBg = 'border-amber-300/80';
+        postureCardBg = 'ring-1 ring-amber-300/80';
         postureBadgeStyle = 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
         postureIcon = <Clock className="w-5 h-5 text-amber-600" />;
         displayedPostureLabel = 'NGỒI QUÁ LÂU';
         break;
       default:
-        postureCardBg = 'border-white/60';
+        postureCardBg = '';
         postureBadgeStyle = 'bg-slate-100 text-slate-600 border-slate-200';
         postureIcon = <UserX className="w-5 h-5 text-slate-500" />;
         displayedPostureLabel = postureLabel || 'Chưa nhận dạng';
@@ -266,10 +266,10 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   return (
     <div className={gridClassName || "grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5"}>
       {/* 1. Nhịp tim */}
-      <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+      <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
               Nhịp Tim
             </span>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
@@ -296,10 +296,10 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* 2. Nồng độ SpO2 */}
-      <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+      <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
               SpO₂ Oxy
             </span>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center shrink-0">
@@ -329,10 +329,10 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       <div className={`relative overflow-hidden rounded-2xl glass-panel p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg border border-white/60 transition-all flex flex-col justify-between ${postureCardBg}`}>
         <div>
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-900 whitespace-nowrap">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
               Tư Thế Ngồi
             </span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/80 border border-slate-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg glass-subcard border flex items-center justify-center shrink-0 shadow-2xs">
               {postureIcon}
             </div>
           </div>
@@ -380,10 +380,10 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* 4. Trạng thái giám sát & Monitor Zone */}
-      <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg hover:border-white/80 transition-all flex flex-col justify-between">
+      <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/60 p-3 sm:p-3.5 lg:p-4 min-h-[110px] shadow-lg transition-all flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-900 whitespace-nowrap">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 whitespace-nowrap">
               Vùng Giám Sát
             </span>
             <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${

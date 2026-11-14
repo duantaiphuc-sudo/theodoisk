@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from 'express';
-import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, Type, ThinkingLevel, type FunctionDeclaration } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import { initializeApp as initAdminApp, getApps as getAdminApps, cert as adminCert } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
@@ -31,8 +31,8 @@ app.get(['/api/health', '/health'], (_req: Request, res: Response) => {
   res.status(200).json({ status: 'healthy', uptime: process.uptime() });
 });
 
-// Body limit constrained to 100kb for security & DoS prevention
-app.use(express.json({ limit: '100kb' }));
+// Body limit allows up to 1mb for compressed Pi 4 camera snapshots while preventing DoS
+app.use(express.json({ limit: '1mb' }));
 
 // 1. Initialize Firebase Admin SDK for Zero-Trust ID Token Verification
 let firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
@@ -237,7 +237,9 @@ app.post(['/api/chat', '/chat'], async (req: Request, res: Response) => {
       allUsers = [],
       conversationHistory = [],
       bonusPolicy,
-      bonusResult
+      bonusResult,
+      image,
+      thresholds
     } = req.body;
 
   // Validate query
@@ -1187,18 +1189,302 @@ function generateErgonomicAnalysisServer(params: {
   const activeAi = getGeminiClient();
 
   let responseText = '';
+  const toolCallsUsed: string[] = [];
+  let pendingAction: {
+    type: 'apply_thresholds' | 'create_task';
+    summary: string;
+    thresholdsPatch?: Record<string, number>;
+    task?: {
+      title: string;
+      content: string;
+      priority: 'normal' | 'high' | 'urgent';
+      targetUserName?: string;
+      deadline?: string;
+    };
+  } | null = null;
 
-  // Thử gọi Gemini API nếu có API key hợp lệ
+  // Xây dựng Function Calling Declarations cho AI Agent
+  const chatTools: FunctionDeclaration[] = [
+    {
+      name: 'query_telemetry_by_timerange',
+      description: 'Truy vấn dữ liệu lịch sử tư thế, nhịp tim (BPM) và SpO2 từ cơ sở dữ liệu Supabase theo khoảng thời gian tùy chỉnh.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          hoursAgo: {
+            type: Type.NUMBER,
+            description: 'Số giờ gần nhất cần truy vấn (ví dụ: 6, 24, 72, 168 cho 1 tuần).',
+          },
+          onlyAlerts: {
+            type: Type.BOOLEAN,
+            description: 'Chỉ lọc các bản ghi có cảnh báo sai tư thế hoặc sinh hiệu bất thường.',
+          },
+          targetUserName: {
+            type: Type.STRING,
+            description: 'Tên nhân viên cần lọc (chỉ dành cho Admin).',
+          },
+          limit: {
+            type: Type.INTEGER,
+            description: 'Số bản ghi tối đa trả về (mặc định 120, tối đa 250).',
+          },
+        },
+      },
+    },
+    {
+      name: 'propose_pi4_thresholds',
+      description: 'Đề xuất cập nhật cấu hình ngưỡng cảnh báo cho thiết bị Raspberry Pi 4 (chỉ dùng khi người dùng yêu cầu thay đổi hoặc tối ưu ngưỡng).',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          hrMin: { type: Type.INTEGER, description: 'Nhịp tim tối thiểu (BPM)' },
+          hrMax: { type: Type.INTEGER, description: 'Nhịp tim tối đa (BPM)' },
+          spo2Min: { type: Type.INTEGER, description: 'Ngưỡng SpO2 tối thiểu (%)' },
+          incorrectPostureSec: { type: Type.INTEGER, description: 'Số giây sai tư thế bắt đầu nhắc' },
+          longIncorrectSec: { type: Type.INTEGER, description: 'Số giây sai tư thế quá lâu báo động' },
+          longSittingSec: { type: Type.INTEGER, description: 'Số giây ngồi lâu cần nhắc đứng dậy' },
+          standingTargetSec: { type: Type.INTEGER, description: 'Mục tiêu đứng (giây)' },
+          biometricReminderSec: { type: Type.INTEGER, description: 'Chu kỳ nhắc đo sinh trắc học (giây)' },
+          reason: { type: Type.STRING, description: 'Lý do ngắn gọn đề xuất thay đổi ngưỡng' },
+        },
+        required: ['reason'],
+      },
+    },
+    {
+      name: 'propose_create_task',
+      description: 'Đề xuất tạo nhiệm vụ nhắc nhở sức khỏe hoặc công việc mới trên hệ thống.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING, description: 'Tiêu đề ngắn gọn của nhiệm vụ' },
+          content: { type: Type.STRING, description: 'Mô tả chi tiết nội dung nhắc nhở' },
+          priority: { type: Type.STRING, description: 'Mức ưu tiên: normal, high hoặc urgent' },
+          targetUserName: { type: Type.STRING, description: 'Tên người nhận (Admin mới được giao cho người khác)' },
+          deadline: { type: Type.STRING, description: 'Hạn chót dự kiến (ví dụ: 15:30 hôm nay)' },
+        },
+        required: ['title', 'content'],
+      },
+    },
+  ];
+
+  // Chuẩn bị đa lượt (Multi-turn contents) + Multimodal Camera Image
+  const historyContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+  if (Array.isArray(conversationHistory)) {
+    const recentTurns = conversationHistory.slice(-8);
+    for (const turn of recentTurns) {
+      const role = turn?.role === 'model' || turn?.sender === 'bot' ? 'model' : 'user';
+      const contentText = String(turn?.content ?? turn?.text ?? '').trim();
+      if (!contentText) continue;
+      // Đảm bảo lượt đầu là user và các lượt xen kẽ nhau hợp lệ
+      if (historyContents.length === 0 && role === 'model') continue;
+      if (historyContents.length > 0 && historyContents[historyContents.length - 1].role === role) continue;
+      historyContents.push({ role, parts: [{ text: contentText.slice(0, 1500) }] });
+    }
+    if (historyContents.length > 0 && historyContents[historyContents.length - 1].role === 'user') {
+      historyContents.pop();
+    }
+  }
+
+  const currentUserParts: any[] = [{ text: prompt }];
+  let hasAttachedCameraImage = false;
+  if (typeof image === 'string' && image.trim().length > 32) {
+    const dataUrlMatch = image.trim().match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    const mimeType = dataUrlMatch ? dataUrlMatch[1] : 'image/jpeg';
+    const base64Data = dataUrlMatch ? dataUrlMatch[2] : image.trim();
+    if (/^[A-Za-z0-9+/=]+$/.test(base64Data.slice(0, 64))) {
+      currentUserParts.unshift({
+        inlineData: {
+          mimeType,
+          data: base64Data,
+        },
+      });
+      hasAttachedCameraImage = true;
+      toolCallsUsed.push('AI Vision Camera');
+    }
+  }
+
+  const chatContents: any[] = [
+    ...historyContents,
+    { role: 'user', parts: currentUserParts },
+  ];
+
+  const executeToolCall = async (callName: string, args: Record<string, any>) => {
+    if (callName === 'query_telemetry_by_timerange') {
+      toolCallsUsed.push('SQL Telemetry Query');
+      if (!activeSupabase) {
+        return { error: 'Supabase chưa được kết nối trên server.', recordsFound: 0 };
+      }
+      const hoursAgo = Math.min(720, Math.max(1, Number(args?.hoursAgo || 24)));
+      const maxLimit = Math.min(250, Math.max(10, Number(args?.limit || 120)));
+      const sinceIso = new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
+
+      let sqlQ = activeSupabase
+        .from('telemetry_logs')
+        .select('user_id, user_name, bpm, spo2, posture_status, posture_label, has_alert, created_at')
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(maxLimit);
+
+      if (!isAdmin) {
+        if (authUser.email) {
+          sqlQ = sqlQ.or(`user_id.eq.${callerUid},user_email.ilike.${authUser.email.toLowerCase().trim()}`);
+        } else {
+          sqlQ = sqlQ.eq('user_id', callerUid);
+        }
+      } else if (args?.targetUserName) {
+        sqlQ = sqlQ.ilike('user_name', `%${String(args.targetUserName)}%`);
+      }
+
+      if (args?.onlyAlerts) {
+        sqlQ = sqlQ.eq('has_alert', true);
+      }
+
+      const { data: rows, error } = await sqlQ;
+      if (error) {
+        return { error: error.message, recordsFound: 0 };
+      }
+      const list = rows || [];
+      const sitting = list.filter((r: any) => r.posture_status !== 2 && r.posture_status !== 5);
+      const good = sitting.filter((r: any) => r.posture_status === 0);
+      const validVitals = list.filter((r: any) => Number(r.bpm) > 0);
+      const avgBpm = validVitals.length > 0
+        ? Math.round(validVitals.reduce((s: number, r: any) => s + Number(r.bpm), 0) / validVitals.length)
+        : 0;
+      const validSpo2 = list.filter((r: any) => Number(r.spo2) > 0);
+      const avgSpo2 = validSpo2.length > 0
+        ? Number((validSpo2.reduce((s: number, r: any) => s + Number(r.spo2), 0) / validSpo2.length).toFixed(1))
+        : 0;
+
+      return {
+        hoursAgo,
+        recordsFound: list.length,
+        goodPostureRatioPercent: sitting.length > 0 ? Math.round((good.length / sitting.length) * 100) : 100,
+        alertCount: list.filter((r: any) => Boolean(r.has_alert)).length,
+        avgBpm,
+        avgSpo2,
+        recentSamples: list.slice(0, 10).map((r: any) => ({
+          time: r.created_at,
+          user: r.user_name,
+          posture: r.posture_label,
+          bpm: r.bpm,
+          spo2: r.spo2,
+          alert: r.has_alert,
+        })),
+      };
+    }
+
+    if (callName === 'propose_pi4_thresholds') {
+      toolCallsUsed.push('Đề xuất ngưỡng Pi 4');
+      const allowedKeys = [
+        'hrMin',
+        'hrMax',
+        'spo2Min',
+        'incorrectPostureSec',
+        'longIncorrectSec',
+        'longSittingSec',
+        'standingTargetSec',
+        'biometricReminderSec',
+      ];
+      const patch: Record<string, number> = {};
+      for (const k of allowedKeys) {
+        const val = Number(args?.[k]);
+        if (!Number.isNaN(val) && val > 0) {
+          patch[k] = Math.round(val);
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        pendingAction = {
+          type: 'apply_thresholds',
+          summary: String(args?.reason || 'Cập nhật bộ ngưỡng cảnh báo tối ưu xuống Raspberry Pi 4'),
+          thresholdsPatch: patch,
+        };
+        return {
+          status: 'proposed_to_user',
+          proposedPatch: patch,
+          note: 'Đã tạo thẻ xác nhận trên giao diện để người dùng bấm Áp dụng xuống Firestore & Pi 4.',
+        };
+      }
+      return { status: 'ignored', note: 'Không có thông số ngưỡng hợp lệ nào được chỉ định.' };
+    }
+
+    if (callName === 'propose_create_task') {
+      toolCallsUsed.push('Đề xuất tạo nhiệm vụ');
+      const priorityRaw = String(args?.priority || 'normal').toLowerCase();
+      const priority: 'normal' | 'high' | 'urgent' =
+        priorityRaw === 'urgent' ? 'urgent' : priorityRaw === 'high' ? 'high' : 'normal';
+      pendingAction = {
+        type: 'create_task',
+        summary: `Tạo nhiệm vụ: ${String(args?.title || 'Nhắc nhở công thái học')}`,
+        task: {
+          title: String(args?.title || 'Nhắc nhở công thái học').slice(0, 120),
+          content: String(args?.content || 'Thực hiện giãn cơ và điều chỉnh tư thế ngồi chuẩn.'),
+          priority,
+          targetUserName: isAdmin && args?.targetUserName ? String(args.targetUserName) : undefined,
+          deadline: args?.deadline ? String(args.deadline) : undefined,
+        },
+      };
+      return {
+        status: 'proposed_to_user',
+        task: pendingAction.task,
+        note: 'Đã tạo thẻ xác nhận nhiệm vụ ngay trong khung chat.',
+      };
+    }
+
+    return { error: `Unknown tool: ${callName}` };
+  };
+
+  // Thử gọi Gemini API nếu có API key hợp lệ (hỗ trợ Multi-turn, Vision và Function Calling)
   if (activeAi) {
     try {
-      const response = await activeAi.models.generateContent({
+      const systemWithTools = `${systemInstruction}
+
+=== NĂNG LỰC AGENT & THỊ GIÁC MÁY TÍNH ===
+- Hệ thống đã cung cấp đầy đủ lịch sử hội thoại nhiều lượt. Hãy nhớ ngữ cảnh trước đó.
+- Nếu người dùng đính kèm ảnh chụp từ Camera Pi 4, hãy phân tích tư thế thực tế trong ảnh: độ thẳng trục tai-vai-hông, độ cân đối hai vai, khoảng cách tới màn hình và đề xuất chỉnh sửa cụ thể.
+- Nếu người dùng yêu cầu tra cứu khoảng thời gian khác (ví dụ 3 ngày qua, tuần qua, chỉ xem cảnh báo), hãy gọi tool query_telemetry_by_timerange.
+- Nếu người dùng yêu cầu đổi/tinh chỉnh ngưỡng cảnh báo Pi 4, hãy gọi tool propose_pi4_thresholds (nếu thresholds hiện tại có sẵn: ${JSON.stringify(thresholds || {})}).
+- Nếu người dùng yêu cầu tạo nhắc nhở/nhiệm vụ mới, hãy gọi tool propose_create_task.`;
+
+      const firstResp = await activeAi.models.generateContent({
         model: geminiModel,
-        contents: prompt,
+        contents: chatContents,
         config: {
-          systemInstruction,
+          systemInstruction: systemWithTools,
+          tools: [{ functionDeclarations: chatTools }],
         }
       });
-      responseText = response.text || '';
+
+      const functionCalls = firstResp.functionCalls;
+      const firstCandidateContent = firstResp.candidates?.[0]?.content;
+
+      if (functionCalls && functionCalls.length > 0 && firstCandidateContent) {
+        const fnResponseParts: any[] = [];
+        for (const call of functionCalls) {
+          const result = await executeToolCall(call.name || '', (call.args as Record<string, any>) || {});
+          fnResponseParts.push({
+            functionResponse: {
+              id: call.id,
+              name: call.name,
+              response: { result },
+            },
+          });
+        }
+
+        const followUpResp = await activeAi.models.generateContent({
+          model: geminiModel,
+          contents: [
+            ...chatContents,
+            firstCandidateContent,
+            { role: 'user', parts: fnResponseParts },
+          ],
+          config: {
+            systemInstruction: systemWithTools,
+            tools: [{ functionDeclarations: chatTools }],
+          }
+        });
+        responseText = followUpResp.text || '';
+      } else {
+        responseText = firstResp.text || '';
+      }
     } catch (primaryErr: any) {
       const primaryMsg = String(primaryErr?.message || primaryErr || '');
       const isApiKeyIssue = primaryMsg.includes('API key not valid') || 
@@ -1207,20 +1493,7 @@ function generateErgonomicAnalysisServer(params: {
                             primaryErr?.status === 400 || 
                             primaryErr?.status === 403;
 
-      if (!isApiKeyIssue && geminiModel !== 'gemini-4-hydrogen') {
-        try {
-          const fallbackResponse = await activeAi.models.generateContent({
-            model: 'gemini-4-hydrogen',
-            contents: prompt,
-            config: {
-              systemInstruction,
-            }
-          });
-          responseText = fallbackResponse.text || '';
-        } catch {
-          console.info('Gemini AI tạm thời chuyển sang bộ phân tích công thái học nội bộ.');
-        }
-      } else if (isApiKeyIssue) {
+      if (isApiKeyIssue) {
         console.info('GEMINI_API_KEY chưa hợp lệ; /api/chat sử dụng bộ phân tích công thái học chuẩn quy tắc.');
       } else {
         console.info('Gemini AI không phản hồi; /api/chat sử dụng bộ phân tích công thái học chuẩn quy tắc.');
@@ -1230,6 +1503,35 @@ function generateErgonomicAnalysisServer(params: {
 
   // Nếu Gemini không khả dụng hoặc không trả về nội dung, sử dụng bộ máy phân tích công thái học trên máy chủ
   if (!responseText) {
+    // Phát hiện ý định thay đổi ngưỡng hoặc tạo task trong fallback mode
+    const qLower = query.toLowerCase();
+    const sitMinMatch = qLower.match(/ngồi\s*(?:lâu|liên tục)?\s*(?:xuống|là|còn)?\s*(\d{1,3})\s*phút/);
+    const standMinMatch = qLower.match(/đứng\s*(?:mục tiêu|lên)?\s*(\d{1,2})\s*phút/);
+    if ((qLower.includes('chỉnh ngưỡng') || qLower.includes('cài ngưỡng') || qLower.includes('đặt ngưỡng')) && (sitMinMatch || standMinMatch)) {
+      const patch: Record<string, number> = {};
+      if (sitMinMatch) patch.longSittingSec = Math.max(60, parseInt(sitMinMatch[1], 10) * 60);
+      if (standMinMatch) patch.standingTargetSec = Math.max(30, parseInt(standMinMatch[1], 10) * 60);
+      if (Object.keys(patch).length > 0) {
+        toolCallsUsed.push('Đề xuất ngưỡng Pi 4');
+        pendingAction = {
+          type: 'apply_thresholds',
+          summary: `Cập nhật ngưỡng qua Trợ lý AI (${sitMinMatch ? `Ngồi lâu ${sitMinMatch[1]} phút` : ''}${sitMinMatch && standMinMatch ? ', ' : ''}${standMinMatch ? `Mục tiêu đứng ${standMinMatch[1]} phút` : ''})`,
+          thresholdsPatch: patch,
+        };
+      }
+    } else if (qLower.includes('tạo nhiệm vụ') || qLower.includes('tạo nhắc nhở') || qLower.includes('nhắc tôi')) {
+      toolCallsUsed.push('Đề xuất tạo nhiệm vụ');
+      pendingAction = {
+        type: 'create_task',
+        summary: `Tạo nhắc nhở: ${query.trim().slice(0, 60)}`,
+        task: {
+          title: query.trim().slice(0, 80),
+          content: 'Nhắc nhở công thái học tạo trực tiếp từ Trợ lý AI.',
+          priority: qLower.includes('khẩn') || qLower.includes('gấp') ? 'high' : 'normal',
+        },
+      };
+    }
+
     responseText = generateErgonomicAnalysisServer({
       query,
       userName,
@@ -1242,9 +1544,17 @@ function generateErgonomicAnalysisServer(params: {
       memberSummaryReport,
       conversationHistory,
       ohpsResult,
-      bonusPolicy,
-      bonusResult,
     });
+
+    if (hasAttachedCameraImage) {
+      responseText = `Đã tiếp nhận ảnh chụp Camera Pi 4 để đối chiếu tư thế (góc cổ hiện tại: ${telemetry?.angleNeck ?? 'đang hiệu chuẩn'}°, trạng thái: ${telemetry?.postureLabel || 'Chưa xác định'}).\n\n` +
+        `Lưu ý: Phân tích thị giác sâu trên pixel ảnh yêu cầu GEMINI_API_KEY hoạt động; hiện tại hệ thống kết hợp số liệu góc MediaPipe & cảm biến MAX30102 (SQI: ${ohpsResult.sqiScore ?? '--'}/100):\n\n` +
+        responseText;
+    }
+
+    if (pendingAction) {
+      responseText += `\n\nTôi đã chuẩn bị sẵn đề xuất thao tác bên dưới (${pendingAction.summary}). Bạn vui lòng bấm nút xác nhận để hệ thống thực thi đồng bộ.`;
+    }
   }
 
   // Làm sạch triệt để mọi emoji theo yêu cầu người dùng
@@ -1256,7 +1566,12 @@ function generateErgonomicAnalysisServer(params: {
     cleanReply += MEDICAL_DISCLAIMER;
   }
 
-  return res.json({ reply: cleanReply });
+  return res.json({
+    reply: cleanReply,
+    sqiScore: ohpsResult.sqiScore ?? null,
+    toolCallsUsed,
+    pendingAction,
+  });
   } catch (err: any) {
     console.error('Lỗi xử lý /api/chat:', err);
     return res.status(500).json({ error: err?.message || 'Lỗi xử lý yêu cầu phân tích công thái học' });
@@ -1909,12 +2224,13 @@ ${JSON.stringify({
   thresholds
 })}
 
-2. TỔNG HỢP THỐNG KÊ ĐỊNH LƯỢNG ĐÃ TÍNH TOÁN:
+2. TỔNG HỢP THỐNG KÊ ĐỊNH LƯỢNG & CHỈ SỐ MÔ HÌNH ĐÃ TÍNH TOÁN:
 ${JSON.stringify({
   sampleCount: totalRecordCount,
   avgBpm: analyticsSummary?.avgBpm,
   avgSpo2: analyticsSummary?.avgSpo2,
   goodPostureRatio: analyticsSummary?.goodPostureRatio,
+  modelMetrics: analyticsSummary?.modelMetrics,
   ohpsForecast: analyticsSummary?.ohpsForecast,
   postureFatigue: analyticsSummary?.postureFatigue,
   vitalCorrelation: analyticsSummary?.vitalCorrelation,

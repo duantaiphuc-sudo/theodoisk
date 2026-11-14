@@ -112,12 +112,12 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         : null);
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-6 shadow-xs space-y-5 animate-fadeIn">
+    <div className="rounded-2xl glass-panel border border-white/60 p-4 sm:p-6 shadow-lg space-y-5 animate-fadeIn">
       {/* 1. Header & Live Indicator */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-600 flex items-center justify-center text-white shadow-xs">
               <Radio className="w-4 h-4 animate-pulse" />
             </div>
             <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
@@ -139,14 +139,14 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Dynamic Employee Selector */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold overflow-x-auto max-w-[280px] sm:max-w-none">
+          <div className="flex items-center gap-1.5 p-1 glass-subcard rounded-xl text-xs font-semibold overflow-x-auto max-w-[280px] sm:max-w-none">
             {employeeOptions.map(opt => (
               <button
                 key={opt.id}
                 onClick={() => setSelectedEmployee(opt.id)}
                 className={`px-2.5 py-1 rounded-lg transition cursor-pointer whitespace-nowrap ${
                   selectedEmployee === opt.id
-                    ? 'bg-white text-slate-900 font-bold shadow-2xs'
+                    ? 'bg-sky-600 text-white font-bold shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -156,11 +156,11 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
           </div>
 
           {/* Metric Filter */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-[11px] font-semibold">
+          <div className="flex items-center gap-1 p-1 glass-subcard rounded-xl text-[11px] font-semibold">
             <button
               onClick={() => setActiveMetric('both')}
               className={`px-2 py-1 rounded-lg transition cursor-pointer ${
-                activeMetric === 'both' ? 'bg-white text-slate-900 font-bold shadow-2xs' : 'text-slate-500'
+                activeMetric === 'both' ? 'bg-sky-600 text-white font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               Cả 2 chỉ số
@@ -168,7 +168,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
             <button
               onClick={() => setActiveMetric('bpm')}
               className={`px-2 py-1 rounded-lg transition cursor-pointer ${
-                activeMetric === 'bpm' ? 'bg-white text-rose-600 font-bold shadow-2xs' : 'text-slate-500'
+                activeMetric === 'bpm' ? 'bg-rose-600 text-white font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               Chỉ BPM
@@ -176,7 +176,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
             <button
               onClick={() => setActiveMetric('spo2')}
               className={`px-2 py-1 rounded-lg transition cursor-pointer ${
-                activeMetric === 'spo2' ? 'bg-white text-sky-600 font-bold shadow-2xs' : 'text-slate-500'
+                activeMetric === 'spo2' ? 'bg-sky-600 text-white font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               Chỉ SpO₂
@@ -188,7 +188,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
       {/* 2. Real-time Summary Metrics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Card 1: BPM Hiện Tại */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col justify-between hover:border-slate-300 transition">
+        <div className="p-3.5 rounded-xl glass-subcard-interactive flex flex-col justify-between transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">Nhịp Tim Realtime</span>
             <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -216,7 +216,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         </div>
 
         {/* Card 2: SpO2 Hiện Tại */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col justify-between hover:border-slate-300 transition">
+        <div className="p-3.5 rounded-xl glass-subcard-interactive flex flex-col justify-between transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">Nồng Độ Oxy SpO₂</span>
             <div className="w-6 h-6 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
@@ -244,7 +244,7 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         </div>
 
         {/* Card 3: Tư thế hiện tại */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col justify-between hover:border-slate-300 transition">
+        <div className="p-3.5 rounded-xl glass-subcard-interactive flex flex-col justify-between transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">Tư Thế Chuẩn Live</span>
             <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -266,16 +266,16 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
         </div>
 
         {/* Card 4: Thiết bị đang hoạt động */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col justify-between hover:border-slate-300 transition">
+        <div className="p-3.5 rounded-xl glass-subcard-interactive flex flex-col justify-between transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">Đang Có Dữ Liệu</span>
-            <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
               <Cpu className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-extrabold font-mono text-indigo-950">
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900">
                 {liveCount}
               </span>
               <span className="text-xs text-slate-500 font-mono">/ {displayNodes.length} node</span>
@@ -316,18 +316,25 @@ export const WeeklyHealthTrendChart: React.FC<WeeklyHealthTrendChartProps> = ({
                       ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-500/10 shadow-xs'
                       : isGood
                       ? 'bg-emerald-50/40 border-emerald-300 ring-2 ring-emerald-500/10 shadow-xs'
-                      : 'bg-white border-slate-200/90 shadow-xs'
-                    : 'bg-slate-50/70 border-slate-200 opacity-80'
+                      : 'glass-subcard shadow-xs'
+                    : 'glass-subcard opacity-75'
                 }`}
               >
                 {/* Node Top Header */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <img 
-                      src={node.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120'}
-                      alt={node.name}
-                      className="w-7 h-7 rounded-lg object-cover border border-slate-200 shrink-0"
-                    />
+                    {node.avatar ? (
+                      <img 
+                        src={node.avatar}
+                        alt={node.name}
+                        referrerPolicy="no-referrer"
+                        className="w-7 h-7 rounded-lg object-cover border border-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-600 to-teal-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                        {(node.name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <span className="font-bold text-slate-900 text-xs truncate block">{node.name}</span>
                       <span className="text-[10px] text-slate-500 font-mono block">{node.device}</span>

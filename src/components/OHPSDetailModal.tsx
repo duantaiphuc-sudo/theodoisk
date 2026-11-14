@@ -288,7 +288,7 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
-      <div className="relative w-full max-w-4xl rounded-3xl bg-white border border-slate-200/90 shadow-2xl text-slate-800 overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-white border border-slate-200/90 shadow-2xl text-slate-800 overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header (Light Mode) */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">

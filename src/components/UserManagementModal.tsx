@@ -32,7 +32,8 @@ import {
   Radio,
   FileText,
   Bot,
-  Eye
+  Eye,
+  SlidersHorizontal
 } from 'lucide-react';
 import { 
   fetchAllUsers, 
@@ -57,6 +58,7 @@ interface UserManagementModalProps {
   currentUser: AuthUser;
   firebaseConfig?: FirebaseConnectionConfig;
   onQueryUserChatbot?: (userId: string) => void;
+  onOpenUserThresholds?: (userId: string) => void;
 }
 
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({
@@ -65,6 +67,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   currentUser,
   firebaseConfig,
   onQueryUserChatbot,
+  onOpenUserThresholds,
 }) => {
   const config = firebaseConfig || getSavedFirebaseConfig();
   const [activeTab, setActiveTab] = useState<'accounts' | 'tasks' | 'biometrics_query'>('accounts');
@@ -279,7 +282,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center shrink-0 shadow-2xs">
               <Users className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -307,14 +310,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             onClick={() => setActiveTab('accounts')}
             className={`pb-3 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
               activeTab === 'accounts'
-                ? 'border-indigo-600 text-indigo-700'
+                ? 'border-sky-600 text-sky-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <Users className="w-4 h-4" />
             <span>Tài Khoản Đã Đăng Nhập</span>
             <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-bold ${
-              activeTab === 'accounts' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
+              activeTab === 'accounts' ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-600'
             }`}>
               {users.length}
             </span>
@@ -324,7 +327,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             onClick={() => setActiveTab('tasks')}
             className={`pb-3 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
               activeTab === 'tasks'
-                ? 'border-indigo-600 text-indigo-700'
+                ? 'border-sky-600 text-sky-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -341,7 +344,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             onClick={() => setActiveTab('biometrics_query')}
             className={`pb-3 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
               activeTab === 'biometrics_query'
-                ? 'border-indigo-600 text-indigo-700'
+                ? 'border-sky-600 text-sky-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -352,8 +355,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
         {/* Notice Message */}
         {notice && (
-          <div className="mx-5 sm:mx-6 mt-3 p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs flex items-center gap-2 animate-fadeIn shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+          <div className="mx-5 sm:mx-6 mt-3 p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs flex items-center gap-2 animate-fadeIn shrink-0">
+            <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
             <span>{notice}</span>
           </div>
         )}
@@ -371,7 +374,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   placeholder="Tìm kiếm tài khoản theo tên, email, phòng ban..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-2xs"
+                  className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-sky-500 focus:bg-white transition shadow-2xs"
                 />
               </div>
 
@@ -381,7 +384,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   disabled={isLoading}
                   className="flex items-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer disabled:opacity-50 active:scale-95"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
                   <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
                 </button>
               </div>
@@ -391,7 +394,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               {isLoading ? (
                 <div className="py-16 text-center text-slate-500">
-                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" />
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-sky-600 mb-2" />
                   <p className="text-xs">Đang tải danh sách tài khoản từ Firestore...</p>
                 </div>
               ) : filteredUsers.length === 0 ? (
@@ -422,7 +425,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                         return (
                           <tr 
                             key={u.id} 
-                            className={`hover:bg-slate-50/70 transition-colors ${isCurrent ? 'bg-indigo-50/30 font-medium' : ''}`}
+                            className={`hover:bg-slate-50/70 transition-colors ${isCurrent ? 'bg-sky-50/40 font-medium' : ''}`}
                           >
                             {/* Member info */}
                             <td className="py-3.5 px-4">
@@ -438,7 +441,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-bold text-slate-900 text-xs sm:text-sm">{u.fullName}</span>
                                     {isCurrent && (
-                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-100 text-sky-700 border border-sky-200 whitespace-nowrap">
                                         Hiện tại
                                       </span>
                                     )}
@@ -492,13 +495,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             {/* Device ID / Gán Thiết Bị */}
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
-                                <Radio className={`w-3.5 h-3.5 shrink-0 ${u.device ? 'text-indigo-600' : 'text-slate-400'}`} />
+                                <Radio className={`w-3.5 h-3.5 shrink-0 ${u.device ? 'text-sky-600' : 'text-slate-400'}`} />
                                 <select
                                   value={u.device || u.deviceId || ''}
                                   onChange={(e) => handleDeviceChange(u.id, e.target.value)}
-                                  className={`h-8 px-2.5 py-1 text-xs font-mono rounded-lg border transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                  className={`h-8 px-2.5 py-1 text-xs font-mono rounded-lg border transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500 ${
                                     u.device
-                                      ? 'bg-indigo-50/80 border-indigo-300 text-indigo-900 font-bold shadow-2xs'
+                                      ? 'bg-sky-50/80 border-sky-300 text-sky-900 font-bold shadow-2xs'
                                       : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
                                   }`}
                                   title={`Chọn gán thiết bị cho ${u.fullName}`}
@@ -526,6 +529,22 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   </button>
                                 )}
 
+                                {/* Direct Open Alert Thresholds Settings for User */}
+                                {onOpenUserThresholds && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onOpenUserThresholds(u.id);
+                                      onClose();
+                                    }}
+                                    title={`Xem & chỉnh sửa ngưỡng cảnh báo của ${u.fullName}`}
+                                    className="h-8 px-2.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1.5 transition cursor-pointer text-xs font-bold active:scale-95 shadow-2xs"
+                                  >
+                                    <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>Ngưỡng đo</span>
+                                  </button>
+                                )}
+
                                 {/* Direct Ask AI / Query Health */}
                                 {onQueryUserChatbot && (
                                   <button
@@ -535,9 +554,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                       onClose();
                                     }}
                                     title={`Mở Trợ lý AI để truy vấn và phân tích sức khỏe của ${u.fullName}`}
-                                    className="h-8 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 transition cursor-pointer text-xs font-bold active:scale-95 shadow-2xs"
+                                    className="h-8 px-2.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 flex items-center gap-1.5 transition cursor-pointer text-xs font-bold active:scale-95 shadow-2xs"
                                   >
-                                    <Bot className="w-3.5 h-3.5 text-indigo-600" />
+                                    <Bot className="w-3.5 h-3.5 text-teal-600" />
                                     <span>Hỏi AI</span>
                                   </button>
                                 )}
@@ -604,7 +623,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             {/* Create Task Form */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
                   <Send className="w-4 h-4" />
                 </div>
                 <div>
@@ -623,7 +642,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     <select
                       value={newTaskForm.targetUserId}
                       onChange={e => setNewTaskForm({ ...newTaskForm, targetUserId: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 font-semibold text-slate-800 focus:outline-none focus:border-sky-500"
                     >
                       <option value="all">📢 Tất cả thành viên (Gửi chung)</option>
                       {users.map(u => (
@@ -642,7 +661,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     <select
                       value={newTaskForm.type}
                       onChange={e => setNewTaskForm({ ...newTaskForm, type: e.target.value as NotificationType })}
-                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 font-semibold text-slate-800 focus:outline-none focus:border-sky-500"
                     >
                       <option value="task">📋 Giao việc / Task công việc</option>
                       <option value="health_alert">🧘 Nhắc nhở sức khỏe / Tư thế</option>
@@ -658,7 +677,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     <select
                       value={newTaskForm.priority}
                       onChange={e => setNewTaskForm({ ...newTaskForm, priority: e.target.value as NotificationPriority })}
-                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 font-semibold text-slate-800 focus:outline-none focus:border-sky-500"
                     >
                       <option value="normal">⚪ Bình thường</option>
                       <option value="high">🟡 Ưu tiên cao</option>
@@ -679,7 +698,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       placeholder="Ví dụ: Kiểm tra tư thế ngồi buổi chiều, hoặc Nộp báo cáo tuần"
                       value={newTaskForm.title}
                       onChange={e => setNewTaskForm({ ...newTaskForm, title: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 focus:outline-none focus:border-sky-500"
                     />
                   </div>
 
@@ -693,7 +712,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       placeholder="Ví dụ: Trước 17:00 hôm nay"
                       value={newTaskForm.deadline}
                       onChange={e => setNewTaskForm({ ...newTaskForm, deadline: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -709,7 +728,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     placeholder="Mô tả công việc cần làm, vị trí hoặc chỉ dẫn cụ thể cho thành viên..."
                     value={newTaskForm.content}
                     onChange={e => setNewTaskForm({ ...newTaskForm, content: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-white border border-slate-200 focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
@@ -717,7 +736,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   <button
                     type="submit"
                     disabled={isSendingTask}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition cursor-pointer disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>{isSendingTask ? 'Đang gửi...' : 'Phát Thông Báo / Giao Việc'}</span>
@@ -886,7 +905,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   placeholder="Tra cứu thành viên theo tên, email, phòng ban..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition shadow-2xs"
+                  className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-sky-500 focus:bg-white transition shadow-2xs"
                 />
               </div>
 
@@ -899,7 +918,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   disabled={isLoading}
                   className="flex items-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
                   <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
                 </button>
               </div>
@@ -954,7 +973,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                           </div>
                           <div>
                             <span className="text-[10px] text-slate-400 block uppercase font-semibold">Chỉ số BMI</span>
-                            <span className="font-mono font-bold text-indigo-700">{bmi}</span>
+                            <span className="font-mono font-bold text-sky-700">{bmi}</span>
                           </div>
                           <div>
                             <span className="text-[10px] text-slate-400 block uppercase font-semibold">Mục tiêu ngồi</span>
@@ -971,7 +990,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                 onQueryUserChatbot(u.id);
                                 onClose();
                               }}
-                              className="flex-1 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                              className="flex-1 h-8 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
                             >
                               <Bot className="w-3.5 h-3.5" />
                               <span>Hỏi AI về người này</span>
@@ -1008,7 +1027,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4 text-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-indigo-600" />
+                <Edit3 className="w-4 h-4 text-sky-600" />
                 <span>Chỉnh Sửa Thông Tin: {editingUser.fullName}</span>
               </h4>
               <button
@@ -1110,7 +1129,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm cursor-pointer transition"
                 >
                   Lưu Thay Đổi
                 </button>

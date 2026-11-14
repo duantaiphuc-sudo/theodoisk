@@ -42,6 +42,25 @@ export interface ThresholdDiffItem {
   reason: string;
 }
 
+export interface ModelDiagnosticsMetrics {
+  rSquared: number;
+  mae: number;
+  ewmaScore: number;
+  regressionSlope: number;
+  sqiScore: number;
+  baselineBpmMean: number;
+  baselineBpmStd: number;
+  zScoreAnomalyCount: number;
+  latestBpmZScore: number;
+  anomalyDetails: Array<{
+    timestamp: string;
+    bpm: number;
+    spo2: number;
+    zScore: number;
+    reason: string;
+  }>;
+}
+
 export interface PredictiveAnalyticsSummary {
   sampleCount: number;
   validVitalCount: number;
@@ -51,6 +70,7 @@ export interface PredictiveAnalyticsSummary {
   avgBpm: number;
   avgSpo2: number;
   goodPostureRatio: number;
+  modelMetrics: ModelDiagnosticsMetrics;
   ohpsForecast: {
     currentScore: number;
     predictedScore: number;
@@ -123,6 +143,163 @@ function isAbsentLog(log: TelemetryLog): boolean {
 
 function clamp(val: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, val));
+}
+
+/**
+ * Weighted Linear Regression (WLS) + EWMA trên chuỗi điểm tư thế theo cửa sổ trượt
+ */
+function computeWeightedLinearRegression(values: number[]): {
+  slope: number;
+  intercept: number;
+  rSquared: number;
+  mae: number;
+  ewma: number;
+  predictedNext: number;
+} {
+  if (values.length === 0) {
+    return { slope: 0, intercept: 80, rSquared: 0, mae: 0, ewma: 80, predictedNext: 80 };
+  }
+  if (values.length === 1) {
+    return { slope: 0, intercept: values[0], rSquared: 0, mae: 0, ewma: values[0], predictedNext: values[0] };
+  }
+
+  // EWMA smoothing (lambda = 0.35)
+  const lambda = 0.35;
+  let ewma = values[0];
+  for (let i = 1; i < values.length; i++) {
+    ewma = lambda * values[i] + (1 - lambda) * ewma;
+  }
+
+  // Trọng số tăng dần tuyến tính cho dữ liệu mới hơn
+  const n = values.length;
+  const weights = values.map((_, i) => (i + 1) / n);
+  const sumW = weights.reduce((a, b) => a + b, 0);
+  const meanX = weights.reduce((a, w, i) => a + w * i, 0) / sumW;
+  const meanY = weights.reduce((a, w, i) => a + w * values[i], 0) / sumW;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = i - meanX;
+    const dy = values[i] - meanY;
+    num += weights[i] * dx * dy;
+    den += weights[i] * dx * dx;
+  }
+
+  const slope = den > 1e-6 ? num / den : 0;
+  const intercept = meanY - slope * meanX;
+
+  let ssRes = 0;
+  let ssTot = 0;
+  let absErrSum = 0;
+  for (let i = 0; i < n; i++) {
+    const yHat = intercept + slope * i;
+    const err = values[i] - yHat;
+    ssRes += weights[i] * err * err;
+    ssTot += weights[i] * Math.pow(values[i] - meanY, 2);
+    absErrSum += Math.abs(err);
+  }
+
+  const rSquared = ssTot > 1e-6 ? clamp(Number((1 - ssRes / ssTot).toFixed(2)), 0, 1) : 0;
+  const mae = Number((absErrSum / n).toFixed(1));
+  const predictedNext = clamp(intercept + slope * n, 0, 100);
+
+  return {
+    slope: Number(slope.toFixed(2)),
+    intercept: Number(intercept.toFixed(2)),
+    rSquared,
+    mae,
+    ewma: Number(ewma.toFixed(1)),
+    predictedNext: Number(predictedNext.toFixed(1)),
+  };
+}
+
+/**
+ * Phát hiện bất thường sinh trắc học bằng Z-Score động dựa trên Baseline cá nhân
+ */
+function computeBiometricZScoreAnomalies(validLogs: TelemetryLog[]): {
+  baselineBpmMean: number;
+  baselineBpmStd: number;
+  sqiScore: number;
+  latestBpmZScore: number;
+  anomalies: Array<{
+    timestamp: string;
+    bpm: number;
+    spo2: number;
+    zScore: number;
+    reason: string;
+  }>;
+} {
+  if (validLogs.length === 0) {
+    return {
+      baselineBpmMean: 0,
+      baselineBpmStd: 0,
+      sqiScore: 0,
+      latestBpmZScore: 0,
+      anomalies: [],
+    };
+  }
+
+  const bpms = validLogs.map(l => Number(l.bpm));
+  const mean = bpms.reduce((a, b) => a + b, 0) / bpms.length;
+  const variance = bpms.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / bpms.length;
+  const std = Math.max(4.5, Math.sqrt(variance)); // sàn std = 4.5 BPM để tránh nhạy quá mức khi mẫu ít
+
+  // SQI thực tế
+  const physiologicalValid = validLogs.filter(
+    l => Number(l.bpm) >= 40 && Number(l.bpm) <= 200 && Number(l.spo2) >= 80 && Number(l.spo2) <= 100
+  ).length;
+  let motionArtifacts = 0;
+  for (let i = 1; i < bpms.length; i++) {
+    if (Math.abs(bpms[i] - bpms[i - 1]) > 35) motionArtifacts++;
+  }
+  const artifactPenalty = bpms.length > 1 ? (motionArtifacts / (bpms.length - 1)) * 40 : 0;
+  const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
+  const stabilityPenalty = cv > 0.18 ? Math.min(25, (cv - 0.18) * 120) : 0;
+  const sqiScore = clamp(
+    Math.round((physiologicalValid / validLogs.length) * 90 + Math.min(10, validLogs.length * 1.5) - artifactPenalty - stabilityPenalty),
+    25,
+    100
+  );
+
+  const anomalies: Array<{
+    timestamp: string;
+    bpm: number;
+    spo2: number;
+    zScore: number;
+    reason: string;
+  }> = [];
+
+  validLogs.forEach(l => {
+    const bpm = Number(l.bpm);
+    const spo2 = Number(l.spo2);
+    const z = (bpm - mean) / std;
+    if (Math.abs(z) >= 2.0 || spo2 < 94) {
+      anomalies.push({
+        timestamp: l.timestamp,
+        bpm,
+        spo2,
+        zScore: Number(z.toFixed(2)),
+        reason:
+          spo2 < 94
+            ? `SpO2 giảm xuống ${spo2}% (< 94%)`
+            : z >= 2.0
+            ? `Nhịp tim tăng vọt +${Math.round(bpm - mean)} BPM so với nền cá nhân (Z=${z.toFixed(2)}σ)`
+            : `Nhịp tim giảm bất thường ${Math.round(bpm - mean)} BPM so với nền cá nhân (Z=${z.toFixed(2)}σ)`,
+      });
+    }
+  });
+
+  const latestBpm = bpms[bpms.length - 1];
+  const latestBpmZScore = Number(((latestBpm - mean) / std).toFixed(2));
+
+  return {
+    baselineBpmMean: Number(mean.toFixed(1)),
+    baselineBpmStd: Number(Math.sqrt(variance).toFixed(1)),
+    sqiScore,
+    latestBpmZScore,
+    anomalies: anomalies.slice(-6).reverse(),
+  };
 }
 
 /**
@@ -205,12 +382,14 @@ export function buildPredictiveAnalytics(params: {
     ? Number((badPostureAvgSpo2 - goodPostureAvgSpo2).toFixed(1))
     : 0;
 
-  const anomalyCount = validVitalLogs.filter(
+  const zScoreModel = computeBiometricZScoreAnomalies(validVitalLogs);
+  const hardAnomalyCount = validVitalLogs.filter(
     l =>
       Number(l.bpm) < (thresholds.hrMin || 50) ||
       Number(l.bpm) > (thresholds.hrMax || 110) ||
       Number(l.spo2) < (thresholds.spo2Min || 94)
   ).length;
+  const anomalyCount = Math.max(hardAnomalyCount, zScoreModel.anomalies.length);
 
   const hrStressComponent =
     avgBpm > 0
@@ -218,7 +397,8 @@ export function buildPredictiveAnalytics(params: {
       : 15;
   const spo2Penalty = avgSpo2 > 0 && avgSpo2 < 96 ? (96 - avgSpo2) * 12 : 0;
   const badPosturePenalty = Math.round((100 - goodPostureRatio) * 0.45);
-  const stressIndex = clamp(Math.round(hrStressComponent + spo2Penalty + badPosturePenalty), 5, 98);
+  const zScorePenalty = Math.min(18, zScoreModel.anomalies.length * 4);
+  const stressIndex = clamp(Math.round(hrStressComponent + spo2Penalty + badPosturePenalty + zScorePenalty), 5, 98);
 
   // 2. Dự báo rủi ro cơ xương khớp (Musculoskeletal Risk Forecast)
   const badPostureSharePercent = clamp(100 - goodPostureRatio, 0, 100);
@@ -333,39 +513,52 @@ export function buildPredictiveAnalytics(params: {
     slumpRiskWindow = `${String(worstH).padStart(2, '0')}:00 - ${String(Math.min(23, worstH + 1)).padStart(2, '0')}:30`;
   }
 
-  // 4. Dự báo OHPS ca tiếp theo bằng hồi quy nửa đầu vs nửa sau chuỗi log
+  // 4. Dự báo OHPS ca tiếp theo bằng Weighted Linear Regression (WLS) + EWMA
   const currentOhps =
     ohpsData && ohpsData.hasActualData ? ohpsData.ohpsScore : Math.round(goodPostureRatio * 0.7 + 25);
 
-  let trendSlope = 0;
-  if (activeSittingLogs.length >= 6) {
-    const mid = Math.floor(activeSittingLogs.length / 2);
-    const firstHalf = activeSittingLogs.slice(0, mid);
-    const secondHalf = activeSittingLogs.slice(mid);
-    const firstGood = (firstHalf.filter(isGoodPostureLog).length / firstHalf.length) * 100;
-    const secondGood = (secondHalf.filter(isGoodPostureLog).length / secondHalf.length) * 100;
-    trendSlope = secondGood - firstGood;
+  // Chia chuỗi log thành các block cửa sổ (3-5 log/block) để hồi quy chuỗi thời gian thực
+  const blockSize = activeSittingLogs.length >= 20 ? 4 : activeSittingLogs.length >= 10 ? 3 : 2;
+  const blockScores: number[] = [];
+  for (let i = 0; i < activeSittingLogs.length; i += blockSize) {
+    const slice = activeSittingLogs.slice(i, i + blockSize);
+    if (slice.length > 0) {
+      const goodInBlock = slice.filter(isGoodPostureLog).length;
+      blockScores.push(Math.round((goodInBlock / slice.length) * 100));
+    }
+  }
+  if (blockScores.length < 2 && populatedHours.length >= 2) {
+    populatedHours.forEach(h => {
+      if (h.actualFocusScore !== null) blockScores.push(h.actualFocusScore);
+    });
   }
 
+  const wls = computeWeightedLinearRegression(blockScores);
   const breakBonus = standingTimeSec >= (thresholds.standingTargetSec || 300) ? 3 : -2;
-  const predictedDelta = clamp(Math.round(trendSlope * 0.28 + breakBonus), -15, 14);
+  const slopeContribution = blockScores.length >= 2 ? (wls.predictedNext - wls.ewma) * 0.5 + wls.slope * 0.8 : 0;
+  const predictedDelta = clamp(Math.round(slopeContribution + breakBonus), -15, 14);
   const predictedOhps = clamp(currentOhps + predictedDelta, 35, 99);
   const trendLabel: 'Cải thiện' | 'Ổn định' | 'Có xu hướng giảm' =
     predictedDelta >= 3 ? 'Cải thiện' : predictedDelta <= -3 ? 'Có xu hướng giảm' : 'Ổn định';
   const confidencePercent = clamp(
-    Math.round(35 + Math.min(45, sampleCount * 0.9) + (validVitalLogs.length > 0 ? 15 : 0)),
+    Math.round(
+      32 +
+        Math.min(38, sampleCount * 0.75) +
+        wls.rSquared * 15 +
+        (validVitalLogs.length > 0 ? Math.round((ohpsData?.sqiScore ?? zScoreModel.sqiScore) * 0.12) : 0)
+    ),
     30,
-    95
+    96
   );
 
   const trendReason =
     sampleCount < 4
-      ? 'Đang tổng hợp từ nền dữ liệu khởi tạo; tiếp tục thu thập thêm log từ Pi 4 để tăng độ chính xác hồi quy.'
-      : trendSlope > 4
-      ? `Nửa sau chuỗi đo cho thấy tỷ lệ giữ tư thế đúng tăng +${Math.round(trendSlope)}% so với giai đoạn đầu ca.`
-      : trendSlope < -4
-      ? `Tỷ lệ gù lưng / cúi cổ có xu hướng tăng ${Math.abs(Math.round(trendSlope))}% về cuối phiên làm việc.`
-      : 'Chỉ số tư thế và sinh hiệu duy trì ổn định đều đặn giữa các khung giờ.';
+      ? 'Đang tổng hợp từ nền dữ liệu khởi tạo; tiếp tục thu thập thêm log từ Pi 4 để tăng độ chính xác hồi quy WLS.'
+      : wls.slope > 1.5
+      ? `Hồi quy WLS ghi nhận độ dốc tích cực (+${wls.slope} điểm/block, R²=${wls.rSquared}, EWMA=${wls.ewma}%).`
+      : wls.slope < -1.5
+      ? `Hồi quy WLS phát hiện xu hướng mỏi dần về cuối phiên (${wls.slope} điểm/block, R²=${wls.rSquared}, MAE=${wls.mae}).`
+      : `Chuỗi thời gian duy trì ổn định quanh mức EWMA ${wls.ewma}% (MAE=${wls.mae}, R²=${wls.rSquared}).`;
 
   // 5. Đề xuất tối ưu ngưỡng thông minh (Closed-Loop Adaptive Tuning)
   const medicalAdaptive = calculateAdaptiveThresholds(currentUser || {});
@@ -516,6 +709,8 @@ export function buildPredictiveAnalytics(params: {
     },
   ];
 
+  const resolvedSqi = ohpsData?.sqiScore ?? zScoreModel.sqiScore;
+
   return {
     sampleCount,
     validVitalCount: validVitalLogs.length,
@@ -525,6 +720,18 @@ export function buildPredictiveAnalytics(params: {
     avgBpm,
     avgSpo2,
     goodPostureRatio,
+    modelMetrics: {
+      rSquared: wls.rSquared,
+      mae: wls.mae,
+      ewmaScore: wls.ewma,
+      regressionSlope: wls.slope,
+      sqiScore: resolvedSqi,
+      baselineBpmMean: zScoreModel.baselineBpmMean,
+      baselineBpmStd: zScoreModel.baselineBpmStd,
+      zScoreAnomalyCount: zScoreModel.anomalies.length,
+      latestBpmZScore: zScoreModel.latestBpmZScore,
+      anomalyDetails: zScoreModel.anomalies,
+    },
     ohpsForecast: {
       currentScore: currentOhps,
       predictedScore: predictedOhps,

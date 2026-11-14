@@ -355,9 +355,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
+    <div className="glass-panel rounded-2xl border border-white/60 shadow-lg p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200/60 mb-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -367,8 +367,8 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
               </span>
             </h2>
             {/* Account scope badge */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-mono font-medium whitespace-nowrap">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-mono font-medium whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
               <span>Dữ liệu cá nhân: {currentUser?.fullName || currentUser?.username} ({currentUser?.email})</span>
             </span>
           </div>
@@ -396,7 +396,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
               onClick={onRefreshHistory}
               disabled={isSyncing}
               title="Đồng bộ lại dữ liệu chuẩn xác từ Supabase PostgreSQL Cloud"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold glass-subcard-interactive text-slate-700 transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ'}</span>
@@ -407,7 +407,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           <button
             onClick={handleExportCSV}
             disabled={history.length === 0}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold glass-subcard-interactive text-slate-700 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Xuất CSV</span>
@@ -418,9 +418,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             onClick={handleExportPDF}
             disabled={history.length === 0}
             title="Xuất dữ liệu lịch sử đo đạc từ Supabase PostgreSQL Cloud sang tệp báo cáo PDF để in hoặc lưu trữ"
-            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
           >
-            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+            <FileText className="w-3.5 h-3.5 text-sky-600" />
             <span>Xuất Báo Cáo PDF</span>
           </button>
 
@@ -474,7 +474,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             placeholder="Tìm theo ngày (vd: 21/09/2026), giờ, nhịp tim..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition"
+            className="w-full pl-8 pr-3 py-2 rounded-xl text-xs glass-subcard text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
           />
         </div>
 
@@ -488,7 +488,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <select
               value={filterDate}
               onChange={e => setFilterDate(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-sky-500 transition cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl text-xs glass-subcard text-slate-800 font-semibold focus:outline-none focus:border-sky-500 transition cursor-pointer"
             >
               <option value="all">Tất cả ngày ({availableDates.length})</option>
               {availableDates.map(d => (
@@ -504,8 +504,8 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             onClick={() => setFilterPosture('all')}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'all' 
-                ? 'bg-slate-900 text-white shadow-2xs' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-sky-600 text-white shadow-2xs' 
+                : 'glass-subcard text-slate-600 hover:text-slate-900'
             }`}
           >
             Tất cả ({counts.all})
@@ -565,7 +565,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
       </div>
 
       {/* Main Table / Feed Area */}
-      <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+      <div className="rounded-xl glass-subcard overflow-hidden shadow-2xs">
         {filteredLogs.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
             {history.length === 0 
@@ -577,7 +577,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             {/* Desktop Table View */}
             <div className="hidden sm:block overflow-x-auto max-h-[380px] overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider z-10">
+                <thead className="sticky top-0 glass-subcard backdrop-blur-md border-b border-slate-200/70 text-slate-500 font-semibold uppercase tracking-wider z-10">
                   <tr>
                     <th className="px-3 py-2.5 text-center font-mono w-12">STT</th>
                     <th className="px-4 py-2.5">Thời Gian (Ngày & Giờ)</th>
@@ -656,7 +656,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                                   </span>
                                 )}
                                 {(item.userName || item.userEmail) && (
-                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 max-w-[120px] truncate" title={item.userEmail}>
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-semibold border border-sky-200 max-w-[120px] truncate" title={item.userEmail}>
                                     {item.userName || item.userEmail}
                                   </span>
                                 )}
@@ -795,7 +795,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                 const isSimulatedLog = Boolean(item.device?.includes('Giả Lập') || (item as any).source?.includes('Giả Lập'));
 
                 return (
-                  <div key={item.id} className="p-3 rounded-xl bg-slate-50/90 border border-slate-200 space-y-2.5">
+                  <div key={item.id} className="p-3 rounded-xl glass-subcard space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 font-mono text-xs min-w-0">
                         <Calendar className="w-3.5 h-3.5 text-sky-600 shrink-0" />
@@ -808,7 +808,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                           </span>
                         )}
                         {(item.userName || item.userEmail) && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 max-w-[90px] truncate" title={item.userEmail}>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-semibold border border-sky-200 max-w-[90px] truncate" title={item.userEmail}>
                             {item.userName || item.userEmail}
                           </span>
                         )}
@@ -834,19 +834,19 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                      <div className="glass-subcard p-2 rounded-lg text-center">
                         <span className="text-[10px] text-slate-500 block mb-0.5">Nhịp tim</span>
                         <span className="font-mono font-bold text-rose-700 text-xs">
                           {item.bpm > 0 ? `${item.bpm} bpm` : '--'}
                         </span>
                       </div>
-                      <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                      <div className="glass-subcard p-2 rounded-lg text-center">
                         <span className="text-[10px] text-slate-500 block mb-0.5">SpO₂</span>
                         <span className="font-mono font-bold text-sky-700 text-xs">
                           {item.spo2 > 0 ? `${item.spo2}%` : '--'}
                         </span>
                       </div>
-                      <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                      <div className="glass-subcard p-2 rounded-lg text-center">
                         <span className="text-[10px] text-slate-500 block mb-0.5">Vùng Quan Sát</span>
                         <span className="text-[11px] font-semibold text-slate-700">
                           {item.trackingActive ? 'Trong vùng' : 'Vắng'}

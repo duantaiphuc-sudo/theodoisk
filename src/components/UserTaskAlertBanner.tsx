@@ -95,7 +95,7 @@ export const UserTaskAlertBanner: React.FC<UserTaskAlertBannerProps> = ({
             ? 'bg-rose-600 text-white border-rose-700' 
             : isHigh 
             ? 'bg-amber-500 text-white border-amber-600' 
-            : 'bg-indigo-600 text-white border-indigo-700'
+            : 'bg-sky-600 text-white border-sky-700'
         }`}>
           <div className="flex items-center gap-2">
             {isUrgent ? (

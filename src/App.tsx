@@ -40,7 +40,8 @@ import {
   playWelcomeBackAlert,
   playPostureCorrectAlert,
   playStandingActiveAlert,
-  playUserAbsentAlert
+  playUserAbsentAlert,
+  playBiometricReminderAlert
 } from './services/sound';
 import { appendTelemetryToHistory, syncHistoricalLogs, clearLocalHistoricalRecords } from './services/historyService';
 import { notificationManager } from './services/notificationService';
@@ -200,6 +201,7 @@ export default function App() {
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [thresholdTargetUserId, setThresholdTargetUserId] = useState<string>('');
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
   const [isOHPSModalOpen, setIsOHPSModalOpen] = useState(false);
   const [unauthorizedFaceAlert, setUnauthorizedFaceAlert] = useState<{
@@ -365,6 +367,7 @@ export default function App() {
       hrMin: 50,
       hrMax: 110,
       spo2Min: 94,
+      biometricReminderSec: 1800,
       incorrectPostureSec: 30,
       longIncorrectSec: 120,
       longSittingSec: 3600,
@@ -678,6 +681,8 @@ export default function App() {
   const lastCameraErrorVoiceRef = useRef<number>(0);
   const wasCameraErrorRef = useRef<boolean>(false);
   const lastWelcomeBackVoiceRef = useRef<number>(0);
+  const lastBiometricMeasureAtRef = useRef<number>(Date.now());
+  const lastBiometricReminderRef = useRef<number>(0);
   const telemetryRef = useRef(telemetry);
   telemetryRef.current = telemetry;
   const thresholdsRef = useRef(thresholds);
@@ -717,11 +722,31 @@ export default function App() {
     return stop;
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    lastBiometricMeasureAtRef.current = Date.now();
+    lastBiometricReminderRef.current = 0;
+  }, [currentUser?.id]);
+
   const saveThresholdsForPi = async (newThresholds: AlertThresholds) => {
     const uid = currentUserRef.current?.id;
     if (!uid) throw new Error('Cần đăng nhập để đồng bộ ngưỡng với Raspberry Pi.');
     await savePiSettings(uid, newThresholds);
     setThresholds(newThresholds);
+    setClearNotice(`Đã đồng bộ ngưỡng & nhắc đo sinh trắc học lên Firestore (users/${uid}/preferences/office_health).`);
+    setTimeout(() => setClearNotice(null), 5000);
+  };
+
+  const saveThresholdsForUser = async (targetUid: string, newThresholds: AlertThresholds) => {
+    const uid = targetUid || currentUserRef.current?.id;
+    if (!uid) throw new Error('Cần đăng nhập để đồng bộ ngưỡng với Raspberry Pi.');
+    await savePiSettings(uid, newThresholds, isManager);
+    if (uid === currentUserRef.current?.id) {
+      setThresholds(newThresholds);
+    }
+    const targetUserObj = allRegisteredUsers.find(u => u.id === uid);
+    const label = targetUserObj?.fullName || targetUserObj?.email || uid;
+    setClearNotice(`Đã đồng bộ ngưỡng Firestore cho ${label} (users/${uid}/preferences/office_health).`);
+    setTimeout(() => setClearNotice(null), 5000);
   };
 
   // Pi is the source of truth for activity durations, separate from Face session.
@@ -980,6 +1005,9 @@ export default function App() {
 
     // === TƯƠNG TÁC ÂM THANH CẢM BIẾN MAX30102 (ĐẶT TAY, ĐANG ĐO, ĐÃ ĐO XONG, BỎ TAY) ===
     const hasFinger = Boolean(data.bpm > 0 || data.spo2 > 0);
+    if (hasFinger) {
+      lastBiometricMeasureAtRef.current = now;
+    }
     const wasFingerPlaced = lastFingerPlacedRef.current;
 
     if (canPlayAudio || canPlayVoice) {
@@ -1652,9 +1680,41 @@ export default function App() {
       });
   }, [currentUser?.id]);
 
-  // Second timer loop for web-calculated activity times
+  // Second timer loop for periodic biometric reminder + web-calculated activity times
   useEffect(() => {
     const timer = setInterval(() => {
+      // Nhắc nhở định kỳ đo nhịp tim & SpO2 (hoạt động cả khi Pi đang đồng bộ thời gian)
+      const curTelemetry = telemetryRef.current;
+      const curThresh = thresholdsRef.current;
+      const bioReminderSec = Number(curThresh.biometricReminderSec ?? 1800);
+      const isWorkingActive =
+        curTelemetry.trackingActive &&
+        curTelemetry.postureStatus !== -1 &&
+        curTelemetry.postureStatus !== 2;
+      const isHoldingFinger = Boolean(curTelemetry.bpm > 0 || curTelemetry.spo2 > 0);
+
+      if (bioReminderSec > 0 && isWorkingActive && !isHoldingFinger) {
+        const nowMs = Date.now();
+        const elapsedSinceMeasure = nowMs - lastBiometricMeasureAtRef.current;
+        const elapsedSinceReminder = nowMs - lastBiometricReminderRef.current;
+        if (elapsedSinceMeasure >= bioReminderSec * 1000 && elapsedSinceReminder >= bioReminderSec * 1000) {
+          lastBiometricReminderRef.current = nowMs;
+          if (curThresh.soundEnabled || curThresh.voiceAlertEnabled) {
+            playBiometricReminderAlert({
+              playChime: curThresh.soundEnabled,
+              playVoice: curThresh.voiceAlertEnabled,
+            });
+          }
+          if (curThresh.browserNotificationEnabled) {
+            notificationManager.sendNotification({
+              title: '💓 Đến giờ đo nhịp tim & SpO₂',
+              body: 'Hãy đặt ngón tay lên cảm biến MAX30102 để kiểm tra chỉ số sinh trắc học định kỳ.',
+              tag: 'biometric-reminder',
+            });
+          }
+        }
+      }
+
       setTimeStats(prev => {
         // When connected to Pi's durable time counter, do not also advance
         // a second, browser-only clock (which resets on Face lock/reload).
@@ -2152,6 +2212,54 @@ export default function App() {
     }
   };
 
+  const handleCreateTaskFromAI = async (taskPayload: {
+    title: string;
+    content: string;
+    priority: 'normal' | 'high' | 'urgent';
+    targetUserName?: string;
+    deadline?: string;
+  }) => {
+    if (!currentUser) throw new Error('Vui lòng đăng nhập để tạo nhiệm vụ.');
+    let targetUser = currentUser;
+    if (isManager && taskPayload.targetUserName) {
+      const needle = taskPayload.targetUserName.toLowerCase().trim();
+      const matched = allRegisteredUsers.find(
+        u =>
+          (u.fullName || '').toLowerCase().includes(needle) ||
+          (u.username || '').toLowerCase().includes(needle) ||
+          (u.email || '').toLowerCase().includes(needle)
+      );
+      if (matched) targetUser = matched;
+    }
+
+    const newTask = await sendTaskNotificationToFirebase(firebaseConfig, {
+      targetUserId: targetUser.id,
+      targetUserName: targetUser.fullName || targetUser.username,
+      senderId: currentUser.id,
+      senderName: currentUser.fullName || currentUser.username,
+      type: 'task',
+      title: taskPayload.title.trim(),
+      content: taskPayload.content.trim() || 'Nhắc nhở công thái học tạo từ Trợ lý AI',
+      priority: taskPayload.priority || 'normal',
+      deadline: taskPayload.deadline,
+      isPersonal: targetUser.id === currentUser.id && !isManager,
+    });
+
+    setTaskNotifications(prev => {
+      if (
+        prev.some(
+          t =>
+            t.id === newTask.id ||
+            (t.title === newTask.title &&
+              Math.abs(new Date(t.createdAt).getTime() - new Date(newTask.createdAt).getTime()) < 3000)
+        )
+      ) {
+        return prev;
+      }
+      return [newTask, ...prev];
+    });
+  };
+
   // If user is not authenticated, show LoginScreen
   if (!currentUser) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
@@ -2220,7 +2328,11 @@ export default function App() {
         soundEnabled={thresholds.soundEnabled}
         toggleSound={() => setThresholds(t => ({ ...t, soundEnabled: !t.soundEnabled }))}
         onOpenUserManagement={() => isManager && setIsUserManagementOpen(true)}
-        onOpenSettings={() => isManager && setIsSettingsModalOpen(true)}
+        onOpenSettings={() => {
+          if (!isManager) return;
+          setThresholdTargetUserId(currentUser?.id || '');
+          setIsSettingsModalOpen(true);
+        }}
         onOpenFirebase={() => isManager && setIsFirebaseModalOpen(true)}
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
@@ -2352,12 +2464,12 @@ export default function App() {
                   ));
 
                 return (
-                  <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs shadow-xs transition-all ${
+                  <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl border text-xs shadow-xs transition-all ${
                     telemetry.isStale
-                      ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                      ? 'bg-amber-50/85 border-amber-200 text-amber-900 backdrop-blur-md'
                       : isTelemetryCameraError
-                      ? 'bg-rose-50/90 border-rose-200 text-rose-900'
-                      : 'bg-white border-slate-200 text-slate-800'
+                      ? 'bg-rose-50/90 border-rose-200 text-rose-900 backdrop-blur-md'
+                      : 'glass-panel border-white/60 text-slate-800'
                   }`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
@@ -2452,7 +2564,7 @@ export default function App() {
                   )}
                 </div>
               ) : !hasReceivedData && !isSimulating ? (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-xl bg-white border border-sky-200 text-slate-800 text-xs shadow-xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-3.5 sm:px-4 py-3 rounded-2xl glass-panel border border-white/60 ring-1 ring-sky-200/70 text-slate-800 text-xs shadow-sm">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200">
                       <Radio className="w-4 h-4 animate-pulse text-sky-600" />
@@ -2654,8 +2766,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Mobile Thumb Navigation Segmented Tabs (Light Mode High Contrast) */}
-              <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl bg-slate-200/80 border border-slate-300/70 overflow-x-auto shadow-inner scrollbar-none">
+              {/* Mobile Thumb Navigation Segmented Tabs (Unified Glassmorphism) */}
+              <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl glass-subcard border overflow-x-auto shadow-xs scrollbar-none">
                 {[
                   { id: 'all', label: 'Tất Cả' },
                   { id: 'posture', label: 'Tư Thế' },
@@ -2668,7 +2780,7 @@ export default function App() {
                     onClick={() => setMobileActiveTab(tab.id as any)}
                     className={`flex-1 min-w-[64px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
                       mobileActiveTab === tab.id
-                        ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/80'
+                        ? 'bg-sky-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -2710,8 +2822,8 @@ export default function App() {
                       className="h-full flex flex-col justify-between"
                     />
                   ) : (
-                    <div className="h-full rounded-3xl border border-white/60 bg-white/75 backdrop-blur-xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
-                      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                    <div className="h-full rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+                      <div className="flex items-center gap-3 pb-3 border-b border-slate-200/70">
                         <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
                           <Activity className="w-5 h-5 text-amber-600" />
                         </div>
@@ -2723,7 +2835,7 @@ export default function App() {
                       <div className="py-4 text-xs text-slate-600 leading-relaxed">
                         Đang phát dữ liệu mô phỏng để kiểm tra giao diện và chuông cảnh báo. Bấm &quot;Tắt giả lập&quot; ở thanh điều hướng trên cùng để kết nối lại camera Pi 4 thực tế.
                       </div>
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                      <div className="pt-3 border-t border-slate-200/70 flex items-center justify-between text-xs text-slate-500">
                         <span>Trạng thái: Test cục bộ</span>
                         <span className="font-mono font-bold text-amber-700">SIMULATED</span>
                       </div>
@@ -2804,7 +2916,7 @@ export default function App() {
               </div>
 
               {/* 5. Quick Access Card to AI Prediction & Data Exploitation Hub */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3.5">
                   <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0">
                     <BrainCircuit className="w-5 h-5" />
@@ -2821,7 +2933,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMainNavTab('ai_predict')}
-                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Mở Phân Tích &amp; Dự Báo AI
                 </button>
@@ -2842,7 +2954,11 @@ export default function App() {
               ohpsData={ohpsData}
               tasks={userTasks}
               onApplyThresholds={saveThresholdsForPi}
-              onOpenSettingsModal={() => isManager && setIsSettingsModalOpen(true)}
+              onOpenSettingsModal={() => {
+                if (!isManager) return;
+                setThresholdTargetUserId(currentUser?.id || '');
+                setIsSettingsModalOpen(true);
+              }}
             />
           )}
 
@@ -2850,11 +2966,11 @@ export default function App() {
           {mainNavTab === 'logs' && (
             <div className="space-y-4 sm:space-y-6">
               {/* Informative Header Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+              <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-start gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5 text-indigo-600" />
+                    <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5 text-sky-600" />
                     </div>
                     <div>
                       <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
@@ -2867,7 +2983,7 @@ export default function App() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-mono font-bold border border-slate-200">
+                    <span className="px-3 py-1 rounded-xl glass-subcard text-slate-700 text-xs font-mono font-bold border">
                       Tổng số bản ghi: {history.length}
                     </span>
                   </div>
@@ -2896,7 +3012,7 @@ export default function App() {
           {mainNavTab === 'tasks' && (
             <div className="space-y-4 sm:space-y-6">
               {/* Header Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-start gap-3.5">
                   <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
                     <Bell className="w-5 h-5 text-amber-600" />
@@ -2914,7 +3030,7 @@ export default function App() {
                 {isManager && (
                   <button
                     onClick={() => setIsUserManagementOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Tạo Task Mới</span>
@@ -2924,7 +3040,7 @@ export default function App() {
 
               {/* Task Cards List */}
               {userTasks.length === 0 ? (
-                <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+                <div className="p-12 text-center rounded-2xl glass-panel border border-white/60 shadow-lg">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-3">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
@@ -2943,14 +3059,14 @@ export default function App() {
                     return (
                       <div
                         key={task.id}
-                        className={`p-4 sm:p-5 rounded-2xl bg-white border transition-all ${
+                        className={`p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg transition-all ${
                           isCompleted
-                            ? 'border-slate-200/70 bg-slate-50/50 opacity-75'
+                            ? 'opacity-75'
                             : isUrgent
-                            ? 'border-rose-300 shadow-xs ring-1 ring-rose-200'
+                            ? 'ring-2 ring-rose-400/80'
                             : isHigh
-                            ? 'border-amber-300 shadow-xs'
-                            : 'border-slate-200 shadow-xs'
+                            ? 'ring-1 ring-amber-400/80'
+                            : ''
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3 mb-2">
@@ -3060,7 +3176,7 @@ export default function App() {
                 }}
               />
             ) : (
-              <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm">
+              <div className="p-8 rounded-2xl glass-panel border border-white/60 text-center space-y-4 max-w-lg mx-auto my-12 shadow-lg">
                 <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center">
                   <Shield className="w-7 h-7 text-amber-600" />
                 </div>
@@ -3092,7 +3208,13 @@ export default function App() {
                   Cấu hình Firebase
                 </button>
                 <span>•</span>
-                <button onClick={() => setIsSettingsModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
+                <button
+                  onClick={() => {
+                    setThresholdTargetUserId(currentUser?.id || '');
+                    setIsSettingsModalOpen(true);
+                  }}
+                  className="hover:text-sky-600 transition cursor-pointer"
+                >
                   Ngưỡng đo cảnh báo
                 </button>
                 <span>•</span>
@@ -3133,6 +3255,14 @@ export default function App() {
           isOpen={isChatbotOpen}
           onOpenChange={setIsChatbotOpen}
           initialSelectedMemberId={targetChatbotMemberId}
+          thresholds={thresholds}
+          onApplyThresholds={(next) =>
+            saveThresholdsForUser(
+              targetChatbotMemberId !== 'all' && isManager ? targetChatbotMemberId : currentUser.id,
+              next
+            )
+          }
+          onCreateTask={handleCreateTaskFromAI}
         />
       )}
 
@@ -3171,6 +3301,10 @@ export default function App() {
           onQueryUserChatbot={(uid) => {
             setTargetChatbotMemberId(uid);
             setIsChatbotOpen(true);
+          }}
+          onOpenUserThresholds={(uid) => {
+            setThresholdTargetUserId(uid);
+            setIsSettingsModalOpen(true);
           }}
         />
       )}
@@ -3231,6 +3365,11 @@ export default function App() {
             onClose={() => setIsSettingsModalOpen(false)}
             thresholds={thresholds}
             onSave={saveThresholdsForPi}
+            currentUser={currentUser}
+            allUsers={allRegisteredUsers}
+            isManager={isManager}
+            initialTargetUserId={thresholdTargetUserId}
+            onSaveForUser={saveThresholdsForUser}
           />
         </>
       )}

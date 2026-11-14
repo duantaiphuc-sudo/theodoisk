@@ -177,11 +177,14 @@ export function calculateAdaptiveThresholds(
 
   const clinicalSummary = `Tự động tối ưu cho ${genderLabel}, ${age} tuổi (${conditionsText}): Ngồi tối đa ${Math.round(calculatedLongSittingSec / 60)}p • Nhịp tim ${calculatedHrMin}-${calculatedHrMax} BPM • SpO₂ ≥ ${calculatedSpo2Min}%.`;
 
+  const calculatedBiometricReminderSec = (hasCardioIssue || hasRespiratoryIssue || isElderly) ? 1200 : 1800;
+
   return {
     thresholds: {
       hrMin: calculatedHrMin,
       hrMax: calculatedHrMax,
       spo2Min: calculatedSpo2Min,
+      biometricReminderSec: calculatedBiometricReminderSec,
       incorrectPostureSec: calculatedIncorrectSec,
       longIncorrectSec: calculatedLongIncorrectSec,
       longSittingSec: calculatedLongSittingSec,

@@ -45,7 +45,8 @@ export type AlertChimeType =
   | 'finger_removed'
   | 'camera_error'
   | 'stranger_alert'
-  | 'welcome_back';
+  | 'welcome_back'
+  | 'biometric_reminder';
 
 /**
  * Play synthesizer musical chimes for notifications
@@ -197,6 +198,22 @@ export function playAlertChime(type: AlertChimeType) {
         osc.start(noteStart);
         osc.stop(noteStart + 0.35);
       });
+    } else if (type === 'biometric_reminder') {
+      // Nhắc đo sinh trắc học định kỳ: Chuỗi 3 nốt G5 -> B5 -> D6 dịu nhẹ, dễ nhận biết
+      const notes = [783.99, 987.77, 1174.66];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        const noteStart = now + idx * 0.1;
+        osc.frequency.setValueAtTime(freq, noteStart);
+        gain.gain.setValueAtTime(0.08, noteStart);
+        gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.35);
+        osc.start(noteStart);
+        osc.stop(noteStart + 0.35);
+      });
     } else {
       // Success tone mặc định
       const osc = ctx.createOscillator();
@@ -249,6 +266,7 @@ export type ErgonomicAlertVoiceType =
   | 'posture_verifying'   // "Đang xác nhận tư thế."
   | 'face_enrolled'       // "Đăng ký khuôn mặt thành công."
   | 'face_verified'       // "Xác thực khuôn mặt thành công."
+  | 'biometric_reminder'  // "Đã đến lúc đo nhịp tim và nồng độ oxy, hãy đặt ngón tay lên cảm biến!"
   | 'custom';
 
 // Local standard pre-rendered high-quality Vietnamese audio files (100% native voice, zero lag, works everywhere)
@@ -273,6 +291,7 @@ const LOCAL_AUDIO_FILES: Record<string, string> = {
   posture_verifying: '/audio/posture_verifying.mp3',
   face_enrolled: '/audio/face_enrolled.mp3',
   face_verified: '/audio/face_verified.mp3',
+  biometric_reminder: '/audio/biometric_reminder.mp3',
 };
 
 const VOICE_ALERT_MESSAGES: Record<ErgonomicAlertVoiceType, string> = {
@@ -296,6 +315,7 @@ const VOICE_ALERT_MESSAGES: Record<ErgonomicAlertVoiceType, string> = {
   posture_verifying: 'Đang xác nhận tư thế.',
   face_enrolled: 'Đăng ký khuôn mặt thành công.',
   face_verified: 'Xác thực khuôn mặt thành công.',
+  biometric_reminder: 'Đến giờ đo nhịp tim, hãy đặt tay đo!',
   custom: 'Thông báo sức khỏe!',
 };
 
@@ -453,6 +473,7 @@ export function playErgonomicVoiceAlert(
     else if (type === 'camera_error') chimeType = 'camera_error';
     else if (type === 'welcome_back') chimeType = 'welcome_back';
     else if (type === 'posture_correct' || type === 'standing_active' || type === 'face_enrolled' || type === 'face_verified') chimeType = 'success';
+    else if (type === 'biometric_reminder') chimeType = 'biometric_reminder';
     else if (type === 'user_absent' || type === 'out_of_zone' || type === 'posture_verifying') chimeType = 'reminder';
     else if (type === 'long_incorrect' || type === 'vital_abnormal') chimeType = 'danger';
     else if (type === 'standing_goal_reached') chimeType = 'success';
@@ -611,3 +632,17 @@ export function playFaceVerifiedAlert(options?: { playChime?: boolean; playVoice
   });
 }
 
+/**
+ * 14. MAX30102: Nhắc nhở định kỳ đặt tay đo nhịp tim và nồng độ oxy SpO2
+ */
+export function playBiometricReminderAlert(options?: {
+  playChime?: boolean;
+  playVoice?: boolean;
+  customMessage?: string;
+}) {
+  playErgonomicVoiceAlert('biometric_reminder', {
+    playChime: options?.playChime !== false,
+    playVoice: options?.playVoice !== false,
+    customMessage: options?.customMessage,
+  });
+}

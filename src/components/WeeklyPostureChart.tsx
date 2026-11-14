@@ -226,9 +226,9 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
+    <div className="glass-panel rounded-2xl border border-white/60 shadow-lg p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
       {/* Top Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200/60 mb-5">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0">
@@ -237,7 +237,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
             <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
               Biểu Đồ Thời Gian Ngồi, Đứng & Sai Tư Thế Theo Tuần
             </h2>
-            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
               Sit-Stand Telemetry
             </span>
           </div>
@@ -254,7 +254,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
               <select
                 value={selectedUserFilter}
                 onChange={e => setSelectedUserFilter(e.target.value)}
-                className="h-9 pl-3 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                className="h-9 pl-3 pr-8 rounded-xl glass-subcard text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
               >
                 <option value="all">Toàn bộ nhân viên ({allUsers.length})</option>
                 {allUsers.map(u => (
@@ -267,11 +267,11 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
           )}
 
           {/* Week navigation buttons */}
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-0.5">
+          <div className="flex items-center glass-subcard rounded-xl p-0.5">
             <button
               onClick={() => setWeekOffset(prev => prev - 1)}
               title="Tuần trước"
-              className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -309,11 +309,11 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
           </span>
         </div>
 
-        {/* 2. Standing Hours (New Posture State!) */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
+        {/* 2. Standing Hours (Indigo Semantic) */}
+        <div className="p-3.5 sm:p-4 rounded-xl bg-indigo-50/60 border border-indigo-200 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
             <span>Thời Gian Đứng (Làm việc)</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
@@ -321,7 +321,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
             </span>
             <span className="text-xs font-semibold text-slate-600">tiếng</span>
           </div>
-          <span className="text-[11px] text-emerald-700 mt-1">
+          <span className="text-[11px] text-indigo-700 mt-1">
             Tư thế đứng xả áp lực cột sống
           </span>
         </div>
@@ -343,33 +343,33 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
           </span>
         </div>
 
-        {/* 4. Ergonomic Score */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-indigo-50/60 border border-indigo-200 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
+        {/* 4. Ergonomic Score (Emerald Semantic) */}
+        <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
             <span>Chỉ Số Công Thái Học</span>
-            <Activity className="w-3.5 h-3.5 text-indigo-600" />
+            <Activity className="w-3.5 h-3.5 text-emerald-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-indigo-900 tracking-tight">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-900 tracking-tight">
               {weeklySummary.ergonomicScore}%
             </span>
             <span className="text-xs font-semibold text-slate-600">điểm</span>
           </div>
-          <span className="text-[11px] text-indigo-700 mt-1">
+          <span className="text-[11px] text-emerald-700 mt-1">
             {weeklySummary.ergonomicScore >= 80 ? '✓ Đạt chuẩn an toàn y tế' : '⚠ Cần tăng cường đứng & thẳng lưng'}
           </span>
         </div>
       </div>
 
       {/* Chart Legend */}
-      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 mb-4 border-b border-slate-100 text-xs">
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 mb-4 border-b border-slate-200/60 text-xs">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-sm bg-sky-500 shadow-2xs"></span>
             <span className="font-semibold text-slate-700">Thời gian Ngồi</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-emerald-500 shadow-2xs"></span>
+            <span className="w-3 h-3 rounded-sm bg-indigo-500 shadow-2xs"></span>
             <span className="font-semibold text-slate-700">Thời gian Đứng</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -424,11 +424,11 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
                     </div>
                   </div>
 
-                  {/* Bar 2: Standing (Emerald) */}
+                  {/* Bar 2: Standing (Indigo) */}
                   <div className="flex-1 flex flex-col items-center justify-end h-full">
                     <div 
                       style={{ height: `${standingHeightPercent}%` }}
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 rounded-t-md transition-all shadow-xs relative group/bar"
+                      className="w-full bg-indigo-500 hover:bg-indigo-600 rounded-t-md transition-all shadow-xs relative group/bar"
                     >
                       {day.standingMinutes > 0 && (
                         <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1 rounded shadow pointer-events-none whitespace-nowrap z-20">
@@ -470,7 +470,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
 
       {/* Floating or pinned detail bar on hover / click */}
       {hoveredDay && (
-        <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
+        <div className="mt-3 p-3 rounded-xl glass-subcard text-xs flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-sky-600" />
             <span className="font-bold text-slate-900">
@@ -480,7 +480,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
 
           <div className="flex items-center gap-4 flex-wrap text-slate-700">
             <span>Ngồi: <b className="text-sky-700 font-mono">{formatMinsToHours(hoveredDay.sittingMinutes)}</b></span>
-            <span>Đứng: <b className="text-emerald-700 font-mono">{formatMinsToHours(hoveredDay.standingMinutes)}</b></span>
+            <span>Đứng: <b className="text-indigo-700 font-mono">{formatMinsToHours(hoveredDay.standingMinutes)}</b></span>
             <span>Sai tư thế: <b className="text-rose-700 font-mono">{formatMinsToHours(hoveredDay.badPostureMinutes)}</b></span>
             {hoveredDay.avgBpm > 0 && (
               <span>Nhịp tim TB: <b className="font-mono text-slate-900">{hoveredDay.avgBpm} bpm</b></span>
@@ -494,7 +494,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
       )}
 
       {/* Ergonomic Guideline Footer */}
-      <div className="mt-4 pt-3 border-t border-slate-100 flex items-start gap-2.5 text-xs text-slate-500">
+      <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-start gap-2.5 text-xs text-slate-500">
         <Info className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
           <b>Lời khuyên công thái học (Ergonomics Guideline):</b> Chu kỳ làm việc tối ưu là <b>45 phút ngồi + 15 phút đứng làm việc</b>. Đứng làm việc giúp kích thích tuần hoàn máu và giảm 60% nguy cơ thoái hóa đốt sống cổ L1-L5. Hãy xen kẽ nâng bàn đứng khi làm việc buổi chiều!

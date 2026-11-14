@@ -98,7 +98,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           {/* Mobile hamburger button */}
           <button
             onClick={onOpenMobileMenu}
-            className="lg:hidden w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95"
+            className="lg:hidden w-10 h-10 rounded-xl glass-subcard glass-subcard-interactive border text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95"
             aria-label="Mở menu thanh điều hướng"
             title="Mở menu"
           >
@@ -117,7 +117,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-700 font-semibold truncate hidden sm:block">
+            <p className="text-xs text-slate-500 font-medium truncate hidden sm:block">
               {currentTabInfo.subtitle}
             </p>
           </div>
@@ -126,7 +126,7 @@ export const TopNav: React.FC<TopNavProps> = ({
         {/* Right: Quick Telemetry Status + Tools & User */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Real-time Status Badge */}
-          <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100/80 border border-slate-200/80 text-xs text-slate-600">
+          <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl glass-subcard border text-xs text-slate-600">
             {isConnected ? (
               <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
                 <span className="relative flex h-2 w-2">
@@ -179,7 +179,7 @@ export const TopNav: React.FC<TopNavProps> = ({
             <button
               onClick={onOpenWallpaper}
               title="Đổi hình nền không gian (Glassmorphism)"
-              className="w-9 h-9 rounded-xl bg-white/70 hover:bg-white border border-slate-200 text-teal-700 hover:text-teal-800 flex items-center justify-center transition cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+              className="w-9 h-9 rounded-xl glass-subcard glass-subcard-interactive border text-sky-700 hover:text-sky-800 flex items-center justify-center transition cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
             >
               <ImageIcon className="w-4 h-4" />
             </button>
@@ -189,7 +189,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             onClick={onOpenTasks}
             title="Xem thông báo nhiệm vụ"
-            className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+            className="relative w-9 h-9 rounded-xl glass-subcard glass-subcard-interactive border text-slate-700 flex items-center justify-center transition cursor-pointer"
           >
             <Bell className="w-4 h-4" />
             {pendingTasksCount > 0 && (
@@ -211,7 +211,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           )}
 
           {/* Divider */}
-          <div className="h-6 w-px bg-slate-200 hidden sm:block mx-0.5" />
+          <div className="h-6 w-px bg-slate-200/80 hidden sm:block mx-0.5" />
 
           {/* User Profile Quick Access */}
           <button
@@ -219,7 +219,7 @@ export const TopNav: React.FC<TopNavProps> = ({
             className="flex items-center gap-2 p-1 sm:pr-2.5 rounded-xl hover:bg-slate-100 transition cursor-pointer text-left"
             title="Hồ sơ tài khoản"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs overflow-hidden shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-teal-600 text-white flex items-center justify-center font-bold text-xs shadow-xs overflow-hidden shrink-0">
               {currentUser.avatar ? (
                 <img
                   src={currentUser.avatar}

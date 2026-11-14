@@ -90,9 +90,9 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = React.memo(({
   if (compact) {
     return (
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 flex items-center justify-between">
+        <div className="glass-subcard rounded-xl p-2.5 border flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block whitespace-nowrap">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block whitespace-nowrap">
               Nhịp tim
             </span>
             <div className="flex items-baseline gap-1 mt-0.5">
@@ -107,9 +107,9 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = React.memo(({
           </div>
         </div>
 
-        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 flex items-center justify-between">
+        <div className="glass-subcard rounded-xl p-2.5 border flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block whitespace-nowrap">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block whitespace-nowrap">
               Oxy SpO₂
             </span>
             <div className="flex items-baseline gap-1 mt-0.5">
@@ -131,9 +131,9 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = React.memo(({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <motion.div 
           whileHover={{ y: -2 }}
-          className="p-3 bg-slate-50 rounded-xl border border-slate-200"
+          className="p-3 glass-subcard rounded-xl border"
         >
-          <span className="text-[10px] font-bold text-slate-400 uppercase block whitespace-nowrap">Nhịp tim</span>
+          <span className="text-[10px] font-bold text-slate-500 uppercase block whitespace-nowrap">Nhịp tim</span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className={`text-2xl font-extrabold font-mono ${displayBpm > 0 ? (isBpmAbnormal ? 'text-rose-600' : 'text-slate-900') : 'text-slate-400'}`}>
               {displayBpm > 0 ? displayBpm : '--'}
@@ -144,9 +144,9 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = React.memo(({
 
         <motion.div 
           whileHover={{ y: -2 }}
-          className="p-3 bg-slate-50 rounded-xl border border-slate-200"
+          className="p-3 glass-subcard rounded-xl border"
         >
-          <span className="text-[10px] font-bold text-slate-400 uppercase block whitespace-nowrap">Oxy máu</span>
+          <span className="text-[10px] font-bold text-slate-500 uppercase block whitespace-nowrap">Oxy máu</span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className={`text-2xl font-extrabold font-mono ${displaySpo2 > 0 ? (isSpo2Abnormal ? 'text-rose-600' : 'text-slate-900') : 'text-slate-400'}`}>
               {displaySpo2 > 0 ? `${displaySpo2}%` : '--'}
@@ -156,9 +156,9 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = React.memo(({
 
         <motion.div 
           whileHover={{ y: -2 }}
-          className="p-3 bg-slate-50 rounded-xl border border-slate-200"
+          className="p-3 glass-subcard rounded-xl border"
         >
-          <span className="text-[10px] font-bold text-slate-400 uppercase block whitespace-nowrap">Góc nghiêng cổ</span>
+          <span className="text-[10px] font-bold text-slate-500 uppercase block whitespace-nowrap">Góc nghiêng cổ</span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className="text-2xl font-extrabold font-mono text-slate-900">
               {angleNeck !== undefined ? `${angleNeck}°` : '155°'}
@@ -168,9 +168,9 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = React.memo(({
 
         <motion.div 
           whileHover={{ y: -2 }}
-          className="p-3 bg-slate-50 rounded-xl border border-slate-200"
+          className="p-3 glass-subcard rounded-xl border"
         >
-          <span className="text-[10px] font-bold text-slate-400 uppercase block whitespace-nowrap">Vùng quan sát</span>
+          <span className="text-[10px] font-bold text-slate-500 uppercase block whitespace-nowrap">Vùng quan sát</span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className={`text-xs font-bold ${inZone ? 'text-emerald-700' : 'text-amber-700'}`}>
               {inZone ? 'Trong vùng' : 'Ngoài vùng'}
@@ -241,7 +241,7 @@ export const AlertPanel: React.FC<AlertPanelProps> = React.memo(({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-rose-200 shadow-sm p-4 sm:p-5 space-y-3">
+    <div className="glass-panel rounded-2xl border border-white/60 ring-2 ring-rose-300/80 shadow-lg p-4 sm:p-5 space-y-3">
       <div className="flex items-center justify-between gap-3 pb-3 border-b border-rose-100">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
@@ -326,7 +326,7 @@ export const AlertPanel: React.FC<AlertPanelProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => onSelectUserAlert(alert.userId)}
-                    className="font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
+                    className="font-bold text-sky-600 hover:text-sky-800 transition cursor-pointer"
                   >
                     Kiểm tra ngay →
                   </button>
@@ -394,7 +394,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
 }) => {
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="glass-panel rounded-2xl border border-white/60 p-4 shadow-lg flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[260px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -402,7 +402,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
             placeholder="Tìm theo tên thành viên, email hoặc phòng ban..."
             value={search}
             onChange={e => onSearchChange(e.target.value)}
-            className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+            className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs glass-subcard border focus:outline-none focus:border-sky-500 transition"
           />
         </div>
 
@@ -419,8 +419,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
               onClick={() => onStatusFilterChange(tab.id as any)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === tab.id
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'glass-subcard-interactive border text-slate-600 hover:text-slate-900'
               }`}
             >
               {tab.label}
@@ -450,15 +450,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.2 }}
-                className={`bg-white rounded-2xl border transition-all duration-200 shadow-sm flex flex-col justify-between overflow-hidden ${
+                className={`glass-panel rounded-2xl border border-white/60 transition-all duration-200 shadow-lg flex flex-col justify-between overflow-hidden ${
                   hasAlert 
-                    ? 'border-rose-300 ring-2 ring-rose-100' 
+                    ? 'ring-2 ring-rose-300/90' 
                     : isOnline 
-                    ? 'border-slate-300 hover:border-indigo-300' 
-                    : 'border-slate-200/80 opacity-90'
+                    ? 'hover:ring-2 hover:ring-sky-300/80' 
+                    : 'opacity-90'
                 }`}
               >
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3">
+                <div className="p-4 border-b border-slate-200/70 bg-slate-50/50 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0 overflow-hidden shadow-2xs">
                       {user.avatar ? (
@@ -543,18 +543,18 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <span>{user.height || 170}cm / {user.weight || 65}kg</span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/70">
                     <span className="text-slate-500 font-medium flex items-center gap-1">
-                      <Radio className="w-3 h-3 text-indigo-600" />
+                      <Radio className="w-3 h-3 text-sky-600" />
                       <span>Thiết bị:</span>
                     </span>
                     <select
                       value={user.device || ''}
                       onChange={(e) => onAssignDevice && onAssignDevice(user.id, e.target.value)}
-                      className={`h-7 px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                      className={`h-7 px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500 ${
                         user.device
-                          ? 'bg-indigo-50 text-indigo-900 border-indigo-300 shadow-2xs'
-                          : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                          ? 'bg-sky-50 text-sky-900 border-sky-300 shadow-2xs'
+                          : 'glass-subcard text-slate-500 border hover:border-slate-300'
                       }`}
                       title={`Chọn gán thiết bị cho ${user.fullName}`}
                     >
@@ -584,7 +584,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     // Nếu CHƯA CÓ dữ liệu đo đạc thực tế: Hiển thị trạng thái Chưa có dữ liệu, KHÔNG tính điểm khống
                     if (!hasActualData) {
                       return (
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                        <div className="p-2.5 rounded-xl glass-subcard border flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
                               <Award className="w-4 h-4 text-slate-400" />
@@ -663,14 +663,14 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                   })()}
                 </div>
 
-                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center gap-2">
+                <div className="p-3 bg-slate-50/50 border-t border-slate-200/70 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => onSelectUserForDetail(user)}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold glass-subcard-interactive text-slate-800 border shadow-2xs transition cursor-pointer active:scale-95 whitespace-nowrap"
                     title={`Xem chi tiết sinh trắc học và lịch sử đo của ${user.fullName}`}
                   >
-                    <Eye className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <Eye className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                     <span className="truncate">Chi Tiết</span>
                   </button>
 
@@ -679,10 +679,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <button
                       type="button"
                       onClick={() => onOpenTaskModalWithUser(user)}
-                      className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer active:scale-95 whitespace-nowrap"
+                      className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition cursor-pointer active:scale-95 whitespace-nowrap"
                       title={`Giao việc cho ${user.fullName}`}
                     >
-                      <Send className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <Send className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                       <span className="truncate">Giao Việc</span>
                     </button>
                   )}
@@ -690,10 +690,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => onQueryUserHistory(user.id)}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition cursor-pointer active:scale-95 whitespace-nowrap"
                     title={`Truy vấn lịch sử của ${user.fullName}`}
                   >
-                    <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <Database className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                     <span className="truncate">Truy Vấn</span>
                   </button>
 
@@ -701,7 +701,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <button
                       type="button"
                       onClick={() => onDeleteUser(user)}
-                      className="w-8.5 h-8.5 shrink-0 rounded-lg bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200/90 hover:border-rose-200 flex items-center justify-center transition cursor-pointer active:scale-95"
+                      className="w-8.5 h-8.5 shrink-0 rounded-lg glass-subcard-interactive hover:bg-rose-50 text-slate-400 hover:text-rose-600 border hover:border-rose-200 flex items-center justify-center transition cursor-pointer active:scale-95"
                       title={`Xóa tài khoản ${user.fullName}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -715,7 +715,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
       </div>
 
       {items.length === 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 shadow-sm">
+        <div className="glass-panel rounded-2xl border border-white/60 p-12 text-center text-slate-500 shadow-lg">
           <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
           <p className="text-sm font-semibold text-slate-700">Không tìm thấy tài khoản nào phù hợp bộ lọc.</p>
           <p className="text-xs text-slate-400 mt-1">Hãy thử xóa bộ lọc tìm kiếm hoặc làm mới dữ liệu.</p>
@@ -1228,7 +1228,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm">
+      <div className="glass-panel rounded-2xl border border-white/60 p-5 sm:p-6 shadow-lg">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 shadow-xs">
@@ -1263,15 +1263,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               onClick={loadUsersData}
               disabled={isLoading}
-              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold glass-subcard-interactive text-slate-700 border transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
               <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
             </button>
 
             <button
               onClick={onOpenUserManagementModal}
-              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer active:scale-95 whitespace-nowrap"
             >
               <Users className="w-4 h-4" />
               <span>Phân Quyền & Quản Lý User</span>
@@ -1287,16 +1287,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
       </div>
 
-      <div className="flex items-center gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-200/90 overflow-x-auto">
+      <div className="flex items-center gap-2 glass-panel rounded-2xl p-1.5 shadow-lg border border-white/60 overflow-x-auto">
         <button
           onClick={() => setActiveAdminTab('live')}
           className={`flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             activeAdminTab === 'live'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 glass-subcard-interactive'
           }`}
         >
-          <Radio className={`w-4 h-4 ${activeAdminTab === 'live' ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+          <Radio className={`w-4 h-4 ${activeAdminTab === 'live' ? 'text-white animate-pulse' : 'text-slate-400'}`} />
           <span>Giám Sát Trực Tuyến & Phiên Hiện Tại</span>
         </button>
 
@@ -1309,14 +1309,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }}
           className={`flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             activeAdminTab === 'supabase_query'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 glass-subcard-interactive'
           }`}
         >
-          <Database className="w-4 h-4 text-emerald-300" />
+          <Database className={`w-4 h-4 ${activeAdminTab === 'supabase_query' ? 'text-white' : 'text-emerald-600'}`} />
           <span>Truy Vấn Lịch Sử Supabase SQL</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase whitespace-nowrap ${
-            activeAdminTab === 'supabase_query' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+            activeAdminTab === 'supabase_query' ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
           }`}>
             PostgreSQL
           </span>
@@ -1326,12 +1326,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {activeAdminTab === 'live' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="glass-panel rounded-2xl border border-white/60 shadow-sm p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                   Tổng Tài Khoản
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center">
                   <Users className="w-4 h-4" />
                 </div>
               </div>
@@ -1346,38 +1346,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </p>
             </div>
 
-            <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="glass-panel rounded-2xl border border-white/60 shadow-sm p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                   Đang Đo / Trực Tuyến
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center">
                   <Radio className="w-4 h-4 animate-pulse" />
                 </div>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700">
+                <span className="text-2xl sm:text-3xl font-extrabold font-mono text-sky-700">
                   {onlineCount}
                 </span>
                 <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">/{totalUsersCount} trực tuyến</span>
               </div>
-              <p className="text-[11px] text-emerald-700 mt-1 font-medium flex items-center gap-1 truncate">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-ping shrink-0"></span>
+              <p className="text-[11px] text-sky-700 mt-1 font-medium flex items-center gap-1 truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block animate-ping shrink-0"></span>
                 Đang nhận dữ liệu từ cảm biến / mô phỏng
               </p>
             </div>
 
-            <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="glass-panel rounded-2xl border border-white/60 shadow-sm p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                   Tư Thế Ngồi Chuẩn
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold font-mono text-sky-700">
+                <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700">
                   {onlineCount > 0 ? `${goodPostureRatio}%` : '100%'}
                 </span>
                 <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">tỷ lệ đạt</span>
@@ -1387,12 +1387,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </p>
             </div>
 
-            <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
+            <div className="glass-panel rounded-2xl border border-white/60 shadow-sm p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                   Cảnh Báo Phát Hiện
                 </span>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${alertCount > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${alertCount > 0 ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
                   <AlertTriangle className={`w-4 h-4 ${alertCount > 0 ? 'animate-bounce' : ''}`} />
                 </div>
               </div>
@@ -1442,18 +1442,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {activeAdminTab === 'supabase_query' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm space-y-5">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="glass-panel rounded-2xl border border-white/60 p-5 sm:p-6 shadow-lg space-y-5">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-200/70">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
-                  <Database className="w-5 h-5 text-emerald-600" />
+                <div className="w-11 h-11 rounded-2xl bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center shrink-0 shadow-xs">
+                  <Database className="w-5 h-5 text-sky-600" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                       Trung Tâm Truy Vấn Lịch Sử Supabase SQL
                     </h3>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-sky-50 text-sky-800 border border-sky-200 whitespace-nowrap">
                       PostgreSQL Time-Series
                     </span>
                   </div>
@@ -1468,7 +1468,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={() => handleRunSupabaseQuery()}
                   disabled={isQueryingSupabase}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isQueryingSupabase ? 'animate-spin' : ''}`} />
                   <span>{isQueryingSupabase ? 'Đang truy xuất...' : 'Truy Xuất Dữ Liệu'}</span>
@@ -1478,7 +1478,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={handleExportQueryCSV}
                   disabled={!supabaseQueryResult || supabaseQueryResult.data.length === 0}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold glass-subcard-interactive text-slate-700 border transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
                   title="Xuất dữ liệu kết quả thành file CSV"
                 >
                   <Download className="w-3.5 h-3.5 text-slate-600" />
@@ -1489,10 +1489,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={handleExportQueryPDF}
                   disabled={!supabaseQueryResult || supabaseQueryResult.data.length === 0}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold glass-subcard-interactive text-slate-700 border transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
                   title="Xuất báo cáo PDF sức khỏe"
                 >
-                  <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                  <FileText className="w-3.5 h-3.5 text-sky-600" />
                   <span>Báo Cáo PDF</span>
                 </button>
               </div>
@@ -1502,7 +1502,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="lg:col-span-7 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <Users className="w-3.5 h-3.5 text-sky-600" />
                     <span>Đối tượng thành viên:</span>
                   </label>
                   <span className="text-[11px] text-slate-500">
@@ -1520,7 +1520,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       setQueryUserScope(newScope);
                       handleRunSupabaseQuery(newScope, queryRange);
                     }}
-                    className="flex-1 h-10 px-3 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-semibold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white transition cursor-pointer"
+                    className="flex-1 h-10 px-3 rounded-xl glass-subcard border text-slate-900 font-semibold text-xs focus:outline-none focus:border-sky-500 transition cursor-pointer"
                   >
                     <option value="all">👥 Tất cả nhân viên (Toàn bộ thành viên công ty)</option>
                     {users.map(u => (
@@ -1540,8 +1540,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }}
                     className={`px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
                       queryUserScope === 'all'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        ? 'bg-sky-600 text-white shadow-2xs'
+                        : 'glass-subcard-interactive border text-slate-700'
                     }`}
                   >
                     Tất Cả ({users.length})
@@ -1556,8 +1556,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition cursor-pointer ${
                         queryUserScope === u.id
-                          ? 'bg-indigo-600 text-white font-bold shadow-2xs'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                          : 'glass-subcard-interactive border text-slate-700'
                       }`}
                     >
                       {u.fullName || u.username}
@@ -1568,11 +1568,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="lg:col-span-5 space-y-2">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                  <Calendar className="w-3.5 h-3.5 text-sky-600" />
                   <span>Khoảng thời gian:</span>
                 </label>
 
-                <div className="grid grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                <div className="grid grid-cols-4 gap-1.5 glass-subcard p-1 rounded-xl border">
                   {[
                     { id: 'day' as TimeRangeFilter, label: '24 giờ qua' },
                     { id: 'week' as TimeRangeFilter, label: '7 ngày' },
@@ -1588,7 +1588,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }}
                       className={`h-8 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center justify-center whitespace-nowrap ${
                         queryRange === t.id
-                          ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                          ? 'bg-sky-600 text-white shadow-2xs'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
@@ -1601,7 +1601,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs">
+            <div className="glass-panel rounded-2xl border border-white/60 p-3.5 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block whitespace-nowrap">Tổng bản ghi</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl font-extrabold font-mono text-slate-900">
@@ -1612,7 +1612,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-[10px] text-slate-500 mt-1">Lưu trữ trên PostgreSQL</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs">
+            <div className="glass-panel rounded-2xl border border-white/60 p-3.5 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block whitespace-nowrap">Tỷ lệ ngồi chuẩn</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl font-extrabold font-mono text-emerald-600">
@@ -1622,7 +1622,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-[10px] text-emerald-700 mt-1">Thẳng lưng, chuẩn cột sống</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs">
+            <div className="glass-panel rounded-2xl border border-white/60 p-3.5 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block whitespace-nowrap">Nhịp tim TB</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl font-extrabold font-mono text-rose-600">
@@ -1633,7 +1633,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-[10px] text-slate-500 mt-1">Cảm biến MAX30102</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs">
+            <div className="glass-panel rounded-2xl border border-white/60 p-3.5 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block whitespace-nowrap">SpO2 TB</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl font-extrabold font-mono text-sky-600">
@@ -1644,7 +1644,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-[10px] text-slate-500 mt-1">Nồng độ oxy trong máu</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs">
+            <div className="glass-panel rounded-2xl border border-white/60 p-3.5 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block whitespace-nowrap">Sai tư thế / Gù</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className={`text-2xl font-extrabold font-mono ${(supabaseQueryResult?.stats.incorrectCount ?? 0) > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
@@ -1655,7 +1655,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-[10px] text-amber-700 mt-1">Cúi gù hoặc vẹo cổ</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs">
+            <div className="glass-panel rounded-2xl border border-white/60 p-3.5 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block whitespace-nowrap">Đứng / Vận động</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl font-extrabold font-mono text-indigo-600">
@@ -1684,23 +1684,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
 
           {queryUserScope === 'all' && memberGroupStats.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm space-y-3">
+            <div className="glass-panel rounded-2xl border border-white/60 p-5 shadow-lg space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                    <BarChart3 className="w-4 h-4 text-sky-600" />
                     <span>Bảng Xếp Hạng & So Sánh Tư Thế Các Thành Viên</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Thống kê tự động từ cơ sở dữ liệu Supabase theo khoảng thời gian đã chọn
                   </p>
                 </div>
-                <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 whitespace-nowrap">
+                <span className="text-xs font-mono font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 whitespace-nowrap">
                   {memberGroupStats.length} thành viên có dữ liệu
                 </span>
               </div>
 
-              <div className="border border-slate-200/90 rounded-xl overflow-hidden overflow-x-auto">
+              <div className="glass-subcard border rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
                     <tr>
@@ -1794,7 +1794,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 setQueryUserScope(stat.userId);
                                 handleRunSupabaseQuery(stat.userId, queryRange);
                               }}
-                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer whitespace-nowrap"
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition cursor-pointer whitespace-nowrap"
                             >
                               Xem riêng
                             </button>
@@ -1808,7 +1808,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm space-y-4">
+          <div className="glass-panel rounded-2xl border border-white/60 p-5 shadow-lg space-y-4">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -1817,7 +1817,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="Lọc theo giờ, tư thế, nhịp tim hoặc tên..."
                   value={querySearch}
                   onChange={(e) => setQuerySearch(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                  className="w-full h-9 pl-9 pr-3 rounded-xl glass-subcard border text-xs focus:outline-none focus:border-sky-500 transition"
                 />
               </div>
 
@@ -1834,8 +1834,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onClick={() => setQueryStatusFilter(s.id as any)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                       queryStatusFilter === s.id
-                        ? 'bg-slate-900 text-white shadow-2xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        ? 'bg-sky-600 text-white shadow-2xs'
+                        : 'glass-subcard-interactive border text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     {s.label}
@@ -1844,7 +1844,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="border border-slate-200/90 rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
+            <div className="glass-subcard border rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] sticky top-0 z-10 border-b border-slate-200">
                   <tr>
@@ -1986,7 +1986,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onClick={() => setDetailActiveTab('metrics')}
                 className={`py-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   detailActiveTab === 'metrics'
-                    ? 'border-indigo-600 text-indigo-700 font-bold bg-white'
+                    ? 'border-sky-600 text-sky-700 font-bold bg-white'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -2000,7 +2000,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onClick={() => setDetailActiveTab('ohps')}
                 className={`py-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   detailActiveTab === 'ohps'
-                    ? 'border-indigo-600 text-indigo-700 font-bold bg-white'
+                    ? 'border-sky-600 text-sky-700 font-bold bg-white'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -2013,7 +2013,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={() => setDetailActiveTab('history')}
                   className={`py-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                     detailActiveTab === 'history'
-                      ? 'border-indigo-600 text-indigo-700 font-bold bg-white'
+                      ? 'border-sky-600 text-sky-700 font-bold bg-white'
                       : 'border-transparent hover:text-slate-900'
                   }`}
                 >
@@ -2191,7 +2191,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px] uppercase whitespace-nowrap">Thiết bị</span>
-                        <span className="font-bold text-indigo-700 font-mono">{selectedUserForDetail.device || 'Trống'}</span>
+                        <span className="font-bold text-sky-700 font-mono">{selectedUserForDetail.device || 'Trống'}</span>
                       </div>
                     </div>
                     {selectedUserForDetail.healthNotes && (
@@ -2235,7 +2235,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <button
                             type="button"
                             onClick={() => setIsDetailImageZoomed(true)}
-                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                            className="text-[11px] font-bold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer flex items-center gap-1"
                           >
                             <Eye className="w-3 h-3" />
                             <span>Phóng to ảnh chất lượng cao</span>
@@ -2262,7 +2262,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         onClick={() => setDetailHistoryFilter('all')}
                         className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
                           detailHistoryFilter === 'all'
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-sky-600 text-white'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
@@ -2408,7 +2408,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onOpenTaskModalWithUser(selectedUserForDetail);
                       setSelectedUserForDetail(null);
                     }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs cursor-pointer active:scale-95 whitespace-nowrap"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>Giao Nhiệm Vụ Cho Thành Viên</span>
@@ -2456,7 +2456,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Mã UID:</span>
-                  <span className="font-mono text-indigo-700 text-[11px] truncate max-w-[200px]">{selectedUserForDetail.id}</span>
+                  <span className="font-mono text-sky-700 text-[11px] truncate max-w-[200px]">{selectedUserForDetail.id}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Trạm gán:</span>

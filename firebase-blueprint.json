@@ -107,6 +107,29 @@
         "updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["model", "embedding", "enabled"]
+    },
+    "OfficeHealthPreferences": {
+      "title": "OfficeHealthPreferences",
+      "description": "Per-user ergonomic & biometric threshold settings synced between Web and Raspberry Pi",
+      "type": "object",
+      "properties": {
+        "hrMin": { "type": "number" },
+        "hrMax": { "type": "number" },
+        "spo2Min": { "type": "number" },
+        "biometricReminderSec": { "type": "number" },
+        "incorrectPostureSec": { "type": "number" },
+        "longIncorrectSec": { "type": "number" },
+        "longSittingSec": { "type": "number" },
+        "standingTargetSec": { "type": "number" },
+        "standingResetSec": { "type": "number" },
+        "soundEnabled": { "type": "boolean" },
+        "voiceAlertEnabled": { "type": "boolean" },
+        "outOfZoneAlertEnabled": { "type": "boolean" },
+        "browserNotificationEnabled": { "type": "boolean" },
+        "schemaVersion": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["hrMin", "hrMax", "spo2Min", "biometricReminderSec", "incorrectPostureSec", "longIncorrectSec", "longSittingSec", "standingTargetSec"]
     }
   },
   "firestore": {
@@ -147,6 +170,10 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Registered user profiles and roles"
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": { "$ref": "#/entities/OfficeHealthPreferences" },
+      "description": "Per-user Pi alert thresholds and biometric reminder configuration (office_health)"
     },
     "/notifications/{notifId}": {
       "schema": { "$ref": "#/entities/UserTaskNotification" },

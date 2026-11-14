@@ -43,11 +43,11 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
   const isStandingGoalReached = continuousStandingSeconds >= standingTargetSec;
 
   return (
-    <div className="rounded-2xl glass-panel bg-white/75 backdrop-blur-xl border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
+    <div className="rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            <Clock className="w-4 h-4 text-sky-600 shrink-0" />
             <span>Thống Kê Thời Gian Hoạt Động & Chu Kỳ Đứng Ngồi</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">Tự động đếm thời gian ngồi, đứng làm việc và cảnh báo chu kỳ Sit-Stand công thái học</p>
@@ -56,17 +56,17 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
         <button
           onClick={onResetTimers}
           title="Đặt lại các bộ đếm thời gian"
-          className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:text-slate-900 hover:bg-slate-200 border border-slate-200 transition cursor-pointer"
+          className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 glass-subcard glass-subcard-interactive border hover:text-slate-900 transition cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
           <span>Reset bộ đếm</span>
         </button>
       </div>
 
-      {/* Grid 5 cards đồng bộ chuẩn màu: Ngồi, Đứng, Vắng mặt, Sai tư thế, Ngồi liên tục */}
+      {/* Grid 5 cards đồng bộ chuẩn màu: Ngồi (Sky), Đứng (Indigo), Rời ghế (Slate), Sai tư thế (Rose), Ngồi liên tục (Amber) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4">
         {/* 1. Tổng thời gian ngồi */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+        <div className="p-3.5 sm:p-4 rounded-xl glass-subcard border flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
               <span className="flex items-center gap-1.5 font-semibold text-[11px] sm:text-xs truncate">
@@ -83,16 +83,18 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
           </div>
         </div>
 
-        {/* 2. Tổng thời gian ĐỨNG (Đồng bộ cùng màu với các thẻ khác) */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+        {/* 2. Tổng thời gian ĐỨNG (Indigo) */}
+        <div className={`p-3.5 sm:p-4 rounded-xl border flex flex-col justify-between transition ${
+          continuousStandingSeconds > 0 ? 'bg-indigo-50/70 border-indigo-200' : 'glass-subcard'
+        }`}>
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
               <span className="flex items-center gap-1.5 font-semibold text-[11px] sm:text-xs truncate">
-                <Footprints className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <Footprints className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 <span className="truncate">Thời Gian Đứng</span>
               </span>
               {continuousStandingSeconds > 0 && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-sky-100 text-sky-800 font-bold">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold">
                   ĐANG ĐỨNG
                 </span>
               )}
@@ -109,7 +111,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
         </div>
 
         {/* 3. Tổng thời gian vắng mặt (Chạy khi trạng thái là Vắng mặt) */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+        <div className="p-3.5 sm:p-4 rounded-xl glass-subcard border flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
               <span className="flex items-center gap-1.5 font-semibold text-[11px] sm:text-xs truncate">
@@ -128,7 +130,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
 
         {/* 4. Thời gian sai tư thế hiện tại */}
         <div className={`p-3.5 sm:p-4 rounded-xl border transition flex flex-col justify-between ${
-          hasData && badPostureSeconds > 0 ? 'bg-rose-50/70 border-rose-200' : 'bg-slate-50 border-slate-200'
+          hasData && badPostureSeconds > 0 ? 'bg-rose-50/70 border-rose-200' : 'glass-subcard'
         }`}>
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
@@ -161,7 +163,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
 
         {/* 5. Thời gian ngồi liên tục */}
         <div className={`p-3.5 sm:p-4 rounded-xl border transition flex flex-col justify-between col-span-2 sm:col-span-1 ${
-          continuousSittingSeconds >= thresholds.longSittingSec ? 'bg-amber-50/70 border-amber-200' : 'bg-slate-50 border-slate-200'
+          continuousSittingSeconds >= thresholds.longSittingSec ? 'bg-amber-50/70 border-amber-200' : 'glass-subcard'
         }`}>
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
@@ -198,25 +200,25 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
         continuousStandingSeconds > 0
           ? isStandingGoalReached
             ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 shadow-xs'
-            : 'glass-panel bg-white/50 border-white/40 text-slate-900'
+            : 'bg-indigo-50/70 border-indigo-200 text-slate-900'
           : continuousSittingSeconds >= thresholds.longSittingSec
           ? 'bg-amber-50/80 border-amber-300 text-amber-900 animate-pulse'
-          : 'glass-panel bg-white/50 border-white/30 text-slate-800'
+          : 'glass-subcard text-slate-800'
       }`}>
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
             continuousStandingSeconds > 0
               ? isStandingGoalReached
                 ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                : 'bg-white/80 text-slate-700 border-white/40 shadow-2xs'
+                : 'bg-indigo-100 text-indigo-700 border-indigo-200 shadow-2xs'
               : continuousSittingSeconds >= thresholds.longSittingSec
               ? 'bg-amber-100 text-amber-700 border-amber-300'
-              : 'bg-white/80 text-slate-600 border-white/40 shadow-2xs'
+              : 'glass-subcard text-slate-600 shadow-2xs'
           }`}>
             {continuousStandingSeconds > 0 ? (
-              isStandingGoalReached ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Footprints className="w-5 h-5 text-slate-700" />
+              isStandingGoalReached ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Footprints className="w-5 h-5 text-indigo-600" />
             ) : (
-              <Clock className="w-5 h-5 text-amber-600" />
+              <Clock className="w-5 h-5 text-sky-600" />
             )}
           </div>
           <div>
@@ -228,7 +230,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
                     <CheckCircle2 className="w-3.5 h-3.5 inline" /> ĐÃ ĐẠT MỤC TIÊU ĐỨNG ({Math.floor(standingTargetSec / 60)} phút)!
                   </span>
                 ) : (
-                  <span className="text-slate-900 font-extrabold">
+                  <span className="text-indigo-700 font-extrabold">
                     ĐANG ĐỨNG LÀM VIỆC ({formatMS(continuousStandingSeconds)} / {Math.floor(standingTargetSec / 60)}:00)
                   </span>
                 )
@@ -262,7 +264,7 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden border border-slate-300">
               <div 
                 className={`h-full transition-all duration-300 ${
-                  isStandingGoalReached ? 'bg-emerald-600' : 'bg-slate-800'
+                  isStandingGoalReached ? 'bg-emerald-600' : 'bg-indigo-600'
                 }`}
                 style={{ width: `${standingProgressPercent}%` }}
               ></div>

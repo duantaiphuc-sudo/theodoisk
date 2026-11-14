@@ -204,9 +204,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   onClose();
                   onOpenUserManagement();
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white text-sky-700 border border-sky-200 hover:bg-sky-50 transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Users className="w-3.5 h-3.5 text-indigo-600" />
+                <Users className="w-3.5 h-3.5 text-sky-600" />
                 <span>Quản lý tất cả tài khoản</span>
               </button>
             )}
@@ -367,14 +367,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-indigo-600" />
+                <Radio className="w-3.5 h-3.5 text-sky-600" />
                 <span>Thiết Bị Đo Ghép Cặp (DeviceId):</span>
               </span>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Ghép cặp phần cứng Raspberry Pi 4 với tài khoản của bạn để bảo mật theo quy tắc Firestore.
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white text-indigo-700 border border-slate-200 shadow-2xs shrink-0 self-start sm:self-auto">
+            <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white text-sky-700 border border-sky-200 shadow-2xs shrink-0 self-start sm:self-auto">
               {formData.deviceId || formData.device || '– Chưa được gán'}
             </span>
           </div>
