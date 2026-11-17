@@ -23,6 +23,15 @@ export interface WallpaperOption {
 
 export const WALLPAPER_PRESETS: WallpaperOption[] = [
   {
+    id: 'tactile-cream',
+    name: 'Kem Sáng Tối Giản (Tactile Clean)',
+    category: 'Mặc định',
+    url: 'tactile-cream',
+    thumbnail: '',
+    theme: 'light',
+    description: 'Nền giấy kem ấm #FDFBF7 & thẻ trắng viền đen sắc nét đồng bộ toàn web'
+  },
+  {
     id: 'office-default',
     name: 'Văn Phòng Công Nghệ',
     category: 'Mặc định',
@@ -205,23 +214,23 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl rounded-2xl bg-slate-900/90 border border-white/20 shadow-2xl backdrop-blur-xl text-white overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-3xl rounded-2xl bg-white border-2 border-slate-800 shadow-[0_6px_0_#1E293B] text-slate-900 overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-white/10 bg-white/5">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b-2 border-slate-800 bg-[#FDFBF7]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-400/30 flex items-center justify-center shrink-0">
-              <ImageIcon className="w-5 h-5 text-sky-300" />
+            <div className="w-10 h-10 rounded-xl bg-[#BAE0EC] text-slate-900 border-2 border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
+              <ImageIcon className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                Không Gian & Hình Nền Dashboard
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
-                  Glassmorphism
+              <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                Giao Diện &amp; Hình Nền Dashboard
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800">
+                  Tactile Clean
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">Chọn ảnh nền tự nhiên để tạo cảm hứng và giảm mỏi mắt khi làm việc</p>
+              <p className="text-xs text-slate-600 font-medium">Chuyển đổi chế độ Sáng / Tối hoặc chọn ảnh nền không gian làm việc</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -229,17 +238,16 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
               <button
                 type="button"
                 onClick={onResetDefaults}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white border border-white/20 text-xs font-semibold transition cursor-pointer active:scale-95"
-                title="Khôi phục toàn bộ cài đặt hình nền, độ mờ và hiệu ứng kính về ban đầu"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl tactile-btn-white text-xs font-bold cursor-pointer"
+                title="Khôi phục giao diện Tactile Clean mặc định"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-sky-300" />
-                <span className="hidden sm:inline">Trở về mặc định</span>
-                <span className="sm:hidden">Mặc định</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Mặc định</span>
               </button>
             )}
             <button
               onClick={onClose}
-              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+              className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer"
               aria-label="Đóng"
             >
               <X className="w-5 h-5" />
@@ -248,7 +256,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-white">
           
           {/* Category Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
@@ -257,10 +265,10 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition cursor-pointer border-[1.5px] ${
                   selectedCategory === cat
-                    ? 'bg-sky-600 text-white shadow-[0_0_12px_rgba(14,165,233,0.4)]'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/15 hover:text-white'
+                    ? 'bg-[#16B364] text-white border-slate-900 shadow-[0_2px_0_#0F172A]'
+                    : 'bg-[#FAF7F0] text-slate-700 border-slate-800 hover:bg-[#BAE0EC]'
                 }`}
               >
                 {cat}
@@ -272,30 +280,42 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {filteredPresets.map((preset) => {
               const isSelected = currentWallpaperUrl === preset.url;
+              const isCreamCard = preset.url === 'tactile-cream';
               return (
                 <button
                   key={preset.id}
                   type="button"
                   onClick={() => onSelectWallpaper(preset.url)}
-                  className={`group relative rounded-2xl overflow-hidden aspect-video sm:aspect-4/3 text-left transition-all border cursor-pointer ${
+                  className={`group relative rounded-2xl overflow-hidden aspect-video sm:aspect-4/3 text-left transition-all border-2 cursor-pointer ${
                     isSelected 
-                      ? 'border-sky-400 ring-2 ring-sky-400/50 shadow-lg scale-[1.02]' 
-                      : 'border-white/10 hover:border-white/30 hover:scale-[1.01]'
+                      ? 'border-[#16B364] ring-2 ring-[#16B364]/40 shadow-[0_3px_0_#16B364]' 
+                      : 'border-slate-800 shadow-[0_3px_0_#1E293B] hover:-translate-y-0.5'
                   }`}
                 >
-                  <img 
-                    src={preset.thumbnail} 
-                    alt={preset.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent p-2.5 flex flex-col justify-end">
-                    <span className="text-xs font-bold text-white line-clamp-1">{preset.name}</span>
-                    <span className="text-[10px] text-sky-300/90 line-clamp-1">{preset.category}</span>
-                  </div>
+                  {isCreamCard ? (
+                    <div className="w-full h-full bg-[#FDFBF7] flex flex-col items-center justify-center gap-1.5 p-3">
+                      <div className="w-12 h-8 rounded-lg bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center">
+                        <span className="w-5 h-2 rounded-full bg-[#16B364]" />
+                      </div>
+                      <span className="text-[11px] font-extrabold text-slate-900 text-center leading-tight">{preset.name}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <img 
+                        src={preset.thumbnail} 
+                        alt={preset.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent p-2.5 flex flex-col justify-end">
+                        <span className="text-xs font-bold text-white line-clamp-1">{preset.name}</span>
+                        <span className="text-[10px] text-[#B2F5BE] font-semibold line-clamp-1">{preset.category}</span>
+                      </div>
+                    </>
+                  )}
                   {isSelected && (
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-md">
+                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#16B364] border-[1.5px] border-slate-900 text-white flex items-center justify-center shadow-xs">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
                     </div>
                   )}
@@ -304,71 +324,65 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
             })}
           </div>
 
-          {/* Glass & Transparency Adjustments */}
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+          {/* Mode & Transparency Adjustments */}
+          <div className="p-4 rounded-2xl bg-[#FAF7F0] border-2 border-slate-800 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-sky-300" />
-                <span>Tùy Chỉnh Kính Mờ (Glassmorphism & Độ Trong Suốt)</span>
+              <span className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-[#16B364]" />
+                <span>Chế Độ Hiển Thị (Sáng / Tối &amp; Nền)</span>
               </span>
               <button
                 type="button"
                 onClick={() => {
-                  onChangeBlur(1);
-                  onChangeOpacity(35);
-                  onChangeGlassTone('dark');
-                  onChangeCardOpacity(60);
+                  onSelectWallpaper('tactile-cream');
+                  onChangeBlur(0);
+                  onChangeOpacity(40);
+                  onChangeGlassTone('light');
+                  onChangeCardOpacity(100);
                 }}
-                className="text-[11px] text-sky-300 hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-[11px] font-bold text-[#16B364] hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Mặc định</span>
+                <span>Mặc định sáng</span>
               </button>
             </div>
 
-            {/* 1. Glass Tone Selector (Lớp mờ tông đen vs tông sáng) */}
+            {/* 1. Light vs Dark Tone Selector */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-semibold text-slate-300">Lựa chọn tông mờ của các thẻ:</span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => onChangeGlassTone('dark')}
-                  className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                    glassTone === 'dark'
-                      ? 'bg-slate-950/80 border-sky-400 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
-                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Moon className="w-3.5 h-3.5 text-sky-300" />
-                  <span>Kính Mờ Tông Đen (Khuyên dùng)</span>
-                </button>
+              <span className="text-[11px] font-bold text-slate-600">Tông màu chủ đạo toàn hệ thống:</span>
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => onChangeGlassTone('light')}
-                  className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                  className={`py-2.5 px-3 rounded-xl border-2 text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer ${
                     glassTone === 'light'
-                      ? 'bg-white/80 border-sky-400 text-slate-900 shadow-md'
-                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                      ? 'bg-[#B2F5BE] border-slate-900 text-slate-900 shadow-[0_3px_0_#0F172A]'
+                      : 'bg-white border-slate-300 text-slate-700 hover:border-slate-800'
                   }`}
                 >
-                  <Sun className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Kính Mờ Tông Sáng</span>
+                  <Sun className="w-4 h-4 text-amber-600" />
+                  <span>Tactile Sáng (Khuyên dùng)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeGlassTone('dark')}
+                  className={`py-2.5 px-3 rounded-xl border-2 text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer ${
+                    glassTone === 'dark'
+                      ? 'bg-slate-900 border-slate-900 text-white shadow-[0_3px_0_#020617]'
+                      : 'bg-white border-slate-300 text-slate-700 hover:border-slate-800'
+                  }`}
+                >
+                  <Moon className="w-4 h-4 text-sky-400" />
+                  <span>Tactile Tối (Dark Mode)</span>
                 </button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              {/* Card Opacity Slider - Supports negative for high-contrast dark smoked glass */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-[11px] text-slate-300">
-                  <span>Độ mờ thẻ (Card Opacity)</span>
-                  <span className="font-mono text-sky-300 font-bold">
-                    {cardOpacity < 0 
-                      ? `${cardOpacity}% (Âm / Kính tối)` 
-                      : cardOpacity === 0 
-                      ? '0% (Trong suốt 100%)' 
-                      : `+${cardOpacity}%`}
-                  </span>
+                <div className="flex justify-between text-[11px] text-slate-700 font-semibold">
+                  <span>Độ đậm thẻ</span>
+                  <span className="font-mono text-[#16B364] font-bold">{cardOpacity}%</span>
                 </div>
                 <input
                   type="range"
@@ -377,16 +391,14 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   step="5"
                   value={cardOpacity}
                   onChange={(e) => onChangeCardOpacity(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
-                  title="Kéo sang trái (< 0%) để tạo lớp kính tối tương phản cao, = 0% để trong suốt hoàn toàn"
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#16B364]"
                 />
               </div>
 
-              {/* Blur Slider */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-[11px] text-slate-300">
-                  <span>Độ nhòe ảnh nền (Blur)</span>
-                  <span className="font-mono text-sky-300 font-bold">{blurIntensity}px</span>
+                <div className="flex justify-between text-[11px] text-slate-700 font-semibold">
+                  <span>Độ nhòe ảnh nền</span>
+                  <span className="font-mono text-[#16B364] font-bold">{blurIntensity}px</span>
                 </div>
                 <input
                   type="range"
@@ -395,15 +407,16 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   step="1"
                   value={blurIntensity}
                   onChange={(e) => onChangeBlur(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#16B364]"
                 />
               </div>
 
-              {/* Background Tint Opacity Slider */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-[11px] text-slate-300">
-                  <span>Lớp phủ nền toàn trang</span>
-                  <span className="font-mono text-sky-300 font-bold">{overlayOpacity}%</span>
+                <div className="flex justify-between text-[11px] text-slate-700 font-semibold">
+                  <span>Lớp phủ nền</span>
+                  <span className="font-mono text-[#16B364] font-bold">
+                    {overlayOpacity === 0 ? '0% (Rõ nét)' : `${overlayOpacity}%`}
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -412,7 +425,7 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   step="5"
                   value={overlayOpacity}
                   onChange={(e) => onChangeOpacity(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#16B364]"
                 />
               </div>
             </div>
@@ -420,8 +433,8 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
 
           {/* Custom Image URL Form */}
           <form onSubmit={handleApplyCustomUrl} className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Dùng hình nền riêng (Link URL ảnh Online):</span>
             </label>
             <div className="flex gap-2">
@@ -433,40 +446,40 @@ export const WallpaperModal: React.FC<WallpaperModalProps> = ({
                   setCustomError('');
                 }}
                 placeholder="https://example.com/hinh-nen-cua-ban.jpg"
-                className="flex-1 px-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 transition"
+                className="flex-1 px-3.5 py-2 rounded-xl bg-white border-2 border-slate-800 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#16B364] transition"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition cursor-pointer whitespace-nowrap shadow-xs"
+                className="px-4 py-2 rounded-xl tactile-btn-primary font-extrabold text-xs cursor-pointer whitespace-nowrap"
               >
                 Áp dụng
               </button>
             </div>
-            {customError && <p className="text-xs text-rose-400 mt-1">{customError}</p>}
+            {customError && <p className="text-xs text-rose-600 font-semibold mt-1">{customError}</p>}
           </form>
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 sm:px-6 py-3.5 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-between gap-3">
+        <div className="px-5 sm:px-6 py-3.5 border-t-2 border-slate-800 bg-[#FDFBF7] flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             {onResetDefaults && (
               <button
                 type="button"
                 onClick={onResetDefaults}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/30 text-xs font-semibold transition cursor-pointer active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl tactile-btn-secondary text-xs font-extrabold cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-sky-300" />
+                <RotateCcw className="w-3.5 h-3.5" />
                 <span>Khôi phục mặc định ban đầu</span>
               </button>
             )}
-            <span className="text-[11px] text-slate-400 hidden sm:inline">
-              Lựa chọn được lưu tự động trên trình duyệt của bạn
+            <span className="text-[11px] text-slate-600 font-medium hidden sm:inline">
+              Lựa chọn được lưu tự động trên trình duyệt
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs transition cursor-pointer"
+            className="px-5 py-2 rounded-xl tactile-btn-white font-extrabold text-xs cursor-pointer"
           >
             Đóng
           </button>

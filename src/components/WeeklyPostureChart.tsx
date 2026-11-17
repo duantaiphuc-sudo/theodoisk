@@ -226,22 +226,22 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
   };
 
   return (
-    <div className="glass-panel rounded-2xl border border-white/60 shadow-lg p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
+    <div className="glass-panel rounded-2xl p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
       {/* Top Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200/60 mb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b-2 border-slate-200 mb-5">
         <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-4 h-4 text-sky-600" />
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="w-9 h-9 rounded-xl bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
+              <BarChart3 className="w-4 h-4" />
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
               Biểu Đồ Thời Gian Ngồi, Đứng & Sai Tư Thế Theo Tuần
             </h2>
-            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800">
               Sit-Stand Telemetry
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+          <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
             Tổng hợp dữ liệu cảm biến & camera IoT theo 7 ngày. Giúp theo dõi tỷ lệ ngồi / đứng công thái học và cảnh báo nguy cơ đau mỏi cột sống.
           </p>
         </div>
@@ -254,7 +254,7 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
               <select
                 value={selectedUserFilter}
                 onChange={e => setSelectedUserFilter(e.target.value)}
-                className="h-9 pl-3 pr-8 rounded-xl glass-subcard text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                className="h-9 pl-3 pr-8 rounded-xl bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
               >
                 <option value="all">Toàn bộ nhân viên ({allUsers.length})</option>
                 {allUsers.map(u => (
@@ -267,22 +267,22 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
           )}
 
           {/* Week navigation buttons */}
-          <div className="flex items-center glass-subcard rounded-xl p-0.5">
+          <div className="flex items-center bg-[#FAF7F0] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] rounded-xl p-0.5">
             <button
               onClick={() => setWeekOffset(prev => prev - 1)}
               title="Tuần trước"
-              className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-white transition cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="px-2 text-xs font-mono font-bold text-slate-700 whitespace-nowrap">
+            <span className="px-2.5 text-xs font-mono font-bold text-slate-900 whitespace-nowrap">
               {weekRange.label}
             </span>
             <button
               onClick={() => setWeekOffset(prev => Math.min(0, prev + 1))}
               disabled={weekOffset >= 0}
               title="Tuần tiếp theo"
-              className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-white transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -293,92 +293,92 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
       {/* KPI Cards: Weekly Executive Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         {/* 1. Sitting Hours */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-sky-50/60 border border-sky-200 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-sky-800">
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#BAE0EC]/35 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
             <span>Tổng Thời Gian Ngồi</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+            <span className="w-3 h-3 rounded-full bg-sky-500 border border-slate-800"></span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight tabular-nums">
               {weeklySummary.sittingHours}
             </span>
-            <span className="text-xs font-semibold text-slate-600">tiếng</span>
+            <span className="text-xs font-semibold text-slate-700">tiếng</span>
           </div>
-          <span className="text-[11px] text-sky-700 mt-1">
+          <span className="text-[11px] text-slate-700 font-medium mt-1">
             Ngồi chuẩn: {((Number(weeklySummary.sittingHours) - Number(weeklySummary.badHours))).toFixed(1)}h
           </span>
         </div>
 
-        {/* 2. Standing Hours (Indigo Semantic) */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-indigo-50/60 border border-indigo-200 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
+        {/* 2. Standing Hours */}
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
             <span>Thời Gian Đứng (Làm việc)</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+            <span className="w-3 h-3 rounded-full bg-indigo-500 border border-slate-800"></span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight tabular-nums">
               {weeklySummary.standingHours}
             </span>
-            <span className="text-xs font-semibold text-slate-600">tiếng</span>
+            <span className="text-xs font-semibold text-slate-700">tiếng</span>
           </div>
-          <span className="text-[11px] text-indigo-700 mt-1">
+          <span className="text-[11px] text-slate-600 font-medium mt-1">
             Tư thế đứng xả áp lực cột sống
           </span>
         </div>
 
         {/* 3. Bad Posture Hours */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-rose-50/60 border border-rose-200 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-rose-800">
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#FBC2C8]/45 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
             <span>Sai Tư Thế (Cúi / Gù)</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <span className="w-3 h-3 rounded-full bg-rose-500 border border-slate-800"></span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-700 tracking-tight">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-700 tracking-tight tabular-nums">
               {weeklySummary.badHours}
             </span>
-            <span className="text-xs font-semibold text-slate-600">tiếng</span>
+            <span className="text-xs font-semibold text-slate-700">tiếng</span>
           </div>
-          <span className="text-[11px] text-rose-700 mt-1">
+          <span className="text-[11px] text-rose-800 font-medium mt-1">
             {weeklySummary.totalAlerts} lượt phát hiện cảnh báo
           </span>
         </div>
 
         {/* 4. Ergonomic Score (Emerald Semantic) */}
-        <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#B2F5BE]/45 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
             <span>Chỉ Số Công Thái Học</span>
-            <Activity className="w-3.5 h-3.5 text-emerald-600" />
+            <Activity className="w-4 h-4 text-emerald-700" />
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-900 tracking-tight">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight tabular-nums">
               {weeklySummary.ergonomicScore}%
             </span>
-            <span className="text-xs font-semibold text-slate-600">điểm</span>
+            <span className="text-xs font-semibold text-slate-700">điểm</span>
           </div>
-          <span className="text-[11px] text-emerald-700 mt-1">
+          <span className="text-[11px] text-emerald-800 font-semibold mt-1">
             {weeklySummary.ergonomicScore >= 80 ? '✓ Đạt chuẩn an toàn y tế' : '⚠ Cần tăng cường đứng & thẳng lưng'}
           </span>
         </div>
       </div>
 
       {/* Chart Legend */}
-      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 mb-4 border-b border-slate-200/60 text-xs">
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 mb-4 border-b border-slate-200 text-xs">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-sky-500 shadow-2xs"></span>
-            <span className="font-semibold text-slate-700">Thời gian Ngồi</span>
+            <span className="w-3.5 h-3.5 rounded-sm bg-sky-500 border border-slate-800"></span>
+            <span className="font-bold text-slate-800">Thời gian Ngồi</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-indigo-500 shadow-2xs"></span>
-            <span className="font-semibold text-slate-700">Thời gian Đứng</span>
+            <span className="w-3.5 h-3.5 rounded-sm bg-indigo-500 border border-slate-800"></span>
+            <span className="font-bold text-slate-800">Thời gian Đứng</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-rose-500 shadow-2xs"></span>
-            <span className="font-semibold text-slate-700">Sai tư thế (Cúi/Gù)</span>
+            <span className="w-3.5 h-3.5 rounded-sm bg-rose-500 border border-slate-800"></span>
+            <span className="font-bold text-slate-800">Sai tư thế (Cúi/Gù)</span>
           </div>
         </div>
 
-        <span className="text-[11px] text-slate-500 font-mono">
+        <span className="text-[11px] text-slate-600 font-mono">
           * Đơn vị: Phút / Giờ làm việc • Tỷ lệ chuẩn công thái học 45p ngồi : 15p đứng
         </span>
       </div>
@@ -407,17 +407,17 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
                 onMouseLeave={() => setHoveredDay(null)}
               >
                 {/* 3 Columns Grouped for this day */}
-                <div className={`w-full max-w-[72px] h-[190px] sm:h-[210px] flex items-end justify-center gap-1 sm:gap-1.5 p-1 rounded-xl transition-all ${
-                  isToday ? 'bg-sky-50/50 ring-1 ring-sky-300' : 'hover:bg-slate-50'
+                <div className={`w-full max-w-[72px] h-[190px] sm:h-[210px] flex items-end justify-center gap-1 sm:gap-1.5 p-1.5 rounded-xl transition-all border-[1.5px] ${
+                  isToday ? 'bg-[#BAE0EC]/35 border-slate-800 shadow-[0_2px_0_#1E293B]' : 'border-transparent hover:bg-[#FAF7F0] hover:border-slate-800'
                 }`}>
                   {/* Bar 1: Sitting (Sky) */}
                   <div className="flex-1 flex flex-col items-center justify-end h-full">
                     <div 
                       style={{ height: `${sittingHeightPercent}%` }}
-                      className="w-full bg-sky-500 hover:bg-sky-600 rounded-t-md transition-all shadow-xs relative group/bar"
+                      className="w-full bg-sky-500 hover:bg-sky-600 rounded-t-md border-[1.5px] border-slate-800 transition-all relative group/bar"
                     >
                       {day.sittingMinutes > 0 && (
-                        <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1 rounded shadow pointer-events-none whitespace-nowrap z-20">
+                        <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1.5 py-0.5 rounded border border-slate-700 pointer-events-none whitespace-nowrap z-20">
                           {formatMinsToHours(day.sittingMinutes)}
                         </div>
                       )}
@@ -428,10 +428,10 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
                   <div className="flex-1 flex flex-col items-center justify-end h-full">
                     <div 
                       style={{ height: `${standingHeightPercent}%` }}
-                      className="w-full bg-indigo-500 hover:bg-indigo-600 rounded-t-md transition-all shadow-xs relative group/bar"
+                      className="w-full bg-indigo-500 hover:bg-indigo-600 rounded-t-md border-[1.5px] border-slate-800 transition-all relative group/bar"
                     >
                       {day.standingMinutes > 0 && (
-                        <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1 rounded shadow pointer-events-none whitespace-nowrap z-20">
+                        <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1.5 py-0.5 rounded border border-slate-700 pointer-events-none whitespace-nowrap z-20">
                           {formatMinsToHours(day.standingMinutes)}
                         </div>
                       )}
@@ -442,10 +442,10 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
                   <div className="flex-1 flex flex-col items-center justify-end h-full">
                     <div 
                       style={{ height: `${badHeightPercent}%` }}
-                      className="w-full bg-rose-500 hover:bg-rose-600 rounded-t-md transition-all shadow-xs relative group/bar"
+                      className="w-full bg-rose-500 hover:bg-rose-600 rounded-t-md border-[1.5px] border-slate-800 transition-all relative group/bar"
                     >
                       {day.badPostureMinutes > 0 && (
-                        <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1 rounded shadow pointer-events-none whitespace-nowrap z-20">
+                        <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold bg-slate-900 text-white px-1.5 py-0.5 rounded border border-slate-700 pointer-events-none whitespace-nowrap z-20">
                           {formatMinsToHours(day.badPostureMinutes)}
                         </div>
                       )}
@@ -455,10 +455,10 @@ export const WeeklyPostureChart: React.FC<WeeklyPostureChartProps> = ({
 
                 {/* Day Labels at bottom */}
                 <div className="mt-2 text-center">
-                  <span className={`block text-xs font-bold ${isToday ? 'text-sky-700' : 'text-slate-800'}`}>
+                  <span className={`block text-xs font-extrabold ${isToday ? 'text-emerald-700' : 'text-slate-900'}`}>
                     {day.dayName}
                   </span>
-                  <span className="block text-[10px] font-mono text-slate-500">
+                  <span className="block text-[10px] font-mono font-semibold text-slate-500">
                     {day.dateStr}
                   </span>
                 </div>

@@ -36,10 +36,10 @@ import {
 } from 'lucide-react';
 import { fetchAllUsers, isUserAdmin, adminDeleteUser, adminAssignDevice } from '../services/authService';
 import { 
-  subscribeToAllUsersTelemetry, 
   subscribeToUserTelemetry,
   subscribeToUsers,
-  clearAllTelemetryDataFromFirebase 
+  clearAllTelemetryDataFromFirebase,
+  HEARTBEAT_WINDOW_MS
 } from '../services/firebase';
 import { fetchFaceTemplate } from '../services/faceService';
 import { fetchSupabaseHistory, TimeRangeFilter, deleteSingleLogFromSupabase } from '../services/supabaseService';
@@ -219,21 +219,21 @@ export const AlertPanel: React.FC<AlertPanelProps> = React.memo(({
 }) => {
   if (alerts.length === 0) {
     return (
-      <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs">
+      <div className="bg-[#B2F5BE]/50 border-2 border-slate-800 shadow-[0_3px_0_#1E293B] rounded-2xl p-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+          <div className="w-9 h-9 rounded-xl bg-[#B2F5BE] border-[1.5px] border-slate-800 text-slate-900 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-slate-900" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
               Hệ Thống Ổn Định
             </h4>
-            <p className="text-xs text-emerald-700 mt-0.5">
+            <p className="text-xs text-slate-700 mt-0.5">
               Tất cả nhân viên đang duy trì tư thế đạt chuẩn và chỉ số nhịp tim, SpO₂ an toàn.
             </p>
           </div>
         </div>
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap">
           0 Cảnh báo
         </span>
       </div>
@@ -241,23 +241,23 @@ export const AlertPanel: React.FC<AlertPanelProps> = React.memo(({
   }
 
   return (
-    <div className="glass-panel rounded-2xl border border-white/60 ring-2 ring-rose-300/80 shadow-lg p-4 sm:p-5 space-y-3">
-      <div className="flex items-center justify-between gap-3 pb-3 border-b border-rose-100">
+    <div className="glass-panel rounded-2xl p-4 sm:p-5 space-y-3">
+      <div className="flex items-center justify-between gap-3 pb-3 border-b-2 border-slate-800/15">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-            <BellRing className="w-4 h-4 text-rose-600 animate-bounce" />
+          <div className="w-8 h-8 rounded-xl bg-[#FBC2C8] border-[1.5px] border-slate-800 text-slate-900 flex items-center justify-center shrink-0">
+            <BellRing className="w-4 h-4 text-slate-900 animate-bounce" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <h4 className="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               Bảng Điều Khiển Cảnh Báo Sức Khỏe & Tư Thế
             </h4>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Phát hiện các tình trạng cần can thiệp hoặc nhắc nhở ngay trong phiên làm việc
             </p>
           </div>
         </div>
 
-        <span className="px-2.5 py-1 rounded-full text-xs font-extrabold font-mono bg-rose-100 text-rose-800 border border-rose-200 whitespace-nowrap">
+        <span className="px-2.5 py-1 rounded-full text-xs font-extrabold font-mono bg-[#FBC2C8] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap">
           {alerts.length} Sự cố hoạt động
         </span>
       </div>
@@ -394,15 +394,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
 }) => {
   return (
     <div className="space-y-4">
-      <div className="glass-panel rounded-2xl border border-white/60 p-4 shadow-lg flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="glass-panel rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[260px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Tìm theo tên thành viên, email hoặc phòng ban..."
             value={search}
             onChange={e => onSearchChange(e.target.value)}
-            className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs glass-subcard border focus:outline-none focus:border-sky-500 transition"
+            className="w-full h-10 pl-10 pr-3.5 rounded-xl text-xs bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 focus:outline-none transition"
           />
         </div>
 
@@ -419,8 +419,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
               onClick={() => onStatusFilterChange(tab.id as any)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === tab.id
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'glass-subcard-interactive border text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
+                  : 'tactile-btn-white text-slate-700'
               }`}
             >
               {tab.label}
@@ -450,15 +450,13 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.2 }}
-                className={`glass-panel rounded-2xl border border-white/60 transition-all duration-200 shadow-lg flex flex-col justify-between overflow-hidden ${
+                className={`glass-panel rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden ${
                   hasAlert 
-                    ? 'ring-2 ring-rose-300/90' 
-                    : isOnline 
-                    ? 'hover:ring-2 hover:ring-sky-300/80' 
-                    : 'opacity-90'
+                    ? 'ring-2 ring-rose-500' 
+                    : ''
                 }`}
               >
-                <div className="p-4 border-b border-slate-200/70 bg-slate-50/50 flex items-start justify-between gap-3">
+                <div className="p-4 border-b-2 border-slate-800/15 bg-[#FAF7F0] flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0 overflow-hidden shadow-2xs">
                       {user.avatar ? (
@@ -637,13 +635,13 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     );
 
                     return (
-                      <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/90 flex items-center justify-between">
+                      <div className="p-2.5 rounded-xl bg-[#FDE68A]/60 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                            <Award className="w-4 h-4 text-amber-700" />
+                          <div className="w-7 h-7 rounded-lg bg-[#FDE68A] border-[1.5px] border-slate-800 text-slate-900 flex items-center justify-center shrink-0">
+                            <Award className="w-4 h-4 text-slate-900" />
                           </div>
                           <div className="min-w-0">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Điểm Năng Suất (OHPS)</span>
+                            <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block truncate">Điểm Năng Suất (OHPS)</span>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-sm font-extrabold font-mono text-slate-900">{ohpsScore}/100đ</span>
                               <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${evaluation.badgeColor} whitespace-nowrap`}>
@@ -653,7 +651,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-[10px] font-semibold text-slate-500 block">Dự kiến thưởng</span>
+                          <span className="text-[10px] font-semibold text-slate-600 block">Dự kiến thưởng</span>
                           <span className="text-xs font-extrabold font-mono text-emerald-700">
                             {formatCurrencyVND(bonusCalc.totalReward)}
                           </span>
@@ -663,14 +661,14 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                   })()}
                 </div>
 
-                <div className="p-3 bg-slate-50/50 border-t border-slate-200/70 flex items-center gap-2">
+                <div className="p-3 bg-[#FAF7F0] border-t-2 border-slate-800/15 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => onSelectUserForDetail(user)}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold glass-subcard-interactive text-slate-800 border shadow-2xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold tactile-btn-white cursor-pointer whitespace-nowrap"
                     title={`Xem chi tiết sinh trắc học và lịch sử đo của ${user.fullName}`}
                   >
-                    <Eye className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                    <Eye className="w-3.5 h-3.5 text-slate-800 shrink-0" />
                     <span className="truncate">Chi Tiết</span>
                   </button>
 
@@ -679,10 +677,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <button
                       type="button"
                       onClick={() => onOpenTaskModalWithUser(user)}
-                      className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition cursor-pointer active:scale-95 whitespace-nowrap"
+                      className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold tactile-btn-secondary cursor-pointer whitespace-nowrap"
                       title={`Giao việc cho ${user.fullName}`}
                     >
-                      <Send className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <Send className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">Giao Việc</span>
                     </button>
                   )}
@@ -690,10 +688,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => onQueryUserHistory(user.id)}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8.5 px-2.5 rounded-lg text-xs font-bold bg-[#B2F5BE] hover:bg-[#9deea9] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] transition cursor-pointer active:scale-95 whitespace-nowrap"
                     title={`Truy vấn lịch sử của ${user.fullName}`}
                   >
-                    <Database className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <Database className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                     <span className="truncate">Truy Vấn</span>
                   </button>
 
@@ -701,7 +699,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = React.memo(({
                     <button
                       type="button"
                       onClick={() => onDeleteUser(user)}
-                      className="w-8.5 h-8.5 shrink-0 rounded-lg glass-subcard-interactive hover:bg-rose-50 text-slate-400 hover:text-rose-600 border hover:border-rose-200 flex items-center justify-center transition cursor-pointer active:scale-95"
+                      className="w-8.5 h-8.5 shrink-0 rounded-lg bg-[#FBC2C8] hover:bg-[#f7adb5] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center transition cursor-pointer active:scale-95"
                       title={`Xóa tài khoản ${user.fullName}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -975,20 +973,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     loadUsersData();
   }, [loadUsersData]);
 
-  // Lắng nghe thay đổi thời gian thực của danh sách người dùng (Presence, Thiết bị, v.v.)
+  // Lắng nghe thay đổi thời gian thực của danh sách người dùng & telemetry trong cùng 1 onSnapshot để giảm 50% lượt đọc Firestore
   useEffect(() => {
-    const unsub = subscribeToUsers(firebaseConfig, (liveUsers) => {
-      if (liveUsers && liveUsers.length > 0) {
-        setUsers(liveUsers);
+    const unsub = subscribeToUsers(
+      firebaseConfig,
+      (liveUsers) => {
+        if (liveUsers && liveUsers.length > 0) {
+          setUsers(liveUsers);
+        }
+      },
+      (map) => {
+        setTelemetryMap(map as any);
       }
-    });
-    return () => unsub();
-  }, [firebaseConfig]);
-
-  useEffect(() => {
-    const unsub = subscribeToAllUsersTelemetry(firebaseConfig, (map) => {
-      setTelemetryMap(map as any);
-    });
+    );
     return () => unsub();
   }, [firebaseConfig]);
 
@@ -1082,7 +1079,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const totalUsersCount = users.length;
 
   const usersWithTelemetry: EmployeeListItem[] = useMemo(() => {
-    const HEARTBEAT_TIMEOUT_MS = 60 * 1000; // 60 giây (1 phút): phát hiện offline nhanh chóng khi người dùng đóng tab / rời web
+    const HEARTBEAT_TIMEOUT_MS = HEARTBEAT_WINDOW_MS;
  
     return users.map(u => {
       const isCurrentActiveUser = currentUser && (
@@ -1228,22 +1225,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="glass-panel rounded-2xl border border-white/60 p-5 sm:p-6 shadow-lg">
+      <div className="glass-panel rounded-2xl p-5 sm:p-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 shadow-xs">
-              <Shield className="w-6 h-6 text-indigo-600" />
+            <div className="w-12 h-12 rounded-2xl bg-[#BAE0EC] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 flex items-center justify-center shrink-0">
+              <Shield className="w-6 h-6 text-slate-900" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                   Danh Mục Quản Trị Hệ Thống
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 whitespace-nowrap">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#FDE68A] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap">
                   Dành riêng cho Quản trị viên
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              <p className="text-xs sm:text-sm text-slate-600 mt-1">
                 Giám sát tập trung toàn bộ tài khoản người dùng, chỉ số sinh trắc học thời gian thực và phân quyền Firestore.
               </p>
             </div>
@@ -1254,24 +1251,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={handleWipeAllTelemetryData}
               disabled={isWiping}
               title="Xóa toàn bộ dữ liệu mẫu / mô phỏng trên Firebase Firestore và đưa về trạng thái chờ sạch sẽ"
-              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold bg-[#FBC2C8] hover:bg-[#f7adb5] text-slate-900 border-2 border-slate-800 shadow-[0_3px_0_#1E293B] transition cursor-pointer active:translate-y-0.5 disabled:opacity-50 whitespace-nowrap"
             >
-              <Trash2 className={`w-3.5 h-3.5 text-rose-600 ${isWiping ? 'animate-spin' : ''}`} />
+              <Trash2 className={`w-3.5 h-3.5 text-slate-900 ${isWiping ? 'animate-spin' : ''}`} />
               <span>{isWiping ? 'Đang xóa...' : 'Xóa Dữ Liệu Mẫu'}</span>
             </button>
 
             <button
               onClick={loadUsersData}
               disabled={isLoading}
-              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-semibold glass-subcard-interactive text-slate-700 border transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold tactile-btn-white transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoading ? 'animate-spin' : ''}`} />
               <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
             </button>
 
             <button
               onClick={onOpenUserManagementModal}
-              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold tactile-btn-primary transition cursor-pointer whitespace-nowrap"
             >
               <Users className="w-4 h-4" />
               <span>Phân Quyền & Quản Lý User</span>
@@ -1280,23 +1277,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {wipeNotice && (
-          <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 animate-fadeIn">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="mt-4 p-3 rounded-xl bg-[#B2F5BE] border-[1.5px] border-slate-800 text-slate-900 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
             <span>{wipeNotice}</span>
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-2 glass-panel rounded-2xl p-1.5 shadow-lg border border-white/60 overflow-x-auto">
+      <div className="flex items-center gap-2 glass-panel rounded-2xl p-1.5 overflow-x-auto">
         <button
           onClick={() => setActiveAdminTab('live')}
           className={`flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             activeAdminTab === 'live'
-              ? 'bg-sky-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 glass-subcard-interactive'
+              ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
+              : 'text-slate-700 hover:bg-[#FAF7F0]'
           }`}
         >
-          <Radio className={`w-4 h-4 ${activeAdminTab === 'live' ? 'text-white animate-pulse' : 'text-slate-400'}`} />
+          <Radio className={`w-4 h-4 ${activeAdminTab === 'live' ? 'text-white animate-pulse' : 'text-slate-500'}`} />
           <span>Giám Sát Trực Tuyến & Phiên Hiện Tại</span>
         </button>
 
@@ -1309,14 +1306,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }}
           className={`flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             activeAdminTab === 'supabase_query'
-              ? 'bg-sky-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 glass-subcard-interactive'
+              ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
+              : 'text-slate-700 hover:bg-[#FAF7F0]'
           }`}
         >
           <Database className={`w-4 h-4 ${activeAdminTab === 'supabase_query' ? 'text-white' : 'text-emerald-600'}`} />
           <span>Truy Vấn Lịch Sử Supabase SQL</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase whitespace-nowrap ${
-            activeAdminTab === 'supabase_query' ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+            activeAdminTab === 'supabase_query' ? 'bg-white/20 text-white' : 'bg-[#B2F5BE] text-slate-900 border border-slate-800'
           }`}>
             PostgreSQL
           </span>
@@ -1326,7 +1323,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {activeAdminTab === 'live' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="glass-panel rounded-2xl border border-white/60 shadow-sm p-4">
+            <div className="glass-panel rounded-2xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                   Tổng Tài Khoản
@@ -1442,22 +1439,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {activeAdminTab === 'supabase_query' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="glass-panel rounded-2xl border border-white/60 p-5 sm:p-6 shadow-lg space-y-5">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-200/70">
+          <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-5">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b-2 border-slate-800/15">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center shrink-0 shadow-xs">
-                  <Database className="w-5 h-5 text-sky-600" />
+                <div className="w-11 h-11 rounded-2xl bg-[#B2F5BE] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 flex items-center justify-center shrink-0">
+                  <Database className="w-5 h-5 text-slate-900" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                    <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
                       Trung Tâm Truy Vấn Lịch Sử Supabase SQL
                     </h3>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-sky-50 text-sky-800 border border-sky-200 whitespace-nowrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap">
                       PostgreSQL Time-Series
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     Truy xuất chính xác theo từng nhân viên hoặc toàn bộ công ty trong khoảng thời gian ngày, tuần, tháng với độ chuẩn xác số học 100%.
                   </p>
                 </div>
@@ -1468,7 +1465,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={() => handleRunSupabaseQuery()}
                   disabled={isQueryingSupabase}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-bold tactile-btn-primary transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isQueryingSupabase ? 'animate-spin' : ''}`} />
                   <span>{isQueryingSupabase ? 'Đang truy xuất...' : 'Truy Xuất Dữ Liệu'}</span>
@@ -1478,10 +1475,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={handleExportQueryCSV}
                   disabled={!supabaseQueryResult || supabaseQueryResult.data.length === 0}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold glass-subcard-interactive text-slate-700 border transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold tactile-btn-white transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   title="Xuất dữ liệu kết quả thành file CSV"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  <Download className="w-3.5 h-3.5 text-slate-800" />
                   <span>Xuất CSV</span>
                 </button>
 
@@ -1489,10 +1486,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={handleExportQueryPDF}
                   disabled={!supabaseQueryResult || supabaseQueryResult.data.length === 0}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold glass-subcard-interactive text-slate-700 border transition cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold tactile-btn-secondary transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   title="Xuất báo cáo PDF sức khỏe"
                 >
-                  <FileText className="w-3.5 h-3.5 text-sky-600" />
+                  <FileText className="w-3.5 h-3.5 text-slate-900" />
                   <span>Báo Cáo PDF</span>
                 </button>
               </div>
@@ -1501,11 +1498,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
               <div className="lg:col-span-7 space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-sky-600" />
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Đối tượng thành viên:</span>
                   </label>
-                  <span className="text-[11px] text-slate-500">
+                  <span className="text-[11px] text-slate-600 font-medium">
                     {queryUserScope === 'all' 
                       ? `Đang chọn: Toàn bộ công ty (${users.length} thành viên)` 
                       : `Đang chọn: ${users.find(u => u.id === queryUserScope)?.fullName || 'Thành viên cụ thể'}`}
@@ -1520,7 +1517,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       setQueryUserScope(newScope);
                       handleRunSupabaseQuery(newScope, queryRange);
                     }}
-                    className="flex-1 h-10 px-3 rounded-xl glass-subcard border text-slate-900 font-semibold text-xs focus:outline-none focus:border-sky-500 transition cursor-pointer"
+                    className="flex-1 h-10 px-3 rounded-xl bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 font-bold text-xs focus:outline-none transition cursor-pointer"
                   >
                     <option value="all">👥 Tất cả nhân viên (Toàn bộ thành viên công ty)</option>
                     {users.map(u => (
@@ -1540,8 +1537,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }}
                     className={`px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
                       queryUserScope === 'all'
-                        ? 'bg-sky-600 text-white shadow-2xs'
-                        : 'glass-subcard-interactive border text-slate-700'
+                        ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_1.5px_0_#0F172A]'
+                        : 'tactile-btn-white text-slate-700'
                     }`}
                   >
                     Tất Cả ({users.length})
@@ -1554,10 +1551,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setQueryUserScope(u.id);
                         handleRunSupabaseQuery(u.id, queryRange);
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
                         queryUserScope === u.id
-                          ? 'bg-sky-600 text-white font-bold shadow-2xs'
-                          : 'glass-subcard-interactive border text-slate-700'
+                          ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_1.5px_0_#0F172A]'
+                          : 'tactile-btn-white text-slate-700'
                       }`}
                     >
                       {u.fullName || u.username}
@@ -1567,12 +1564,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div className="lg:col-span-5 space-y-2">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Khoảng thời gian:</span>
                 </label>
 
-                <div className="grid grid-cols-4 gap-1.5 glass-subcard p-1 rounded-xl border">
+                <div className="grid grid-cols-4 gap-1.5 bg-[#FAF7F0] p-1 rounded-xl border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
                   {[
                     { id: 'day' as TimeRangeFilter, label: '24 giờ qua' },
                     { id: 'week' as TimeRangeFilter, label: '7 ngày' },
@@ -1588,8 +1585,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }}
                       className={`h-8 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center justify-center whitespace-nowrap ${
                         queryRange === t.id
-                          ? 'bg-sky-600 text-white shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-[#16B364] text-white border border-slate-900 shadow-[0_1.5px_0_#0F172A]'
+                          : 'text-slate-700 hover:text-slate-900'
                       }`}
                     >
                       {t.label}
@@ -1945,12 +1942,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedUserForDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
           <div 
-            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900"
+            className="bg-white rounded-2xl border-2 border-slate-800 shadow-[0_8px_0_#1E293B] max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b-2 border-slate-800 bg-[#FDFBF7]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-sm">
+                <div className="w-10 h-10 rounded-full bg-[#BAE0EC] overflow-hidden border-2 border-slate-800 flex items-center justify-center font-extrabold text-slate-900 text-sm">
                   {selectedUserForDetail.avatar ? (
                     <img src={selectedUserForDetail.avatar} alt={selectedUserForDetail.fullName} className="w-full h-full object-cover" />
                   ) : (
@@ -1959,14 +1956,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900 leading-tight">
+                    <h3 className="text-base font-extrabold text-slate-900 leading-tight">
                       {selectedUserForDetail.fullName}
                     </h3>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#B2F5BE] text-slate-900 border border-slate-800 whitespace-nowrap">
                       {selectedUserForDetail.department || 'Văn Phòng'}
                     </span>
                   </div>
-                  <p className="text-xs font-mono text-slate-500 mt-0.5">
+                  <p className="text-xs font-mono text-slate-600 mt-0.5">
                     {selectedUserForDetail.email}
                   </p>
                 </div>
@@ -1974,7 +1971,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <button
                 onClick={() => setSelectedUserForDetail(null)}
-                className="w-8 h-8 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
+                className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2390,11 +2387,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+            <div className="p-4 border-t-2 border-slate-800 bg-[#FDFBF7] flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setSelectedUserForDetail(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer transition whitespace-nowrap"
+                className="px-4 py-2 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer whitespace-nowrap"
               >
                 Đóng
               </button>
@@ -2408,7 +2405,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onOpenTaskModalWithUser(selectedUserForDetail);
                       setSelectedUserForDetail(null);
                     }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold tactile-btn-primary cursor-pointer whitespace-nowrap"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>Giao Nhiệm Vụ Cho Thành Viên</span>
@@ -2423,25 +2420,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Lightbox Phóng To Ảnh Khuôn Mặt Thành Viên (Dành Cho Admin) */}
       {isDetailImageZoomed && detailFaceImage && selectedUserForDetail && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-scaleUp">
-            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+          <div className="bg-white rounded-2xl border-2 border-slate-800 shadow-[0_8px_0_#1E293B] max-w-md w-full overflow-hidden animate-scaleUp">
+            <div className="px-4 py-3 bg-[#FDFBF7] border-b-2 border-slate-800 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Camera className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs sm:text-sm font-bold tracking-tight">
+                <div className="w-7 h-7 rounded-lg bg-[#BAE0EC] border-[1.5px] border-slate-800 flex items-center justify-center">
+                  <Camera className="w-4 h-4 text-slate-900" />
+                </div>
+                <h4 className="text-xs sm:text-sm font-extrabold tracking-tight">
                   Ảnh khuôn mặt: {selectedUserForDetail.fullName}
                 </h4>
               </div>
               <button
                 type="button"
                 onClick={() => setIsDetailImageZoomed(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                className="w-8 h-8 rounded-lg tactile-btn-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-4 flex flex-col items-center">
-              <div className="w-full max-h-[380px] rounded-xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center shadow-inner">
+              <div className="w-full max-h-[380px] rounded-xl overflow-hidden border-2 border-slate-800 bg-slate-950 flex items-center justify-center">
                 <img 
                   src={detailFaceImage} 
                   alt={selectedUserForDetail.fullName} 
@@ -2449,10 +2448,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              <div className="w-full mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
+              <div className="w-full mt-3 p-3 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 text-xs text-slate-700 space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Thành viên:</span>
-                  <span className="font-semibold text-slate-900">{selectedUserForDetail.fullName}</span>
+                  <span className="font-bold text-slate-900">{selectedUserForDetail.fullName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Mã UID:</span>
@@ -2460,11 +2459,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Trạm gán:</span>
-                  <span className="font-mono font-bold text-slate-800">{selectedUserForDetail.device || 'Chưa gán'}</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedUserForDetail.device || 'Chưa gán'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Mô hình:</span>
-                  <span className="font-mono text-emerald-700">YuNet Detector + SFace 128D</span>
+                  <span className="font-mono font-bold text-emerald-700">YuNet Detector + SFace 128D</span>
                 </div>
               </div>
 
@@ -2472,7 +2471,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <a
                   href={detailFaceImage}
                   download={`khuon-mat-${selectedUserForDetail.fullName}.jpg`}
-                  className="px-3.5 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-xl tactile-btn-primary font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Tải ảnh về máy</span>
@@ -2480,7 +2479,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsDetailImageZoomed(false)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-300 transition cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl tactile-btn-white font-bold text-xs transition cursor-pointer"
                 >
                   Đóng
                 </button>

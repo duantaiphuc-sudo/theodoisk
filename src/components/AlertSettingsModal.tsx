@@ -374,16 +374,16 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xl text-slate-800 max-h-[92vh] overflow-y-auto">
+      <div className="relative w-full max-w-2xl rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur-xs z-10">
+        <div className="flex items-center justify-between px-5 py-4 border-b-2 border-slate-800 bg-[#FDFBF7] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Cài Đặt Ngưỡng Cảnh Báo & Nhắc Nhở</h3>
-              <p className="text-xs text-slate-500">
+              <h3 className="text-base font-extrabold text-slate-900">Cài Đặt Ngưỡng Cảnh Báo & Nhắc Nhở</h3>
+              <p className="text-xs text-slate-600">
                 Thiết lập tiêu chuẩn sinh trắc học, nhắc đo định kỳ và chu kỳ công thái học
               </p>
             </div>
@@ -391,28 +391,28 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-10 h-10 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer shrink-0"
+            className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer shrink-0"
             aria-label="Đóng cửa sổ"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="mt-4 space-y-3.5 text-xs">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs">
           {/* Admin Multi-User Selector */}
           {isManager && userOptions.length > 0 && (
-            <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200/90 space-y-2.5">
+            <div className="p-3.5 rounded-xl bg-[#BAE0EC]/40 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center border border-sky-200 shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-white text-slate-900 flex items-center justify-center border-[1.5px] border-slate-800 shrink-0">
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-sky-900 flex items-center gap-1.5">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                       <span>Quản trị ngưỡng theo tài khoản</span>
-                      <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
                     </div>
-                    <p className="text-[11px] text-sky-700">
+                    <p className="text-[11px] text-slate-700">
                       Xem & điều chỉnh ngưỡng cá nhân hóa cho từng nhân viên trên Raspberry Pi
                     </p>
                   </div>
@@ -423,9 +423,9 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                     type="button"
                     onClick={handleApplyAdaptiveForTarget}
                     disabled={isLoadingUser}
-                    className="h-9 px-3 rounded-lg bg-white hover:bg-sky-100/80 text-sky-700 border border-sky-200 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-2xs disabled:opacity-50"
+                    className="h-9 px-3 rounded-xl tactile-btn-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
                     <span className="whitespace-nowrap">Gợi ý theo hồ sơ</span>
                   </button>
                 )}
@@ -435,7 +435,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                 <select
                   value={targetUserId}
                   onChange={e => setTargetUserId(e.target.value)}
-                  className="flex-1 h-10 px-3 rounded-xl bg-white border border-sky-200 text-slate-900 font-semibold text-xs focus:outline-none focus:border-sky-500 cursor-pointer"
+                  className="flex-1 h-10 px-3 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   {userOptions.map(u => {
                     const isSelf = u.id === currentUser?.id;
@@ -449,7 +449,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                 </select>
 
                 {selectedTargetUser && (
-                  <div className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-white border border-sky-200/80 text-[11px] font-mono text-slate-700 shrink-0">
+                  <div className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-white border-[1.5px] border-slate-800 text-[11px] font-mono font-bold text-slate-900 shrink-0">
                     <Radio
                       className={`w-3.5 h-3.5 ${
                         selectedTargetUser.deviceId || selectedTargetUser.device ? 'text-emerald-600' : 'text-slate-400'
@@ -463,14 +463,14 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
               </div>
 
               {isLoadingUser && (
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-700">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-700" />
                   <span>Đang tải ngưỡng đã lưu từ Firestore...</span>
                 </div>
               )}
 
               {adaptiveNote && (
-                <div className="p-2 rounded-lg bg-white/90 border border-sky-200 text-[11px] text-sky-900 leading-relaxed">
+                <div className="p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 text-[11px] text-slate-900 font-medium leading-relaxed">
                   {adaptiveNote}
                 </div>
               )}
@@ -478,15 +478,15 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
           )}
 
           {/* Nhóm 1: Tiêu chuẩn Sinh trắc học & Nhắc đo định kỳ (4 cột cân đối) */}
-          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2.5">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+          <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-2.5">
+            <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 border border-slate-800"></span>
               <span>1. Tiêu chuẩn sinh trắc học & nhắc đo định kỳ (MAX30102)</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-stretch">
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
-                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800">
+                <label className="block text-slate-800 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   HR min (BPM)
                 </label>
                 <input
@@ -495,14 +495,14 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   onChange={e =>
                     setLocal({ ...local, hrMin: e.target.value === '' ? ('' as any) : Number(e.target.value) })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-[#FDFBF7] border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                   placeholder="50"
                 />
-                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">Nhịp tim tối thiểu</span>
+                <span className="text-[10px] text-slate-600 mt-1.5 block whitespace-nowrap">Nhịp tim tối thiểu</span>
               </div>
 
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
-                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800">
+                <label className="block text-slate-800 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   HR max (BPM)
                 </label>
                 <input
@@ -511,14 +511,14 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   onChange={e =>
                     setLocal({ ...local, hrMax: e.target.value === '' ? ('' as any) : Number(e.target.value) })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-[#FDFBF7] border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                   placeholder="110"
                 />
-                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">Nhịp tim tối đa</span>
+                <span className="text-[10px] text-slate-600 mt-1.5 block whitespace-nowrap">Nhịp tim tối đa</span>
               </div>
 
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
-                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800">
+                <label className="block text-slate-800 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   SpO₂ min (%)
                 </label>
                 <input
@@ -527,15 +527,15 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   onChange={e =>
                     setLocal({ ...local, spo2Min: e.target.value === '' ? ('' as any) : Number(e.target.value) })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-[#FDFBF7] border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                   placeholder="94"
                 />
-                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">Oxy an toàn</span>
+                <span className="text-[10px] text-slate-600 mt-1.5 block whitespace-nowrap">Oxy an toàn</span>
               </div>
 
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-rose-50/40 border border-rose-200/90">
-                <label className="flex items-center gap-1 text-rose-800 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
-                  <Clock className="w-3 h-3 text-rose-600 shrink-0" />
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-[#FBC2C8]/40 border-[1.5px] border-slate-800">
+                <label className="flex items-center gap-1 text-slate-900 font-bold mb-1.5 text-[11px] whitespace-nowrap">
+                  <Clock className="w-3 h-3 text-rose-700 shrink-0" />
                   <span>Nhắc đo (giây)</span>
                 </label>
                 <input
@@ -547,10 +547,10 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                       biometricReminderSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
                     })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-white border border-rose-200 text-rose-950 font-mono text-xs focus:outline-none focus:border-rose-500 transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                   placeholder="1800"
                 />
-                <span className="text-[10px] text-rose-700 font-medium mt-1.5 block whitespace-nowrap">
+                <span className="text-[10px] text-rose-900 font-bold mt-1.5 block whitespace-nowrap">
                   {Number(local.biometricReminderSec ?? 0) === 0
                     ? '0 = Tắt nhắc đo'
                     : `${formatDurationHint(local.biometricReminderSec)} / lần`}
@@ -560,15 +560,15 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
           </div>
 
           {/* Nhóm 2: Cảnh báo tư thế ngồi (2 cột cân đối) */}
-          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2.5">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+          <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-2.5">
+            <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 border border-slate-800"></span>
               <span>2. Thời gian cảnh báo tư thế (Posture)</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
-                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800">
+                <label className="block text-slate-800 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   Sai tư thế (giây)
                 </label>
                 <input
@@ -580,16 +580,16 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                       incorrectPostureSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
                     })
                   }
-                  className="w-full h-9 px-3 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full h-9 px-3 rounded-lg bg-[#FDFBF7] border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                   placeholder="30"
                 />
-                <span className="text-[10px] text-slate-500 mt-1.5 block">
+                <span className="text-[10px] text-slate-600 mt-1.5 block">
                   {local.incorrectPostureSec || 0}s bắt đầu nhắc tư thế
                 </span>
               </div>
 
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-rose-50/40 border border-rose-200/90">
-                <label className="block text-rose-800 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-[#FBC2C8]/40 border-[1.5px] border-slate-800">
+                <label className="block text-slate-900 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   Sai tư thế quá lâu (giây)
                 </label>
                 <input
@@ -601,10 +601,10 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                       longIncorrectSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
                     })
                   }
-                  className="w-full h-9 px-3 rounded-lg bg-white border border-rose-200 text-rose-950 font-mono text-xs focus:outline-none focus:border-rose-500 transition"
+                  className="w-full h-9 px-3 rounded-lg bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                   placeholder="120"
                 />
-                <span className="text-[10px] text-rose-700 mt-1.5 block">
+                <span className="text-[10px] text-rose-900 font-bold mt-1.5 block">
                   {local.longIncorrectSec || 0}s báo động sai lâu (Mã 3)
                 </span>
               </div>
@@ -612,15 +612,15 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
           </div>
 
           {/* Nhóm 3: Chu kỳ làm việc Đứng - Ngồi Sit-to-Stand (3 cột thẳng hàng) */}
-          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2.5">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+          <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-2.5">
+            <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 border border-slate-800"></span>
               <span>3. Chu kỳ làm việc Đứng - Ngồi (Sit-to-Stand)</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-stretch">
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border border-slate-200/80">
-                <label className="block text-slate-700 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800">
+                <label className="block text-slate-800 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   Ngồi lâu (giây)
                 </label>
                 <input
@@ -629,16 +629,16 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   onChange={e =>
                     setLocal({ ...local, longSittingSec: e.target.value === '' ? ('' as any) : Number(e.target.value) })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-slate-50/70 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-[#FDFBF7] border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                   placeholder="3600"
                 />
-                <span className="text-[10px] text-slate-500 mt-1.5 block whitespace-nowrap">
+                <span className="text-[10px] text-slate-600 mt-1.5 block whitespace-nowrap">
                   {formatDurationHint(local.longSittingSec)} ngồi
                 </span>
               </div>
 
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-200/90">
-                <label className="block text-indigo-900 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-[#BAE0EC]/40 border-[1.5px] border-slate-800">
+                <label className="block text-slate-900 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   Mục tiêu đứng (giây)
                 </label>
                 <input
@@ -650,16 +650,16 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                       standingTargetSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
                     })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-white border border-indigo-200 text-indigo-950 font-mono text-xs focus:outline-none focus:border-indigo-500 transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                   placeholder="300"
                 />
-                <span className="text-[10px] text-indigo-700 mt-1.5 block whitespace-nowrap">
+                <span className="text-[10px] text-slate-800 font-bold mt-1.5 block whitespace-nowrap">
                   {formatDurationHint(local.standingTargetSec)} đứng
                 </span>
               </div>
 
-              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-200/90">
-                <label className="block text-indigo-900 font-semibold mb-1.5 text-[11px] whitespace-nowrap">
+              <div className="flex flex-col justify-between p-2.5 rounded-xl bg-[#BAE0EC]/40 border-[1.5px] border-slate-800">
+                <label className="block text-slate-900 font-bold mb-1.5 text-[11px] whitespace-nowrap">
                   Đứng reset ngồi (giây)
                 </label>
                 <input
@@ -671,84 +671,84 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                       standingResetSec: e.target.value === '' ? ('' as any) : Number(e.target.value),
                     })
                   }
-                  className="w-full h-9 px-2.5 rounded-lg bg-white border border-indigo-200 text-indigo-950 font-mono text-xs focus:outline-none focus:border-indigo-500 transition"
+                  className="w-full h-9 px-2.5 rounded-lg bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                   placeholder="300"
                 />
-                <span className="text-[10px] text-indigo-700 mt-1.5 block whitespace-nowrap">
+                <span className="text-[10px] text-slate-800 font-bold mt-1.5 block whitespace-nowrap">
                   {local.standingResetSec ?? 300}s để xóa ngồi
                 </span>
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+            <p className="text-[11px] text-slate-600 leading-relaxed">
               * Khi đứng ít hơn số giây reset, chu kỳ ngồi chỉ tạm dừng. Đứng đủ thời gian mới reset bộ đếm ngồi liên tục về 0.
             </p>
           </div>
 
           {/* Nhóm 4: Bật / Tắt âm thanh, giọng nói và thông báo (Lưới 2x2 cân đối) */}
-          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-3">
+          <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 cursor-pointer select-none transition">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 hover:bg-[#FDFBF7] cursor-pointer select-none transition">
                 <input
                   type="checkbox"
                   checked={local.soundEnabled}
                   onChange={e => setLocal({ ...local, soundEnabled: e.target.checked })}
-                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-amber-600 focus:ring-0 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded accent-[#16B364] cursor-pointer shrink-0"
                 />
-                <Volume2 className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="text-slate-700 font-semibold text-xs">Chuông bíp cảnh báo</span>
+                <Volume2 className="w-4 h-4 text-amber-700 shrink-0" />
+                <span className="text-slate-900 font-bold text-xs">Chuông bíp cảnh báo</span>
               </label>
 
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-sky-300 cursor-pointer select-none transition">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 hover:bg-[#FDFBF7] cursor-pointer select-none transition">
                 <input
                   type="checkbox"
                   checked={local.voiceAlertEnabled}
                   onChange={e => setLocal({ ...local, voiceAlertEnabled: e.target.checked })}
-                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-sky-600 focus:ring-0 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded accent-[#16B364] cursor-pointer shrink-0"
                 />
-                <Mic className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="text-slate-700 font-semibold text-xs">Giọng nói tiếng Việt (TTS)</span>
+                <Mic className="w-4 h-4 text-sky-700 shrink-0" />
+                <span className="text-slate-900 font-bold text-xs">Giọng nói tiếng Việt (TTS)</span>
               </label>
 
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 cursor-pointer select-none transition">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 hover:bg-[#FDFBF7] cursor-pointer select-none transition">
                 <input
                   type="checkbox"
                   checked={local.outOfZoneAlertEnabled}
                   onChange={e => setLocal({ ...local, outOfZoneAlertEnabled: e.target.checked })}
-                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded accent-[#16B364] cursor-pointer shrink-0"
                 />
-                <Radio className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span className="text-slate-700 font-semibold text-xs">Nhắc khi rời vùng camera AI</span>
+                <Radio className="w-4 h-4 text-indigo-700 shrink-0" />
+                <span className="text-slate-900 font-bold text-xs">Nhắc khi rời vùng camera AI</span>
               </label>
 
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-sky-300 cursor-pointer select-none transition">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 hover:bg-[#FDFBF7] cursor-pointer select-none transition">
                 <input
                   type="checkbox"
                   checked={local.browserNotificationEnabled}
                   onChange={e => setLocal({ ...local, browserNotificationEnabled: e.target.checked })}
-                  className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-sky-600 focus:ring-0 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded accent-[#16B364] cursor-pointer shrink-0"
                 />
-                <Bell className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="text-slate-700 font-semibold text-xs">Pop-up trình duyệt khi ẩn tab</span>
+                <Bell className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span className="text-slate-900 font-bold text-xs">Pop-up trình duyệt khi ẩn tab</span>
               </label>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
-              <p className="text-[11px] text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-300">
+              <p className="text-[11px] text-slate-600">
                 Hiển thị cửa sổ thông báo hệ điều hành ngay cả khi thu nhỏ trình duyệt.
               </p>
               {notifPermission === 'granted' ? (
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 whitespace-nowrap">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-900 bg-[#B2F5BE] px-2.5 py-1 rounded-lg border-[1.5px] border-slate-800 whitespace-nowrap">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-800" />
                     Đã cấp quyền
                   </span>
                   <button
                     type="button"
                     onClick={handleSendTestNotification}
-                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg tactile-btn-white cursor-pointer flex items-center gap-1 whitespace-nowrap"
                   >
-                    <BellRing className="w-3 h-3" />
+                    <BellRing className="w-3 h-3 text-emerald-700" />
                     <span>{testNotifSent ? '✅ Đã gửi!' : 'Thử pop-up'}</span>
                   </button>
                 </div>
@@ -756,7 +756,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                 <button
                   type="button"
                   onClick={handleRequestNotificationPermission}
-                  className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                  className="px-3 py-1.5 text-[11px] font-bold rounded-xl tactile-btn-primary cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                 >
                   <BellRing className="w-3.5 h-3.5" />
                   <span>Cho phép nhận thông báo</span>
@@ -766,19 +766,19 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
           </div>
 
           {/* Interactive Audio & Voice Test Section (Các hàng 3x2 cân đối) */}
-          <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200 space-y-3">
+          <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                <Play className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-[11px] font-extrabold text-slate-900 flex items-center gap-1.5">
+                <Play className="w-3.5 h-3.5 text-emerald-700" />
                 Kiểm tra loa & âm thanh tương tác
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">Bấm từng nút để nghe thử</span>
+              <span className="text-[10px] text-slate-600 font-semibold">Bấm từng nút để nghe thử</span>
             </div>
 
             {/* 1. Nhóm âm thanh cảm biến MAX30102 (6 nút = 3x2) */}
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-1.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#16B364] border border-slate-800"></span>
                 <span>Cảm biến MAX30102 (Nhịp tim & SpO₂)</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -786,92 +786,92 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   type="button"
                   onClick={() => handleTestVoice('finger_placed')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'finger_placed'
-                      ? 'bg-emerald-100 border-emerald-400 text-emerald-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200'
+                      ? 'bg-[#B2F5BE] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">👆 Đặt tay đo</span>
-                  <Play className="w-3 h-3 text-emerald-600 shrink-0 ml-1" />
+                  <Play className="w-3 h-3 text-emerald-700 shrink-0 ml-1" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('measuring_pulse')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'measuring_pulse'
-                      ? 'bg-rose-100 border-rose-400 text-rose-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
+                      ? 'bg-[#FBC2C8] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">💓 Đang đo</span>
-                  <Play className="w-3 h-3 text-rose-500 shrink-0 ml-1" />
+                  <Play className="w-3 h-3 text-rose-600 shrink-0 ml-1" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('measure_complete')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'measure_complete'
-                      ? 'bg-sky-100 border-sky-400 text-sky-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-200'
+                      ? 'bg-[#BAE0EC] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🎯 Đã đo xong</span>
-                  <Play className="w-3 h-3 text-sky-600 shrink-0 ml-1" />
+                  <Play className="w-3 h-3 text-sky-700 shrink-0 ml-1" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('finger_removed')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'finger_removed'
-                      ? 'bg-slate-200 border-slate-400 text-slate-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-[#FAF7F0] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🖐️ Đã bỏ tay</span>
-                  <Play className="w-3 h-3 text-slate-500 shrink-0 ml-1" />
+                  <Play className="w-3 h-3 text-slate-600 shrink-0 ml-1" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('biometric_reminder')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] ${
                     testPlaying === 'biometric_reminder'
-                      ? 'bg-amber-100 border-amber-400 text-amber-900 animate-pulse'
-                      : 'bg-amber-50/60 border-amber-200 text-amber-900 hover:bg-amber-100/80'
+                      ? 'bg-[#FDE68A] text-slate-900 animate-pulse'
+                      : 'bg-[#FDE68A]/70 hover:bg-[#FDE68A] text-slate-900'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">⏰ Nhắc đo định kỳ</span>
-                  <Play className="w-3 h-3 text-amber-600 shrink-0 ml-1" />
+                  <Play className="w-3 h-3 text-amber-800 shrink-0 ml-1" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('vital_abnormal')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'vital_abnormal'
-                      ? 'bg-rose-100 border-rose-400 text-rose-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
+                      ? 'bg-[#FBC2C8] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🚨 Chỉ số bất thường</span>
-                  <Play className="w-3 h-3 text-rose-600 shrink-0 ml-1" />
+                  <Play className="w-3 h-3 text-rose-700 shrink-0 ml-1" />
                 </button>
               </div>
             </div>
 
             {/* 2. Nhóm An ninh, Camera & Hiện diện (6 nút = 3x2) */}
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-1.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500 border border-slate-800"></span>
                 <span>An ninh, Camera & Hiện diện</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -879,92 +879,92 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   type="button"
                   onClick={() => handleTestVoice('stranger_detected')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'stranger_detected'
-                      ? 'bg-rose-100 border-rose-400 text-rose-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
+                      ? 'bg-[#FBC2C8] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🚨 Người lạ</span>
-                  <Play className="w-3 h-3 text-rose-600 shrink-0" />
+                  <Play className="w-3 h-3 text-rose-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('camera_error')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'camera_error'
-                      ? 'bg-amber-100 border-amber-400 text-amber-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-200'
+                      ? 'bg-[#FDE68A] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🔌 Lỗi Cam</span>
-                  <Play className="w-3 h-3 text-amber-600 shrink-0" />
+                  <Play className="w-3 h-3 text-amber-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('welcome_back')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'welcome_back'
-                      ? 'bg-indigo-100 border-indigo-400 text-indigo-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-900 hover:border-indigo-200'
+                      ? 'bg-[#BAE0EC] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🪑 Quay lại</span>
-                  <Play className="w-3 h-3 text-indigo-600 shrink-0" />
+                  <Play className="w-3 h-3 text-indigo-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('user_absent')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'user_absent'
-                      ? 'bg-slate-200 border-slate-400 text-slate-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-[#FAF7F0] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🚪 Vắng mặt</span>
-                  <Play className="w-3 h-3 text-slate-500 shrink-0" />
+                  <Play className="w-3 h-3 text-slate-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('face_enrolled')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'face_enrolled'
-                      ? 'bg-emerald-100 border-emerald-400 text-emerald-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200'
+                      ? 'bg-[#B2F5BE] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">📸 ĐK xong</span>
-                  <Play className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <Play className="w-3 h-3 text-emerald-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('face_verified')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'face_verified'
-                      ? 'bg-sky-100 border-sky-400 text-sky-900 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-200'
+                      ? 'bg-[#BAE0EC] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🔑 Đã xác thực</span>
-                  <Play className="w-3 h-3 text-sky-600 shrink-0" />
+                  <Play className="w-3 h-3 text-sky-700 shrink-0" />
                 </button>
               </div>
             </div>
 
             {/* 3. Nhóm nhắc nhở Công thái học (6 nút = 3x2) */}
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-900 mb-1.5 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-sky-500 border border-slate-800"></span>
                 <span>Nhắc nhở Công thái học & Tư thế</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -972,137 +972,138 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
                   type="button"
                   onClick={() => handleTestVoice('posture_correct')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'posture_correct'
-                      ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200'
+                      ? 'bg-[#B2F5BE] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">✅ Ngồi đúng</span>
-                  <Play className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <Play className="w-3 h-3 text-emerald-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('posture_incorrect')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'posture_incorrect'
-                      ? 'bg-rose-100 border-rose-400 text-rose-800 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-[#FBC2C8] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🗣️ Ngồi thẳng</span>
-                  <Play className="w-3 h-3 text-slate-400 shrink-0" />
+                  <Play className="w-3 h-3 text-slate-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('long_incorrect')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'long_incorrect'
-                      ? 'bg-rose-100 border-rose-400 text-rose-800 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-900 hover:border-rose-200'
+                      ? 'bg-[#FBC2C8] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">⚠️ Sai tư thế lâu</span>
-                  <Play className="w-3 h-3 text-rose-500 shrink-0" />
+                  <Play className="w-3 h-3 text-rose-600 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('standing_active')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'standing_active'
-                      ? 'bg-indigo-100 border-indigo-400 text-indigo-800 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-900 hover:border-indigo-200'
+                      ? 'bg-[#BAE0EC] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🧍 Đang đứng</span>
-                  <Play className="w-3 h-3 text-indigo-600 shrink-0" />
+                  <Play className="w-3 h-3 text-indigo-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('long_sitting')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'long_sitting' || testPlaying === 'sit_to_stand_prompt'
-                      ? 'bg-amber-100 border-amber-400 text-amber-800 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-[#FDE68A] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🚶 Ngồi lâu</span>
-                  <Play className="w-3 h-3 text-amber-500 shrink-0" />
+                  <Play className="w-3 h-3 text-amber-700 shrink-0" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTestVoice('standing_goal_reached')}
                   disabled={testPlaying !== null}
-                  className={`h-9 px-2.5 rounded-lg text-[11px] font-semibold border text-left transition flex items-center justify-between cursor-pointer ${
+                  className={`h-9 px-2.5 rounded-xl text-[11px] font-bold text-left transition flex items-center justify-between cursor-pointer ${
                     testPlaying === 'standing_goal_reached'
-                      ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-pulse'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-[#B2F5BE] border-2 border-slate-800 text-slate-900 animate-pulse'
+                      : 'tactile-btn-white'
                   }`}
                 >
                   <span className="truncate whitespace-nowrap">🏆 Đạt mục tiêu</span>
-                  <Play className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <Play className="w-3 h-3 text-emerald-700 shrink-0" />
                 </button>
               </div>
             </div>
           </div>
+
+          {/* Firestore Sync Status Strip */}
+          {targetUserId && (
+            <div className="p-3 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px]">
+              <div className="flex items-center gap-1.5 text-slate-800 min-w-0 font-semibold">
+                <Database className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="font-mono truncate">users/{targetUserId}/preferences/office_health</span>
+              </div>
+              {serverMeta ? (
+                serverMeta.existsOnServer && serverMeta.missingKeys.length === 0 ? (
+                  <span className="text-emerald-800 font-bold whitespace-nowrap">
+                    ✅ Đã đồng bộ{serverMeta.updatedAtIso ? ` (${new Date(serverMeta.updatedAtIso).toLocaleTimeString('vi-VN')})` : ''}
+                  </span>
+                ) : (
+                  <span className="text-amber-800 font-bold whitespace-nowrap">
+                    ⚠️ Thiếu {serverMeta.missingKeys.length} field mới trên Firestore — bấm Lưu để đồng bộ
+                  </span>
+                )
+              ) : null}
+            </div>
+          )}
+
+          {saveError && (
+            <div role="alert" className="p-3 rounded-xl bg-[#FBC2C8]/75 border-[1.5px] border-slate-800 text-xs text-slate-900 font-bold">
+              {saveError}
+            </div>
+          )}
+          {saveSuccess && (
+            <div className="p-3 rounded-xl bg-[#B2F5BE] border-[1.5px] border-slate-800 text-xs text-slate-900 font-bold">
+              {saveSuccess}
+            </div>
+          )}
         </div>
 
-        {/* Firestore Sync Status Strip */}
-        {targetUserId && (
-          <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px]">
-            <div className="flex items-center gap-1.5 text-slate-700 min-w-0">
-              <Database className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-              <span className="font-mono truncate">users/{targetUserId}/preferences/office_health</span>
-            </div>
-            {serverMeta ? (
-              serverMeta.existsOnServer && serverMeta.missingKeys.length === 0 ? (
-                <span className="text-emerald-700 font-semibold whitespace-nowrap">
-                  ✅ Đã đồng bộ{serverMeta.updatedAtIso ? ` (${new Date(serverMeta.updatedAtIso).toLocaleTimeString('vi-VN')})` : ''}
-                </span>
-              ) : (
-                <span className="text-amber-700 font-semibold whitespace-nowrap">
-                  ⚠️ Thiếu {serverMeta.missingKeys.length} field mới trên Firestore — bấm Lưu để đồng bộ
-                </span>
-              )
-            ) : null}
-          </div>
-        )}
-
-        {saveError && (
-          <div role="alert" className="mt-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold">
-            {saveError}
-          </div>
-        )}
-        {saveSuccess && (
-          <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-semibold">
-            {saveSuccess}
-          </div>
-        )}
-
-        <div className="mt-5 flex items-center justify-between pt-4 border-t border-slate-100">
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-t-2 border-slate-800 bg-[#FDFBF7] shrink-0">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-1.5 h-10 px-2.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer font-medium whitespace-nowrap"
+            className="flex items-center gap-1.5 h-10 px-3.5 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer whitespace-nowrap"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Mặc định</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="h-10 px-4 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer whitespace-nowrap"
+              className="h-10 px-4 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer whitespace-nowrap"
             >
               Hủy
             </button>
@@ -1110,7 +1111,7 @@ export const AlertSettingsModal: React.FC<AlertSettingsModalProps> = ({
               type="button"
               onClick={handleSave}
               disabled={isSaving || isLoadingUser}
-              className="h-10 px-4 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              className="h-10 px-5 rounded-xl text-xs font-extrabold tactile-btn-primary cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
               {isSaving
                 ? 'Đang đồng bộ Pi...'

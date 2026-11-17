@@ -12,6 +12,8 @@ import { getAuth } from 'firebase/auth';
 import { FirebaseConnectionConfig, HealthTelemetry } from '../types';
 import { initializeFirebaseApp, markQuotaExceeded, checkIsQuotaExceeded, getAppFirestore } from './firebase';
 
+export const TELEMETRY_STALE_THRESHOLD_SECONDS = 120;
+
 export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetry {
   const bpm = Number(raw.bpm || raw.heart_rate || raw.hr || 0);
   const spo2 = Number(raw.spo2 || raw.oxygen || raw.spO2 || 0);
@@ -138,7 +140,7 @@ export function normalizeTelemetry(raw: any, sourceName: string): HealthTelemetr
     }
   }
 
-  const isStale = packetAgeSeconds !== undefined && packetAgeSeconds > 90;
+  const isStale = packetAgeSeconds !== undefined && packetAgeSeconds > TELEMETRY_STALE_THRESHOLD_SECONDS;
 
   let image: string | undefined = undefined;
   const rawImage = raw.image || raw.image_base64 || raw.camera_frame || raw.frame || raw.image_url || raw.snapshot;
@@ -200,8 +202,8 @@ export function subscribeToFirebaseTelemetry(
   }
 
   const effectiveDoc = (targetDeviceDoc !== undefined ? targetDeviceDoc : config.documentId)?.trim();
-  if (!effectiveDoc) {
-    // Không có thiết bị được gán
+  if (!effectiveDoc || checkIsQuotaExceeded()) {
+    // Không có thiết bị được gán hoặc đã chạm hạn mức Firestore
     return () => {};
   }
 

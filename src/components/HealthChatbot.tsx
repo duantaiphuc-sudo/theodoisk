@@ -21,13 +21,17 @@ import {
   CheckCircle2,
   Sliders,
   ListPlus,
-  Wrench
+  Wrench,
+  HelpCircle,
+  ChevronUp
 } from 'lucide-react';
-import { HealthTelemetry, TelemetryLog, AuthUser, TimeCalculations, AlertThresholds } from '../types';
+import { HealthTelemetry, TelemetryLog, AuthUser, TimeCalculations, AlertThresholds, UserTaskNotification } from '../types';
 import { getAuth } from 'firebase/auth';
 import { getSavedFirebaseConfig, initializeFirebaseApp } from '../services/firebase';
 import { getSavedSupabaseConfig, fetchSupabaseHistory } from '../services/supabaseService';
 import { loadCompanyBonusPolicy, calculateEmployeeBonus, formatCurrencyVND } from '../utils/bonusPolicy';
+import { OHPSCalculationResult } from '../utils/ohpsCalculator';
+import { buildPredictiveAnalytics } from '../utils/predictiveAnalytics';
 
 export interface PendingChatbotAction {
   type: 'apply_thresholds' | 'create_task';
@@ -71,7 +75,10 @@ interface HealthChatbotProps {
   onOpenChange?: (open: boolean) => void;
   initialSelectedMemberId?: string;
   thresholds?: AlertThresholds;
-  onApplyThresholds?: (nextThresholds: AlertThresholds) => Promise<void> | void;
+  ohpsData?: OHPSCalculationResult;
+  tasks?: UserTaskNotification[];
+  userProfile?: Partial<AuthUser>;
+  onApplyThresholds?: (nextThresholds: AlertThresholds, targetUserId?: string) => Promise<void> | void;
   onCreateTask?: (task: {
     title: string;
     content: string;
@@ -80,6 +87,44 @@ interface HealthChatbotProps {
     deadline?: string;
   }) => Promise<void> | void;
 }
+
+const CAPABILITY_CATEGORIES = [
+  {
+    title: '1. Tư thế & Camera AI Vision',
+    prompt: 'Đánh giá tư thế ngồi & góc nghiêng cổ hiện tại',
+    desc: 'Phân tích góc cổ, phát hiện gù lưng và chấm ảnh chụp Camera Pi 4.'
+  },
+  {
+    title: '2. Nhịp tim (BPM) & SpO₂ MAX30102',
+    prompt: 'Nhịp tim và nồng độ SpO2 hiện tại của tôi có ổn không?',
+    desc: 'Đánh giá chỉ số sinh hiệu thời gian thực và gợi ý nhịp thở 4-7-8.'
+  },
+  {
+    title: '3. Dự báo rủi ro & Giờ vàng (WLS/Z-Score)',
+    prompt: 'Dự báo nguy cơ mỏi cổ lưng 2 giờ tới và khung giờ vàng của tôi',
+    desc: 'Dự đoán khi nào mỏi cổ/lưng, khung giờ tập trung cao & lệch chuẩn Z-Score.'
+  },
+  {
+    title: '4. Điểm OHPS & Tiền thưởng công thái học',
+    prompt: 'Tôi đang được bao nhiêu điểm OHPS và dự kiến thưởng bao nhiêu tiền?',
+    desc: 'Tính điểm OHPS, quy đổi tiền thưởng VNĐ và cách đạt mức thưởng cao hơn.'
+  },
+  {
+    title: '5. Tra cứu lịch sử đo đạc theo mốc giờ',
+    prompt: 'Thống kê các lần sai tư thế gần đây của tôi',
+    desc: 'Truy vấn log Supabase theo giờ/buổi (vd: 14h hôm nay, sáng nay).'
+  },
+  {
+    title: '6. Quản lý nhiệm vụ & Đặt lịch nhắc',
+    prompt: 'Tôi còn nhiệm vụ nào chưa xong và hãy tạo nhắc nhở đứng giãn cơ 3 phút',
+    desc: 'Kiểm tra task đang chờ và tạo thẻ nhắc nhở 1 chạm lưu lên Firebase.'
+  },
+  {
+    title: '7. Tinh chỉnh & Đồng bộ ngưỡng Pi 4',
+    prompt: 'Đề xuất và chỉnh ngưỡng ngồi lâu xuống 35 phút giúp tôi',
+    desc: 'Tạo thẻ xác nhận cập nhật ngưỡng HR/SpO₂/ngồi lâu thẳng xuống Pi 4.'
+  }
+];
 
 const THRESHOLD_LABELS: Record<string, { label: string; unit: string }> = {
   hrMin: { label: 'HR Min', unit: 'BPM' },
@@ -211,6 +256,9 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   onOpenChange,
   initialSelectedMemberId,
   thresholds,
+  ohpsData,
+  tasks = [],
+  userProfile,
   onApplyThresholds,
   onCreateTask
 }) => {
@@ -221,6 +269,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
   const [cameraNotice, setCameraNotice] = useState<string | null>(null);
   const [executingActionMsgId, setExecutingActionMsgId] = useState<string | null>(null);
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [showCapabilityGuide, setShowCapabilityGuide] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialSelectedMemberId) {
@@ -256,8 +305,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       id: 'welcome-1',
       sender: 'bot',
       text: isAdmin
-        ? `Xin chào Quản trị viên **${userName}**!\n\nTôi là **Trợ Lý AI Công Thái Học & Quản Trị Sức Khỏe** (Agent hỗ trợ truy vấn SQL, phân tích Camera AI và đề xuất đồng bộ ngưỡng Pi 4).\n\nBạn có thể hỏi tiến trình đội ngũ, đính kèm ảnh chụp Camera Pi 4, hoặc yêu cầu tạo nhiệm vụ / chỉnh ngưỡng ngay trong khung chat này.`
-        : `Xin chào **${userName}**!\n\nTôi là **Trợ Lý Sức Khỏe & Công Thái Học** của bạn. Ngoài tư vấn tư thế, nhịp tim, SpO₂ và bài tập giãn cơ, bạn có thể đính kèm ảnh Camera Pi 4 để tôi chấm tư thế hoặc yêu cầu đặt nhắc nhở / tinh chỉnh ngưỡng cảnh báo ngay tại đây.`,
+        ? `Xin chào Quản trị viên **${userName}**!\n\nTôi là **Trợ Lý AI Công Thái Học** (Gemini 4 Agent kết nối Supabase & Raspberry Pi 4).\n\nBạn có thể hỏi báo cáo từng nhân viên, dự báo rủi ro WLS/Z-Score, xem điểm OHPS/thưởng, đính kèm ảnh Camera Pi 4 hoặc yêu cầu tạo nhiệm vụ / chỉnh ngưỡng trực tiếp. Bấm **"Hỏi được gì?"** ở góc trên để xem danh sách đầy đủ.`
+        : `Xin chào **${userName}**!\n\nTôi là **Trợ Lý Sức Khỏe & Công Thái Học** của bạn. Tôi hỗ trợ đánh giá tư thế, nhịp tim/SpO₂, dự báo rủi ro 2 giờ tới, tra cứu lịch sử theo giờ, kiểm tra điểm OHPS & thưởng, tạo nhắc nhở hoặc đồng bộ ngưỡng Pi 4.\n\nBấm **"Hỏi được gì?"** ở góc trên để xem các nhóm câu hỏi mẫu.`,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       isSupabaseQueried: true
     }
@@ -333,7 +382,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           ...thresholds,
           ...action.thresholdsPatch,
         };
-        await onApplyThresholds(nextThresholds);
+        const targetUid = isAdmin && selectedMemberId !== 'all' ? selectedMemberId : undefined;
+        await onApplyThresholds(nextThresholds, targetUid);
         setMessages(prev =>
           prev.map(m =>
             m.id === msgId
@@ -428,15 +478,47 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       const selectedMember = allUsers.find(u => u.id === selectedMemberId);
       const targetMemberName = selectedMember ? selectedMember.fullName : 'all';
 
-      // Lấy chính sách thưởng công ty và mức thưởng hiện tại
+      const activeHistory = liveSupabaseLogs.length > 0 ? liveSupabaseLogs : history.slice(0, 50);
+      const effectiveThresholds: AlertThresholds = thresholds || {
+        hrMin: 55,
+        hrMax: 110,
+        spo2Min: 94,
+        incorrectPostureSec: 20,
+        longIncorrectSec: 120,
+        longSittingSec: 2700,
+        standingTargetSec: 300,
+        soundEnabled: true,
+        voiceAlertEnabled: true,
+        outOfZoneAlertEnabled: true,
+        browserNotificationEnabled: false,
+      };
+      const predictiveSummary = buildPredictiveAnalytics({
+        history: activeHistory as TelemetryLog[],
+        timeStats: {
+          sittingSeconds: timeStats?.sittingSeconds ?? sittingSeconds,
+          standingSeconds: timeStats?.standingSeconds ?? 0,
+          movingSeconds: timeStats?.movingSeconds ?? 0,
+          badPostureSeconds: timeStats?.badPostureSeconds ?? badPostureSeconds,
+          continuousSittingSeconds: timeStats?.continuousSittingSeconds ?? 0,
+          continuousStandingSeconds: timeStats?.continuousStandingSeconds ?? 0,
+        },
+        thresholds: effectiveThresholds,
+        currentUser: (selectedMember || userProfile || null) as AuthUser | null,
+        telemetry,
+        ohpsData,
+        tasks,
+      });
+
+      // Lấy chính sách thưởng công ty và mức thưởng thực tế từ ohpsData
       const currentBonusPolicy = loadCompanyBonusPolicy();
+      const resolvedOhpsScore = ohpsData?.hasActualData ? ohpsData.ohpsScore : ((telemetry as any)?.ohpsScore ?? 80);
       const currentBonusResult = calculateEmployeeBonus(
-        (telemetry as any)?.ohpsScore || 80,
+        resolvedOhpsScore,
         {
-          S_posture: (telemetry as any)?.postureScore || 85,
-          S_break: (telemetry as any)?.breakScore || 80,
-          S_vital: (telemetry as any)?.vitalScore || 85,
-          S_task: 90
+          S_posture: ohpsData?.breakdown?.S_posture ?? 85,
+          S_break: ohpsData?.breakdown?.S_break ?? 80,
+          S_vital: ohpsData?.hasVitalData ? ohpsData.breakdown.S_vital : 85,
+          S_task: ohpsData?.breakdown?.S_task ?? 90
         },
         currentBonusPolicy
       );
@@ -451,7 +533,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         body: JSON.stringify({
           query: textToSend,
           telemetry,
-          history: liveSupabaseLogs.length > 0 ? liveSupabaseLogs : history.slice(0, 40),
+          history: activeHistory.slice(0, 40),
           timeStats,
           userName,
           userId,
@@ -460,6 +542,10 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           targetMemberName,
           allUsers,
           thresholds,
+          ohpsData,
+          tasks,
+          userProfile: selectedMember || userProfile,
+          predictiveSummary,
           image: currentAttachment || undefined,
           bonusPolicy: currentBonusPolicy,
           bonusResult: currentBonusResult,
@@ -536,6 +622,9 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       q.includes('làm được việc gì') || 
       q.includes('làm được gì') || 
       q.includes('lam duoc gi') || 
+      q.includes('hỏi được gì') ||
+      q.includes('hỏi gì') ||
+      q.includes('những câu hỏi') ||
       q.includes('chức năng') || 
       q.includes('chuc nang') || 
       q.includes('khả năng') || 
@@ -544,15 +633,16 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       q.includes('giới thiệu') || 
       q.includes('hướng dẫn sử dụng')
     ) {
-      return `Tôi là Trợ lý AI Công Thái Học & Huấn Luyện Viên Hiệu Suất (OHPS Coach) của bạn.\n\n` +
-        `Các chức năng chính tôi có thể hỗ trợ bạn:\n\n` +
-        `1. Giám sát & phân tích tư thế: Nhận diện góc nghiêng cổ, phát hiện cúi gục đầu (Text Neck) hoặc gù lưng qua hệ thống camera AI, nhắc nhở điều chỉnh kịp thời.\n` +
-        `2. Theo dõi chỉ số sinh trắc học: Cập nhật nhịp tim (BPM) và nồng độ oxy trong máu (SpO2) từ cảm biến quang học MAX30102 kết nối IoT.\n` +
-        `3. Quản lý thời gian làm việc: Ghi nhận thời lượng phiên ngồi, cảnh báo ngồi sai tư thế kéo dài và nhắc nhở đứng dậy vận động định kỳ.\n` +
-        `4. Đánh giá Điểm Năng Suất Tổng Hợp (OHPS): Kết hợp giữa Sức khỏe Công thái học (HES 70%) và Tiến độ Nhiệm vụ (TS 30%) để đánh giá hiệu suất lao động toàn diện.\n` +
-        `5. Hướng dẫn bài tập giãn cơ 1-2 phút: Đưa ra các bài tập chuyên sâu tại bàn làm việc (Chin Tuck, Scapular Retraction, Seated Cat-Cow) giúp phòng tránh thoái hóa đốt sống cổ và đau mỏi thắt lưng.\n` +
-        `6. Tra cứu dữ liệu nhật ký: Tìm kiếm và đối chiếu lịch sử đo đạc theo từng mốc thời gian cụ thể được lưu trữ an toàn trên Supabase.\n\n` +
-        `Bạn cần tôi hỗ trợ kiểm tra tư thế, giải đáp chỉ số sinh trắc học hay gợi ý bài tập giãn cơ ngay lúc này?`;
+      return `Tôi là Trợ lý AI Công Thái Học & Huấn Luyện Viên Hiệu Suất (OHPS Coach).\n\n` +
+        `Các nhóm câu hỏi & thao tác tôi xử lý trực tiếp cho bạn:\n` +
+        `1. Tư thế & Camera AI: Chấm góc cổ, phát hiện gù lưng và phân tích ảnh Camera Pi 4 đính kèm.\n` +
+        `2. Nhịp tim (BPM) & SpO2 MAX30102: Đánh giá sinh hiệu tức thời và gợi ý nhịp thở điều hòa.\n` +
+        `3. Dự báo rủi ro & Giờ vàng (WLS/Z-Score): Dự báo nguy cơ cổ/lưng, khung giờ tập trung cao.\n` +
+        `4. Điểm OHPS & Tiền thưởng VNĐ: Tính điểm OHPS, ước tính mức thưởng và mẹo tăng hạng.\n` +
+        `5. Lịch sử đo đạc Supabase: Truy vấn chi tiết theo giờ/buổi (vd: 14h hôm nay, sáng nay).\n` +
+        `6. Quản lý nhiệm vụ: Kiểm tra task chưa xong và tạo thẻ nhắc nhở 1 chạm lên Firebase.\n` +
+        `7. Đồng bộ ngưỡng Pi 4: Đề xuất và ghi trực tiếp ngưỡng mới xuống thiết bị.` +
+        (isAdmin ? `\n8. Quản trị đội ngũ: So sánh tư thế, sinh hiệu và xếp hạng nhân viên.` : '');
     }
 
     // 3. Chào hỏi
@@ -618,28 +708,67 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
     // 9. Câu hỏi về chính sách thưởng & tiền thưởng công thái học của công ty
     if (q.includes('thưởng') || q.includes('tiền thưởng') || q.includes('chính sách thưởng') || q.includes('mức thưởng') || q.includes('bao nhiêu tiền')) {
       const pol = loadCompanyBonusPolicy();
+      const actualScore = ohpsData?.hasActualData ? ohpsData.ohpsScore : ((telemetry as any)?.ohpsScore ?? 80);
       const res = calculateEmployeeBonus(
-        (telemetry as any)?.ohpsScore || 80,
+        actualScore,
         {
-          S_posture: (telemetry as any)?.postureScore || 85,
-          S_break: (telemetry as any)?.breakScore || 80,
-          S_vital: (telemetry as any)?.vitalScore || 85,
-          S_task: 90
+          S_posture: ohpsData?.breakdown?.S_posture ?? 85,
+          S_break: ohpsData?.breakdown?.S_break ?? 80,
+          S_vital: ohpsData?.hasVitalData ? ohpsData.breakdown.S_vital : 85,
+          S_task: ohpsData?.breakdown?.S_task ?? 90
         },
         pol
       );
 
       const cycleStr = pol.cycle === 'daily' ? 'Hàng ngày' : pol.cycle === 'weekly' ? 'Hàng tuần' : 'Hàng tháng';
-      return `Chính Sách Thưởng Công Thái Học & Hiệu Suất (${pol.companyName || 'Công ty'}):\n\n` +
-        `- Chu kỳ xét thưởng: ${cycleStr}\n` +
-        `- Mức thưởng tối đa mỗi nhân viên: ${formatCurrencyVND(pol.maxRewardAmount)}\n` +
-        `- Điểm sàn nhận thưởng: ${pol.minScoreToReward} điểm OHPS\n\n` +
-        `Tình Trạng Thưởng Hiện Tại Của ${name || 'Bạn'}:\n` +
-        `- Điểm OHPS hiện tại: ${(telemetry as any)?.ohpsScore || 80}/100\n` +
-        `- Xếp loại: ${res.isEligible ? (res.tierAchieved?.tierName || 'Đạt chuẩn') : 'Chưa đủ điều kiện nhận thưởng'}\n` +
-        `- Mức tiền thưởng dự kiến nhận được: +${formatCurrencyVND(res.totalReward)} (${res.achievementRate}% hạn mức thưởng)\n\n` +
-        `Hướng dẫn tối ưu: ${res.tipsToReachNextTier}\n\n` +
-        `Lưu ý: Quản lý hoặc bạn có thể mở modal "Điểm Năng Suất OHPS" và nhấn "Nhập / Tùy chỉnh mức thưởng" để điều chỉnh ngân sách và cơ chế thưởng theo đặc thù của công ty.`;
+      return `Chính Sách Thưởng Công Thái Học (${pol.companyName || 'Công ty'}):\n\n` +
+        `- Chu kỳ: ${cycleStr} · Mức thưởng tối đa: ${formatCurrencyVND(pol.maxRewardAmount)} · Điểm sàn: ${pol.minScoreToReward}đ\n` +
+        `- Điểm OHPS hiện tại của ${name || 'bạn'}: ${actualScore}/100 (${res.isEligible ? (res.tierAchieved?.tierName || 'Đạt chuẩn') : 'Chưa đạt sàn'})\n` +
+        `- Tiền thưởng dự kiến: +${formatCurrencyVND(res.totalReward)} (${res.achievementRate}% hạn mức)\n\n` +
+        `Mẹo tăng thưởng: ${res.tipsToReachNextTier}`;
+    }
+
+    // 9b. Dự báo rủi ro & Z-Score
+    if (q.includes('dự báo') || q.includes('rủi ro') || q.includes('nguy cơ') || q.includes('giờ vàng') || q.includes('z-score')) {
+      const pred = buildPredictiveAnalytics({
+        history,
+        timeStats: {
+          sittingSeconds: stats?.sittingSeconds ?? sittingSeconds,
+          standingSeconds: stats?.standingSeconds ?? 0,
+          movingSeconds: stats?.movingSeconds ?? 0,
+          badPostureSeconds: stats?.badPostureSeconds ?? badPostureSeconds,
+          continuousSittingSeconds: stats?.continuousSittingSeconds ?? 0,
+          continuousStandingSeconds: stats?.continuousStandingSeconds ?? 0,
+        },
+        thresholds: thresholds || {
+          hrMin: 55, hrMax: 110, spo2Min: 94, incorrectPostureSec: 20, longIncorrectSec: 120,
+          longSittingSec: 2700, standingTargetSec: 300, soundEnabled: true, voiceAlertEnabled: true,
+          outOfZoneAlertEnabled: true, browserNotificationEnabled: false
+        },
+        currentUser: (userProfile as AuthUser) || null,
+        telemetry,
+        ohpsData,
+        tasks
+      });
+      return `Dự Báo Công Thái Học 2 Giờ Tới:\n\n` +
+        `- OHPS ca tới: ${pred.ohpsForecast.predictedScore}/100 (${pred.ohpsForecast.trendLabel}, độ tin cậy ${pred.ohpsForecast.confidencePercent}%)\n` +
+        `- Nguy cơ Cổ C5-C7: ${pred.postureFatigue.neckSpineRiskPercent}% | Thắt lưng L4-L5: ${pred.postureFatigue.lumbarRiskPercent}%\n` +
+        `- Thời gian tới ngưỡng mỏi: ~${pred.postureFatigue.predictedMinutesUntilSlouch} phút\n` +
+        `- Khung giờ vàng: ${pred.circadian.goldenHoursWindow} | Dễ uể oải: ${pred.circadian.slumpRiskWindow}\n` +
+        `- Bất thường Z-Score: ${pred.modelMetrics.zScoreAnomalyCount} sự kiện (SQI ${pred.modelMetrics.sqiScore}/100)`;
+    }
+
+    // 9c. Nhiệm vụ / Task
+    if (q.includes('nhiệm vụ') || q.includes('task') || q.includes('công việc')) {
+      const pending = tasks.filter(t => t.status !== 'completed');
+      const done = tasks.filter(t => t.status === 'completed');
+      if (tasks.length === 0) {
+        return `Hiện chưa có nhiệm vụ nào được giao. Bạn có thể nhắn: "Tạo nhắc nhở đứng giãn cơ 3 phút" để thêm task mới!`;
+      }
+      return `Tiến Độ Nhiệm Vụ (${done.length}/${tasks.length} hoàn thành):\n` +
+        (pending.length > 0
+          ? pending.slice(0, 5).map((t, i) => `${i + 1}. ${t.title} (${t.priority})`).join('\n')
+          : 'Bạn đã hoàn thành tất cả nhiệm vụ!');
     }
 
     if (q.includes('bài tập') || q.includes('giãn cơ') || q.includes('mỏi')) {
@@ -655,20 +784,22 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
       return `Hiện tại dữ liệu đo đạc của ${name || 'bạn'} ghi nhận: Nhịp tim ${bpm > 0 ? `${bpm} BPM` : 'Đang chờ cảm biến'}, SpO2 ${spo2 > 0 ? `${spo2}%` : 'Đang chờ cảm biến'}, thời gian ngồi ${sittingMins} phút. Hãy duy trì tư thế ngồi thẳng và nghỉ giải lao sau mỗi 45-60 phút làm việc nhé!`;
     }
 
-    return `Chào ${name || 'bạn'}! Tôi đã nhận câu hỏi: "${query}".\n\nTôi là Trợ lý AI chuyên về Công thái học & Theo dõi Sức khỏe. Bạn có thể hỏi tôi về tư thế ngồi, nhịp tim, nồng độ SpO2, gợi ý bài tập giãn cơ, hoặc chính sách tiền thưởng công thái học của công ty!`;
+    return `Chào ${name || 'bạn'}! Tôi đã nhận câu hỏi: "${query}".\n\nBạn có thể bấm nút "Hỏi được gì?" ở góc trên để xem 7 nhóm câu hỏi & thao tác tôi hỗ trợ (tư thế, sinh hiệu, dự báo rủi ro, điểm OHPS/thưởng, tra cứu lịch sử, tạo task và chỉnh ngưỡng Pi 4).`;
   };
 
   // Clean, professional suggestions with zero emojis
   const quickQuestions = isAdmin ? [
+    'Bạn trả lời được những câu hỏi gì?',
     'Ai đang cần cải thiện tư thế nhiều nhất?',
+    'Dự báo nguy cơ mỏi cổ lưng & bất thường Z-Score',
     'Chính sách thưởng công thái học của công ty thế nào?',
-    'Tổng hợp nhịp tim & SpO2 của các thành viên',
-    'Báo cáo tổng quan sức khỏe nhóm hôm nay'
+    'Tạo nhắc nhở đứng giãn cơ 3 phút cho đội ngũ'
   ] : [
-    'Tôi hiện được thưởng bao nhiêu tiền?',
-    'Làm thế nào để nhận tối đa tiền thưởng?',
-    'Đánh giá tư thế ngồi & góc nghiêng cổ hiện tại',
-    'Gợi ý bài tập giãn cơ cổ vai gáy 2 phút'
+    'Bạn trả lời được những câu hỏi gì?',
+    'Dự báo nguy cơ mỏi cổ lưng 2 giờ tới của tôi',
+    'Tôi đang được bao nhiêu điểm OHPS & thưởng bao nhiêu?',
+    'Tạo nhắc nhở đứng giãn cơ 3 phút lúc 15h',
+    'Đánh giá tư thế ngồi & góc nghiêng cổ hiện tại'
   ];
 
   return (
@@ -681,59 +812,72 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         />
       )}
 
-      {/* Modern Right Side Drawer Panel (Light & Dark Glass synchronized) */}
+      {/* Neo-Brutalist Tactile Right Side Drawer Panel */}
       <aside
-        className={`fixed top-0 bottom-0 right-0 z-50 w-full sm:w-[460px] md:w-[490px] glass-drawer border-l shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 right-0 z-50 w-full sm:w-[460px] md:w-[490px] glass-drawer border-l-2 border-slate-800 flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         {/* Top Header */}
-        <div className="px-5 py-4 glass-subcard border-b flex items-center justify-between shrink-0">
+        <div className="px-5 py-4 bg-[#FDFBF7] border-b-2 border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-200 shadow-xs">
-                <Bot className="w-5 h-5 text-teal-700" />
+              <div className="w-10 h-10 rounded-xl bg-[#B2F5BE] text-slate-900 flex items-center justify-center border-2 border-slate-800 shadow-[0_2px_0_#1E293B]">
+                <Bot className="w-5 h-5 text-slate-900" />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#16B364] border-2 border-slate-900"></span>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">
                   Trợ Lý AI Công Thái Học
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-teal-50 text-teal-700 border border-teal-200 tracking-wider">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 tracking-wider">
                   AI ASSISTANT
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                <Activity className="w-3 h-3 text-teal-600" />
+              <p className="text-[11px] text-slate-600 flex items-center gap-1.5 mt-0.5">
+                <Activity className="w-3 h-3 text-emerald-600" />
                 <span>Kết nối cảm biến & dữ liệu thời gian thực</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
+              type="button"
+              onClick={() => setShowCapabilityGuide(prev => !prev)}
+              title="Xem các câu hỏi Chatbot có thể trả lời"
+              className={`h-9 px-2.5 rounded-xl flex items-center gap-1 text-[11px] font-bold cursor-pointer whitespace-nowrap ${
+                showCapabilityGuide ? 'tactile-btn-secondary' : 'tactile-btn-white'
+              }`}
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Hỏi được gì?</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setMessages([
                 {
                   id: 'welcome-reset',
                   sender: 'bot',
                   text: isAdmin 
-                    ? `Đã làm mới cuộc hội thoại. Bạn có thể hỏi tôi về dữ liệu theo dõi, phân tích tư thế, nhịp tim hoặc báo cáo sức khỏe của bất kỳ thành viên nào!`
-                    : `Đã làm mới cuộc hội thoại. Hãy hỏi tôi về nhịp tim, nồng độ SpO₂ hoặc tư thế ngồi của bạn!`,
+                    ? `Đã làm mới cuộc hội thoại. Bạn có thể hỏi tôi về dữ liệu theo dõi, dự báo rủi ro, điểm OHPS/thưởng, phân tích ảnh Camera hoặc giao nhiệm vụ cho bất kỳ thành viên nào!`
+                    : `Đã làm mới cuộc hội thoại. Hãy hỏi tôi về nhịp tim, SpO₂, tư thế ngồi, dự báo rủi ro hoặc yêu cầu tạo nhắc nhở!`,
                   time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
                   isSupabaseQueried: true
                 }
               ])}
               title="Làm mới hội thoại"
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
               title="Thu gọn cửa sổ"
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer"
             >
               <PanelRightClose className="w-4 h-4" />
             </button>
@@ -741,21 +885,21 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
         </div>
 
         {/* Live Status & Telemetry Context Bar */}
-        <div className="px-4 py-2.5 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between text-xs font-mono text-slate-600 shrink-0">
+        <div className="px-4 py-2.5 bg-[#FAF7F0] border-b border-slate-800/15 flex items-center justify-between text-xs font-mono text-slate-700 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-rose-700 font-semibold">
+            <span className="flex items-center gap-1 text-rose-700 font-bold">
               <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-600" />
               <span>{telemetry?.bpm || '--'} BPM</span>
             </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-sky-700 font-semibold">
+            <span className="text-slate-400">•</span>
+            <span className="text-sky-700 font-bold">
               SpO₂: {telemetry?.spo2 ? `${telemetry.spo2}%` : '--'}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-sans font-semibold text-slate-700 truncate max-w-[190px]">
+          <div className="flex items-center gap-1.5 text-[11px] font-sans font-bold text-slate-800 truncate max-w-[190px]">
             <span className={`w-2 h-2 rounded-full ${
               telemetry?.postureStatus === 0 
-                ? 'bg-emerald-500' 
+                ? 'bg-[#16B364]' 
                 : telemetry?.postureStatus === 1 || telemetry?.postureStatus === 3 
                 ? 'bg-rose-500 animate-pulse' 
                 : 'bg-slate-400'
@@ -764,17 +908,56 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           </div>
         </div>
 
+        {/* Collapsible 7-Category Capability Guide */}
+        {showCapabilityGuide && (
+          <div className="px-4 py-3 bg-[#FDFBF7] border-b-2 border-slate-800 max-h-64 overflow-y-auto shrink-0 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>7 Nhóm Câu Hỏi &amp; Thao Tác Trợ Lý AI</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCapabilityGuide(false)}
+                className="text-[11px] font-bold text-slate-600 hover:text-slate-900 flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>Thu gọn</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5">
+              {CAPABILITY_CATEGORIES.map((cat, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setShowCapabilityGuide(false);
+                    handleSendMessage(cat.prompt);
+                  }}
+                  className="text-left p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 hover:bg-[#B2F5BE]/30 transition cursor-pointer flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 truncate">{cat.title}</div>
+                    <div className="text-[11px] text-slate-600 leading-snug">{cat.desc}</div>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Admin Member Filter Bar */}
         {isAdmin && allUsers.length > 0 && (
-          <div className="px-4 py-2 bg-sky-50/70 border-b border-sky-200/70 flex items-center justify-between gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5 shrink-0">
-              <Shield className="w-3.5 h-3.5 text-sky-600" />
+          <div className="px-4 py-2 bg-[#FAF7F0] border-b-2 border-slate-800/15 flex items-center justify-between gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-slate-900 flex items-center gap-1.5 shrink-0">
+              <Shield className="w-3.5 h-3.5 text-emerald-600" />
               <span>Phạm vi tra cứu:</span>
             </span>
             <select
               value={selectedMemberId}
               onChange={e => setSelectedMemberId(e.target.value)}
-              className="text-xs font-semibold bg-white border border-sky-200 rounded-lg px-2.5 py-1 text-slate-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-sky-500 max-w-[220px] truncate cursor-pointer"
+              className="text-xs font-bold bg-white border-[1.5px] border-slate-800 rounded-lg px-2.5 py-1 text-slate-900 shadow-[0_1.5px_0_#1E293B] focus:outline-none max-w-[220px] truncate cursor-pointer"
             >
               <option value="all">Toàn bộ thành viên ({allUsers.length})</option>
               {allUsers.map(u => (
@@ -796,16 +979,16 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
               }`}
             >
               {msg.sender === 'bot' && (
-                <div className="w-7 h-7 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0 mt-0.5 border border-teal-200 shadow-xs">
-                  <Bot className="w-4 h-4 text-teal-700" />
+                <div className="w-7 h-7 rounded-xl bg-[#B2F5BE] text-slate-900 flex items-center justify-center shrink-0 mt-0.5 border-[1.5px] border-slate-800 shadow-[0_1.5px_0_#1E293B]">
+                  <Bot className="w-4 h-4 text-slate-900" />
                 </div>
               )}
 
               <div
-                className={`group relative max-w-[88%] sm:max-w-[84%] px-4 py-3 rounded-2xl shadow-xs ${
+                className={`group relative max-w-[88%] sm:max-w-[84%] px-4 py-3 rounded-2xl ${
                   msg.sender === 'user'
-                    ? 'bg-sky-600 text-white rounded-br-xs'
-                    : 'glass-subcard text-slate-800 border rounded-bl-xs'
+                    ? 'bg-[#16B364] border-2 border-slate-900 shadow-[0_2px_0_#0F172A] text-white rounded-br-xs'
+                    : 'glass-subcard text-slate-800 rounded-bl-xs'
                 }`}
               >
                 {/* Bot Tool Calls & SQI Metadata Strip */}
@@ -851,9 +1034,9 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
 
                 {/* Human-in-the-loop Pending Action Confirmation Card */}
                 {msg.sender === 'bot' && msg.pendingAction && (
-                  <div className="mt-3 p-3 rounded-xl bg-sky-50/70 border border-sky-200 space-y-2.5">
+                  <div className="mt-3 p-3 rounded-xl bg-[#BAE0EC]/40 border-[1.5px] border-slate-800 space-y-2.5">
                     <div className="flex items-start gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-7 h-7 rounded-lg bg-[#FDE68A] text-slate-900 border-[1.5px] border-slate-800 flex items-center justify-center shrink-0 mt-0.5">
                         {msg.pendingAction.type === 'apply_thresholds' ? (
                           <Sliders className="w-3.5 h-3.5" />
                         ) : (
@@ -861,7 +1044,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-900">
+                        <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900">
                           {msg.pendingAction.type === 'apply_thresholds'
                             ? 'Đề xuất đồng bộ ngưỡng Pi 4'
                             : 'Đề xuất tạo nhiệm vụ nhắc nhở'}
@@ -879,7 +1062,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                           return (
                             <div
                               key={k}
-                              className="px-2.5 py-1.5 rounded-lg glass-subcard border text-[11px] flex items-center justify-between gap-1"
+                              className="px-2.5 py-1.5 rounded-lg bg-white border-[1.5px] border-slate-800 text-[11px] flex items-center justify-between gap-1"
                             >
                               <span className="text-slate-600 truncate">{meta.label}:</span>
                               <span className="font-mono font-bold text-slate-900 whitespace-nowrap">
@@ -892,10 +1075,10 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                     )}
 
                     {msg.pendingAction.type === 'create_task' && msg.pendingAction.task && (
-                      <div className="p-2.5 rounded-lg glass-subcard border text-[11px] space-y-1">
+                      <div className="p-2.5 rounded-lg bg-white border-[1.5px] border-slate-800 text-[11px] space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-slate-900 truncate">{msg.pendingAction.task.title}</span>
-                          <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-mono text-[10px] uppercase shrink-0">
+                          <span className="px-1.5 py-0.5 rounded bg-[#FDE68A] border border-slate-800 text-slate-900 font-mono text-[10px] font-bold uppercase shrink-0">
                             {msg.pendingAction.task.priority}
                           </span>
                         </div>
@@ -911,8 +1094,8 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                     )}
 
                     {msg.actionExecuted ? (
-                      <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-[#B2F5BE] border-[1.5px] border-slate-800 text-slate-900 text-[11px] font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                         <span>{msg.actionResultText || 'Đã xác nhận và thực thi thành công.'}</span>
                       </div>
                     ) : (
@@ -921,7 +1104,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
                           type="button"
                           onClick={() => handleExecutePendingAction(msg.id, msg.pendingAction!)}
                           disabled={executingActionMsgId === msg.id}
-                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                          className="w-full min-h-[40px] px-3 py-1.5 rounded-xl tactile-btn-primary disabled:opacity-60 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           {executingActionMsgId === msg.id ? (
                             <>
@@ -993,7 +1176,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
               </div>
 
               {msg.sender === 'user' && (
-                <div className="w-7 h-7 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                <div className="w-7 h-7 rounded-xl bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_1.5px_0_#1E293B] flex items-center justify-center shrink-0 mt-0.5">
                   <User className="w-4 h-4" />
                 </div>
               )}
@@ -1001,9 +1184,9 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
           ))}
 
           {loading && (
-            <div className="flex items-center gap-2.5 text-xs text-slate-600 p-3 rounded-2xl glass-subcard border shadow-xs w-fit animate-pulse">
-              <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-              <span className="text-[11px] font-medium">Đang chạy Agent &amp; phân tích dữ liệu đo đạc...</span>
+            <div className="flex items-center gap-2.5 text-xs text-slate-700 p-3 rounded-2xl glass-subcard w-fit animate-pulse">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+              <span className="text-[11px] font-bold">Đang chạy Agent &amp; phân tích dữ liệu đo đạc...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -1011,23 +1194,23 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
 
         {/* Quick Suggestions Chips */}
         {messages.length <= 4 && (
-          <div className="px-4 py-2.5 bg-transparent border-t border-slate-200/80 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <div className="px-4 py-2.5 bg-[#FAF7F0] border-t-2 border-slate-800/15 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
             {quickQuestions.map((q, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => handleSendMessage(q)}
-                className="px-3 py-1.5 rounded-xl glass-subcard-interactive text-slate-700 hover:text-slate-900 text-[11px] font-medium whitespace-nowrap transition cursor-pointer border shrink-0 flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                className="px-3 py-1.5 rounded-xl tactile-btn-white text-[11px] font-bold whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5"
               >
                 <span>{q}</span>
-                <ArrowRight className="w-3 h-3 text-sky-600" />
+                <ArrowRight className="w-3 h-3 text-emerald-600" />
               </button>
             ))}
           </div>
         )}
 
         {/* Input Bar */}
-        <div className="p-3 sm:p-4 bg-transparent border-t border-slate-200/80 shrink-0 space-y-2">
+        <div className="p-3 sm:p-4 bg-[#FDFBF7] border-t-2 border-slate-800 shrink-0 space-y-2">
           {cameraNotice && (
             <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center justify-between gap-2">
               <span>{cameraNotice}</span>
@@ -1081,15 +1264,15 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
               type="button"
               onClick={handleAttachCameraSnapshot}
               disabled={loading}
-              className={`h-11 w-11 rounded-2xl glass-subcard-interactive border flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95 ${
-                attachedImage ? 'border-teal-400 text-teal-700 bg-teal-50' : 'text-slate-600 hover:text-sky-700'
+              className={`h-11 w-11 rounded-xl flex items-center justify-center cursor-pointer shrink-0 ${
+                attachedImage ? 'tactile-btn-secondary' : 'tactile-btn-white'
               }`}
               title="Đính kèm ảnh chụp Camera Pi 4 để AI phân tích tư thế"
             >
               <Camera className="w-5 h-5" />
             </button>
 
-            <div className="flex-1 relative rounded-2xl glass-subcard border focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500/30 transition">
+            <div className="flex-1 relative rounded-xl bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] focus-within:ring-2 focus-within:ring-emerald-500/30 transition">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -1109,7 +1292,7 @@ export const HealthChatbot: React.FC<HealthChatbotProps> = ({
             <button
               type="submit"
               disabled={loading || (!input.trim() && !attachedImage)}
-              className="h-11 px-4 rounded-2xl bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white font-bold flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95 shadow-sm"
+              className="h-11 px-4 rounded-xl tactile-btn-primary disabled:opacity-40 font-bold flex items-center justify-center cursor-pointer shrink-0"
               title="Gửi câu hỏi"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}

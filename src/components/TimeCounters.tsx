@@ -43,22 +43,24 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
   const isStandingGoalReached = continuousStandingSeconds >= standingTargetSec;
 
   return (
-    <div className="rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
+    <div className="rounded-2xl glass-panel p-4 sm:p-5 lg:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-sky-600 shrink-0" />
+          <h2 className="text-sm sm:text-base font-extrabold text-slate-950 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-[#BAE0EC] border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4 text-slate-900 shrink-0" />
+            </span>
             <span>Thống Kê Thời Gian Hoạt Động & Chu Kỳ Đứng Ngồi</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">Tự động đếm thời gian ngồi, đứng làm việc và cảnh báo chu kỳ Sit-Stand công thái học</p>
+          <p className="text-xs text-slate-600 font-medium mt-0.5">Tự động đếm thời gian ngồi, đứng làm việc và cảnh báo chu kỳ Sit-Stand công thái học</p>
         </div>
 
         <button
           onClick={onResetTimers}
           title="Đặt lại các bộ đếm thời gian"
-          className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 glass-subcard glass-subcard-interactive border hover:text-slate-900 transition cursor-pointer"
+          className="self-start sm:self-auto tactile-btn-white flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs cursor-pointer whitespace-nowrap"
         >
-          <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+          <RotateCcw className="w-3.5 h-3.5 text-slate-700" />
           <span>Reset bộ đếm</span>
         </button>
       </div>
@@ -147,15 +149,15 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
             </div>
           </div>
           <div className="mt-2">
-            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+            <div className="tactile-progress-track">
               <div
-                className={`h-full transition-all duration-300 ${
+                className={`h-full transition-all duration-300 rounded-full ${
                   badPosturePercent >= 100 ? 'bg-rose-600 animate-pulse' : 'bg-rose-500'
                 }`}
                 style={{ width: `${badPosturePercent}%` }}
               ></div>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-rose-700 font-medium mt-1 truncate">
+            <div className="text-[10px] sm:text-[11px] text-rose-700 font-bold mt-1 truncate">
               {badPostureSeconds >= thresholds.incorrectPostureSec ? '⚠️ Đã kích hoạt chuông' : 'Tự reset khi ngồi đúng'}
             </div>
           </div>
@@ -163,32 +165,32 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
 
         {/* 5. Thời gian ngồi liên tục */}
         <div className={`p-3.5 sm:p-4 rounded-xl border transition flex flex-col justify-between col-span-2 sm:col-span-1 ${
-          continuousSittingSeconds >= thresholds.longSittingSec ? 'bg-amber-50/70 border-amber-200' : 'glass-subcard'
+          continuousSittingSeconds >= thresholds.longSittingSec ? 'bg-[#FDE68A]/70 border-2 border-slate-800' : 'glass-subcard'
         }`}>
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-              <span className="flex items-center gap-1 font-semibold text-amber-700 text-[11px] sm:text-xs truncate">
+              <span className="flex items-center gap-1 font-bold text-amber-800 text-[11px] sm:text-xs truncate">
                 <Flame className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">Ngồi Liên Tục</span>
               </span>
-              <span className="text-[10px] sm:text-[11px] font-mono text-slate-500 whitespace-nowrap font-medium">
+              <span className="text-[10px] sm:text-[11px] font-mono text-slate-600 whitespace-nowrap font-bold">
                 {Math.floor(continuousSittingSeconds / 60)}p/{Math.floor(thresholds.longSittingSec / 60)}p
               </span>
             </div>
-            <div className="text-lg sm:text-xl lg:text-2xl font-bold font-mono text-amber-800">
+            <div className="text-lg sm:text-xl lg:text-2xl font-extrabold font-mono text-amber-900">
               {formatHMS(continuousSittingSeconds)}
             </div>
           </div>
           <div className="mt-2">
-            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+            <div className="tactile-progress-track">
               <div
-                className={`h-full transition-all duration-300 ${
+                className={`h-full transition-all duration-300 rounded-full ${
                   continuousSittingPercent >= 100 ? 'bg-amber-600 animate-pulse' : 'bg-amber-500'
                 }`}
                 style={{ width: `${continuousSittingPercent}%` }}
               ></div>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-1 truncate">
+            <div className="text-[10px] sm:text-[11px] text-amber-800 font-bold mt-1 truncate">
               {continuousSittingSeconds >= thresholds.longSittingSec ? '🕒 Khuyên đứng dậy ngay' : 'Đếm liên tục'}
             </div>
           </div>
@@ -261,11 +263,9 @@ export const TimeCounters: React.FC<TimeCountersProps> = ({ timeStats, threshold
               <span>Tiến độ đứng:</span>
               <span>{standingProgressPercent}%</span>
             </div>
-            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden border border-slate-300">
-              <div 
-                className={`h-full transition-all duration-300 ${
-                  isStandingGoalReached ? 'bg-emerald-600' : 'bg-indigo-600'
-                }`}
+            <div className="tactile-progress-track">
+              <div
+                className="tactile-progress-fill"
                 style={{ width: `${standingProgressPercent}%` }}
               ></div>
             </div>

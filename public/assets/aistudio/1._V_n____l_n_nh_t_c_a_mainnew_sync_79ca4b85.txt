@@ -1,0 +1,165 @@
+1. Vấn đề lớn nhất của mainnew_sync.py: Firestore bị ghi quá thường xuyên
+Tôi đã kiểm tra trực tiếp v4.0/mainnew_sync.py trên nhánh main.
+Nguyên nhân chính: FirebasePublisher._loop() hiện ghi dữ liệu lên Firestore theo chu kỳ 2 giây, bất kể dữ liệu tư thế, nhịp tim hay SpO₂ có thực sự thay đổi hay không.
+Trong mã nguồn:
+FIREBASE_PUSH_INTERVAL = 2.0
+Cơ chế hiện tại:
+•	FirebasePublisher.update() nhận trạng thái mới từ vòng lặp chính.
+•	FirebasePublisher._loop() lấy snapshot mới nhất rồi gọi Firestore.
+•	Sau khi ghi thành công, chương trình đặt thời điểm ghi tiếp theo bằng now + FIREBASE_PUSH_INTERVAL.
+•	Mỗi lần ghi lại cập nhật timestamp bằng SERVER_TIMESTAMP, nên ngay cả khi các chỉ số không thay đổi, tài liệu vẫn được cập nhật.
+Đây là ghi theo chu kỳ (periodic publishing), chưa phải ghi theo sự kiện (event-driven publishing).
+Giả sử một Raspberry Pi chạy liên tục 24 giờ
+Số lần ghi mỗi ngày hiện tại
+43.200
+1 lần / 2 giây
+Hạn mức miễn phí Firestore Standard
+20.000
+Lượt ghi / ngày / dự án
+Một thiết bị có thể vượt hạn mức miễn phí ghi của Firestore Standard nếu chạy liên tục cả ngày. Hạn mức đọc miễn phí là 50.000 lượt/ngày và được dùng chung bởi các truy vấn, listener và những hoạt động đọc khác.
+docs.cloud.google.com+1
+Nếu web đang mở và lắng nghe devices/pi4_node_1 bằng onSnapshot, mỗi lần tài liệu được cập nhật còn có thể phát sinh lượt đọc được tính phí tại frontend. Hai người mở dashboard trên hai trình duyệt sẽ làm lượng đọc tăng thêm.
+firebase.google.com+1
+Kết luận ban đầu: Chương trình không cần gửi toàn bộ trạng thái lên Firestore cứ mỗi 2 giây. AI và cảm biến vẫn có thể xử lý liên tục tại Raspberry Pi, trong khi việc đồng bộ lên Cloud sử dụng chính sách thông minh hơn.
+2. Tôi phát hiện thêm một vấn đề: Web cũng đang ghi Firestore liên tục
+Đây là phần cần xử lý song song với FirebasePublisher.
+Sau khi kiểm tra src/App.tsx, deviceTelemetry.ts, firebase.ts và webTftAlertService.ts, tôi nhận thấy hệ thống có nhiều nguồn ghi dữ liệu độc lập.
+Nguồn ghi	Document Firestore	Khi nào ghi?	Đánh giá
+Raspberry Pi	devices/pi4_node_1	Mỗi 2 giây	Cần tối ưu
+Web khi nhận telemetry	users/{uid}	Mỗi khi có gói telemetry mới	Ghi trùng lặp đáng kể
+Web heartbeat	users/{uid}	Hai cơ chế cùng chu kỳ 12 giây	Có khả năng ghi dư
+Web → TFT	devices/{deviceId}/web_display/current	Khi effect chạy và mỗi 7 giây lúc cảnh báo	Cần kiểm tra lại
+Lịch sử Supabase	telemetry_logs	Theo dữ liệu web nhận được và điều kiện lưu	Không phải ghi Firestore
+2.1. Ghi lặp tại handleIncomingTelemetry()
+Trong src/App.tsx, mỗi lần web nhận dữ liệu từ Firestore, hàm handleIncomingTelemetry() tiếp tục gọi:
+updateUserRealtimePresence(firebaseConfig, activeUser.id, {
+  isOnline: true,
+  lastActive: new Date().toISOString(),
+  // Các trường tư thế, BPM, SpO₂...
+});
+Hàm này sử dụng setDoc() để cập nhật users/{uid}.
+Như vậy, khi web mở và đang nhận dữ liệu, một lần Pi ghi telemetry có thể kéo theo một lần web ghi trạng thái người dùng.
+2.2. Web heartbeat đang có hai bộ định thời
+Trong src/App.tsx, tôi thấy đồng thời có:
+setInterval(() => {
+  pushPresence(true);
+}, 12000);
+và một Web Worker cũng gửi heartbeat mỗi 12 giây.
+Khi cả hai hoạt động, có thể phát sinh khoảng 14.400 lượt ghi/ngày cho một tab chạy liên tục, chưa tính các lần cập nhật khác.
+Đề xuất: Chỉ sử dụng một cơ chế heartbeat, ví dụ mỗi 30 giây, và chỉ gia hạn khi cần thiết.
+2.3. Chức năng đồng bộ Web → TFT có khả năng ghi quá mức
+Hàm pushWebTftAlert() được gọi từ một React effect phụ thuộc cả vào các bộ đếm thời gian.
+Khi timeStats thay đổi, effect có thể chạy lại và ghi web_display/current, kể cả khi mã cảnh báo vẫn là 0.
+Đặc biệt, tôi đã kiểm tra v4.0/mainnew_sync.py và v4.0/tft_display_worker.py: hai file này không có mã đọc web_display/current. Phần mô tả trong webTftAlertService.ts lại tham chiếu web_tft_alert.py, vốn không nằm trong v4.0.
+Điều này cho thấy khả năng có một luồng ghi Firestore không được chương trình Pi hiện tại sử dụng. Cần kiểm tra có tiến trình riêng trên Pi đang đọc document này hay không trước khi quyết định bỏ.
+3. So sánh các phương án giảm lượt ghi
+Các số dưới đây là phép tính lý thuyết cho một thiết bị, chưa tính ghi bổ sung từ web.
+Chu kỳ đồng bộ	8 giờ hoạt động	24 giờ hoạt động	Giảm so với 2 giây
+2 giây (hiện tại)	14.400	43.200	—
+10 giây	2.880	8.640	80%
+30 giây	960	2.880	93,3%
+60 giây	480	1.440	96,7%
+Chỉ tăng chu kỳ từ 2 giây lên 30 giây đã giảm đáng kể số lần ghi của Pi. Tuy nhiên, nếu không chỉnh các vòng ghi trên web, tổng lượt ghi toàn dự án vẫn có thể cao.
+4. Phương án tôi đề xuất cho hệ thống của bạn
+Tôi nghiêng về Event-driven + Heartbeat, không phải chuyển ngay sang database khác.
+Kiến trúc đồng bộ đề xuất
+Raspberry Pi 4
+Camera AI + MAX30102 + xác thực khuôn mặt
+State Manager (xử lý cục bộ)
+Trạng thái thay đổi
+Gửi sớm
+HR/SpO₂ hợp lệ mới
+Gửi có giới hạn
+Không thay đổi
+Không ghi lặp
+Heartbeat
+Mỗi 60 giây
+Firestore
+Trạng thái hiện tại và sự kiện quan trọng
+Supabase
+Lịch sử và thống kê theo phiên
+Chính sách ghi đề xuất
+Sự kiện	Cách đồng bộ
+GOOD → BAD hoặc BAD → GOOD đã ổn định	Gửi ngay
+STAND, ABSENT, ERROR	Gửi ngay
+Khóa hoặc thay đổi phiên xác thực	Gửi ngay
+Người dùng đặt hoặc rút ngón tay	Gửi khi trạng thái phép đo thay đổi
+HR được công bố mới	Gửi khi thay đổi đáng kể, có giới hạn tần suất
+SpO₂ được công bố mới	Tương tự HR
+Không có thay đổi	Heartbeat mỗi 60 giây
+Mất mạng	Giữ snapshot mới nhất, thử lại có backoff
+Các khoảng thời gian 10–60 giây là [ĐỀ XUẤT, CẦN KIỂM THỬ], không phải thông số đã nghiệm thu.
+Điểm quan trọng là các cảnh báo vẫn được Raspberry Pi xử lý cục bộ, không phải đợi đến lượt đồng bộ Firestore.
+Logic Publisher cần sửa
+Tôi đề xuất tách quyết định có cần ghi thành một hàm riêng, đại ý:
+def should_publish(current, previous, elapsed):
+    if previous is None:
+        return "INITIAL"
+
+    important = (
+        "posture_status",
+        "posture_label",
+        "is_in_zone",
+        "tracking_active",
+        "userId",
+    )
+
+    if any(current.get(k) != previous.get(k) for k in important):
+        return "STATE_CHANGED"
+
+    if (current["bpm"] > 0) != (previous["bpm"] > 0):
+        return "HR_VALIDITY_CHANGED"
+
+    if (current["spo2"] > 0) != (previous["spo2"] > 0):
+        return "SPO2_VALIDITY_CHANGED"
+
+    if elapsed >= 10:
+        if abs(current["bpm"] - previous["bpm"]) >= 3:
+            return "HR_CHANGED"
+
+        if abs(current["spo2"] - previous["spo2"]) >= 1:
+            return "SPO2_CHANGED"
+
+    if elapsed >= 60:
+        return "HEARTBEAT"
+
+    return None
+Đây là logic tham khảo, chưa phải đoạn thay thế hoàn chỉnh. Khi tích hợp thật cần tách thời điểm gửi sinh hiệu và heartbeat, kiểm tra quyền phiên khuôn mặt trước khi ghi, chỉ cập nhật previous sau khi Firestore xác nhận thành công và tránh phát quá nhiều lần nếu trạng thái nhấp nháy.
+5. Một vấn đề quan trọng khi giảm Firestore: lịch sử Supabase
+Hiện tại, App.tsx gọi insertTelemetryToSupabase() từ luồng nhận telemetry trên web. Code có điều kiện ghi khi có cảnh báo, đổi tư thế, thay đổi sinh hiệu hoặc sau khoảng 5 giây.
+Điều đó gây ra hai hệ quả:
+Thứ nhất, nếu giảm số gói Firestore xuống một gói/phút, web không còn đủ dữ liệu đầu vào để ghi lịch sử với độ phân giải 5 giây.
+Thứ hai, khi không có trình duyệt đang mở, cơ chế ghi lịch sử từ handleIncomingTelemetry() không chạy.
+Đối với khóa luận, tôi đề xuất về lâu dài chuyển phần ghi lịch sử sang một tiến trình độc lập trên Pi hoặc backend. Pi có thể lưu sự kiện và số đo hợp lệ vào SQLite cục bộ, rồi gửi lô dữ liệu định kỳ qua API được xác thực. Như vậy, Firestore chỉ giữ trạng thái realtime, còn lịch sử không phụ thuộc vào việc có mở dashboard hay không.
+6. Những lỗi khác cần sửa trong mainnew_sync.py và module liên quan
+Mức ưu tiên	Vấn đề phát hiện	Hướng xử lý
+Cao	Publisher không so sánh dữ liệu trước khi ghi	Thêm phát hiện thay đổi, heartbeat và coalescing
+Cao	Firestore lỗi thì thử lại cố định mỗi 3 giây	Thêm exponential backoff và jitter
+Cao	Frontend đánh dấu isStale theo timestamp lúc nhận gói, nhưng không tự cập nhật khi không còn gói mới	Thêm bộ kiểm tra freshness định kỳ trên web
+Cao	v4.0/speaker_manager.py phát vital_abnormal.mp3 mà không truyền interrupt=True, dù chú thích trong main nói cảnh báo sẽ được ưu tiên	Kiểm tra và sửa chính sách ưu tiên âm thanh
+Trung bình	FACE_AWAY_SECONDS = 5.0 nhưng lý do khóa phiên ghi AWAY_OVER_30S	Đồng nhất tên sự kiện với thời gian thực tế
+Trung bình	posture_to_schema() có thể ánh xạ BAD dưới ngưỡng thành mã GOOD với nhãn “Tự điều chỉnh”	Phân biệt raw_status, trạng thái ổn định và trạng thái cảnh báo
+Trung bình	Các bản ghi PPG không hợp lệ được gửi lên Firestore bằng 0	Bổ sung cờ hợp lệ hoặc trạng thái phép đo để tránh hiểu 0 là sinh hiệu thật
+Cần xác minh	SpeakerManager mặc định đọc âm thanh từ v4.0/audio, nhưng repository hiện lưu MP3 ở public/audio	Kiểm tra thư mục audio thực tế trên Pi và đường dẫn khi chạy
+Các vấn đề này là phát hiện từ mã nguồn, chưa phải kết quả kiểm thử trên Raspberry Pi.
+7. Thứ tự sửa để giảm chi phí mà ít ảnh hưởng hoạt động
+1
+Sửa FirebasePublisher trước
+Thêm change detection + heartbeat 60 giây, giữ phản hồi nhanh khi trạng thái thay đổi. Không cần thay kiến trúc AI hoặc cảm biến.
+2
+Loại bỏ ghi trùng trên web
+Hợp nhất hai heartbeat 12 giây, tránh updateUserRealtimePresence() trên mọi gói telemetry và kiểm tra việc ghi web_display/current.
+3
+Tách lưu lịch sử khỏi luồng realtime
+Giữ Firestore cho trạng thái tức thời; dùng Supabase cho lịch sử theo sự kiện hoặc lấy mẫu có kiểm soát.
+4
+Kiểm thử lại
+Đo số lượt ghi/đọc trong Firebase Console, độ trễ cảnh báo, mất mạng, dữ liệu stale và khả năng tiếp tục đồng bộ.
+Có nên chuyển sang Firebase Realtime Database?
+Chưa cần chuyển ngay.
+Realtime Database tính phí chủ yếu theo dung lượng lưu trữ và dữ liệu tải xuống, thay vì số document read/write như Firestore Standard. Nó có thể phù hợp hơn với dữ liệu thay đổi thường xuyên, nhưng chưa chắc rẻ hơn trong mọi trường hợp vì còn phụ thuộc số thiết bị, kích thước gói và số người đang theo dõi.
+firebase.google.com+1
+Với hệ thống hiện tại, tôi ưu tiên tối ưu Firestore và React trước. Đây là phương án ít phải sửa kiến trúc nhất.
+Kết luận: Chi phí không chỉ đến từ FIREBASE_PUSH_INTERVAL = 2.0. Luồng Pi → Firestore → Web → Firestore đang làm phát sinh các lượt ghi bổ sung. Cách giải quyết hiệu quả nhất là chuyển từ đồng bộ theo chu kỳ cố định sang đồng bộ theo thay đổi trạng thái + heartbeat, đồng thời loại bỏ những cơ chế ghi trùng ở frontend.
+Nguồn mã đã kiểm tra: mainnew_sync.py, App.tsx, webTftAlertService.ts, supabaseService.ts.
+

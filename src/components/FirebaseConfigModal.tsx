@@ -101,59 +101,60 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xl text-slate-800 overflow-hidden">
+      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-sky-50 text-sky-600 border border-sky-200">
+        <div className="flex items-center justify-between px-5 py-4 bg-[#FDFBF7] border-b-2 border-slate-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Cấu Hình Kết Nối Firebase</h3>
-              <p className="text-xs text-slate-500 font-mono">
-                Project ID: <span className="text-emerald-600 font-bold">{formData.projectId || 'theodoisk-66ddb'}</span>
+              <h3 className="text-base font-extrabold text-slate-900">Cấu Hình Kết Nối Firebase</h3>
+              <p className="text-xs text-slate-600 font-mono">
+                Project ID: <span className="text-emerald-700 font-bold">{formData.projectId || 'theodoisk-66ddb'}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer shrink-0"
+            aria-label="Đóng"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Scrollable Content */}
-        <div className="mt-4 space-y-4 text-xs overflow-y-auto pr-1">
+        <div className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto flex-1">
           {/* Status Alert */}
-          <div className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 ${
+          <div className={`p-3.5 rounded-xl border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-between gap-2.5 ${
             isConnected
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : 'bg-amber-50 text-amber-800 border-amber-200'
+              ? 'bg-[#B2F5BE]/55 text-slate-900'
+              : 'bg-[#FDE68A]/55 text-slate-900'
           }`}>
             <div className="flex items-center gap-2.5">
-              <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-600 animate-ping' : 'bg-amber-600'}`}></span>
+              <span className={`w-2.5 h-2.5 rounded-full border border-slate-800 ${isConnected ? 'bg-[#16B364] animate-ping' : 'bg-amber-500'}`}></span>
               <div>
-                <span className="font-bold">Trạng thái: </span>
-                <span>{isConnected ? `Đã kết nối với "${formData.projectId}"` : `Chờ dữ liệu từ "${formData.projectId}"`}</span>
+                <span className="font-extrabold">Trạng thái: </span>
+                <span className="font-semibold">{isConnected ? `Đã kết nối với "${formData.projectId}"` : `Chờ dữ liệu từ "${formData.projectId}"`}</span>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
+            <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-white border-[1.5px] border-slate-800 text-slate-900 shrink-0">
               ID: {formData.projectId}
             </span>
           </div>
 
           {/* Quick Paste config from Firebase Web App */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px]">
-                <ClipboardPaste className="w-3.5 h-3.5 text-sky-600" />
+          <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <label className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px]">
+                <ClipboardPaste className="w-3.5 h-3.5 text-emerald-700" />
                 Dán nhanh đoạn mã cấu hình Firebase:
               </label>
               <button
                 type="button"
                 onClick={handleParseRawConfig}
-                className="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold text-[10px] transition cursor-pointer shadow-2xs"
+                className="px-3 py-1 rounded-lg tactile-btn-primary font-bold text-[11px] cursor-pointer"
               >
                 Tự động điền
               </button>
@@ -163,51 +164,51 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
               value={rawConfigText}
               onChange={e => setRawConfigText(e.target.value)}
               placeholder='const firebaseConfig = { apiKey: "AIzaSy...", projectId: "theodoisk-66ddb", ... };'
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-[10px] focus:outline-none focus:border-sky-500"
+              className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
             {parseNotice && (
-              <p className="text-[11px] font-semibold text-emerald-700">{parseNotice}</p>
+              <p className="text-[11px] font-bold text-emerald-700">{parseNotice}</p>
             )}
           </div>
 
           {/* Database Mode Switcher */}
           <div>
-            <label className="block text-slate-700 font-semibold mb-1.5 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-sky-600" />
+            <label className="block text-slate-800 font-bold mb-1.5 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-slate-700" />
               Loại Cơ Sở Dữ Liệu Firebase:
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, useRealtimeDb: false })}
-                className={`py-2 px-3 rounded-lg border text-left transition cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl text-left transition cursor-pointer ${
                   !formData.useRealtimeDb
-                    ? 'bg-sky-50 border-sky-500 text-sky-800 font-bold shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-[#BAE0EC] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 font-bold'
+                    : 'bg-[#FAF7F0] border-[1.5px] border-slate-800 text-slate-700 hover:bg-white'
                 }`}
               >
-                <div className="font-bold">Cloud Firestore</div>
-                <div className="text-[10px] text-slate-500 font-normal">Collection & Document</div>
+                <div className="font-extrabold">Cloud Firestore</div>
+                <div className="text-[10px] text-slate-600 font-normal">Collection & Document</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, useRealtimeDb: true })}
-                className={`py-2 px-3 rounded-lg border text-left transition cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl text-left transition cursor-pointer ${
                   formData.useRealtimeDb
-                    ? 'bg-sky-50 border-sky-500 text-sky-800 font-bold shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-[#BAE0EC] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 font-bold'
+                    : 'bg-[#FAF7F0] border-[1.5px] border-slate-800 text-slate-700 hover:bg-white'
                 }`}
               >
-                <div className="font-bold">Realtime Database</div>
-                <div className="text-[10px] text-slate-500 font-normal">REST API endpoint</div>
+                <div className="font-extrabold">Realtime Database</div>
+                <div className="text-[10px] text-slate-600 font-normal">REST API endpoint</div>
               </button>
             </div>
           </div>
 
           {/* Project ID input */}
           <div>
-            <label className="block text-slate-700 font-semibold mb-1">
+            <label className="block text-slate-800 font-bold mb-1">
               Firebase Project ID:
             </label>
             <input
@@ -215,14 +216,14 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
               value={formData.projectId}
               onChange={e => setFormData({ ...formData, projectId: e.target.value })}
               placeholder="theodoisk-66ddb"
-              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+              className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
             />
           </div>
 
           {/* Path or Collection */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">
+              <label className="block text-slate-800 font-bold mb-1">
                 {formData.useRealtimeDb ? 'Tên Node RTDB:' : 'Tên Collection:'}
               </label>
               <input
@@ -230,13 +231,13 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                 value={formData.collectionName}
                 onChange={e => setFormData({ ...formData, collectionName: e.target.value })}
                 placeholder="devices"
-                className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
               />
             </div>
 
             {!formData.useRealtimeDb ? (
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label className="block text-slate-800 font-bold mb-1">
                   Document ID:
                 </label>
                 <input
@@ -244,12 +245,12 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                   value={formData.documentId}
                   onChange={e => setFormData({ ...formData, documentId: e.target.value })}
                   placeholder="pi4_node_1"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                 />
               </div>
             ) : (
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label className="block text-slate-800 font-bold mb-1">
                   Database URL (RTDB):
                 </label>
                 <input
@@ -257,7 +258,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
                   value={formData.databaseURL || ''}
                   onChange={e => setFormData({ ...formData, databaseURL: e.target.value })}
                   placeholder="https://theodoisk-66ddb-default-rtdb.firebaseio.com"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                  className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                 />
               </div>
             )}
@@ -265,7 +266,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
 
           {/* Web API Key (Optional) */}
           <div>
-            <label className="block text-slate-700 font-semibold mb-1">
+            <label className="block text-slate-800 font-bold mb-1">
               Web API Key:
             </label>
             <input
@@ -273,34 +274,34 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
               value={formData.apiKey}
               onChange={e => setFormData({ ...formData, apiKey: e.target.value })}
               placeholder="AIzaSy..."
-              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+              className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
             />
           </div>
 
           {/* Test and Reset buttons */}
           <div className="pt-1 space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={handleSendTestPacket}
                 disabled={isTesting || isClearing}
-                className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold bg-slate-100 text-sky-700 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer disabled:opacity-50"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-3.5 h-3.5 text-emerald-700" />
                 <span>{isTesting ? 'Đang gửi...' : 'Gửi gói tin thử nghiệm'}</span>
               </button>
               <button
                 type="button"
                 onClick={handleClearData}
                 disabled={isTesting || isClearing}
-                className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold bg-[#FBC2C8] hover:bg-[#f9aeb6] text-slate-900 border-2 border-slate-800 shadow-[0_3px_0_#1E293B] active:translate-y-[2px] active:shadow-[0_1px_0_#1E293B] transition cursor-pointer disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{isClearing ? 'Đang xóa...' : 'Xóa dữ liệu live'}</span>
               </button>
             </div>
             {testStatus && (
-              <p className="text-[11px] text-center mt-1.5 font-mono text-slate-600 font-semibold">
+              <p className="text-[11px] text-center mt-1.5 font-mono text-slate-700 font-bold bg-[#FAF7F0] py-1.5 px-3 rounded-lg border border-slate-300">
                 {testStatus}
               </p>
             )}
@@ -308,18 +309,18 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="mt-4 flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 shrink-0">
+        <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 bg-[#FDFBF7] border-t-2 border-slate-800 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+            className="px-4 py-2 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer"
           >
             Đóng
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="px-4 py-2 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
+            className="px-5 py-2 rounded-xl text-xs font-extrabold tactile-btn-primary cursor-pointer"
           >
             Lưu Cấu Hình
           </button>

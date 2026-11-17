@@ -355,20 +355,20 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
   };
 
   return (
-    <div className="glass-panel rounded-2xl border border-white/60 shadow-lg p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
+    <div className="glass-panel rounded-2xl p-4 sm:p-5 lg:p-6 text-slate-900 transition-all">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200/60 mb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b-2 border-slate-800/15 mb-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               <span>Nhật Ký Dữ Liệu Sức Khỏe & Tư Thế</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-[#FAF7F0] text-slate-900 border-[1.5px] border-slate-800">
                 {filteredLogs.length}/{userFilteredHistory.length} bản ghi
               </span>
             </h2>
             {/* Account scope badge */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-mono font-medium whitespace-nowrap">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#BAE0EC] border-[1.5px] border-slate-800 text-slate-900 text-[11px] font-mono font-bold whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#16B364]"></span>
               <span>Dữ liệu cá nhân: {currentUser?.fullName || currentUser?.username} ({currentUser?.email})</span>
             </span>
           </div>
@@ -381,14 +381,12 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             <button
               onClick={onOpenSupabase}
               title="Cấu hình và truy xuất dữ liệu từ Supabase PostgreSQL"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-xs font-bold whitespace-nowrap shadow-2xs cursor-pointer transition"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-[#B2F5BE] hover:bg-[#9eeea9] text-slate-900 border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-xs font-bold whitespace-nowrap cursor-pointer transition"
             >
-              <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <Database className="w-3.5 h-3.5 text-slate-900 shrink-0" />
               <span>Supabase SQL</span>
             </button>
           )}
-
-
 
           {/* Sync Button */}
           {onRefreshHistory && (
@@ -396,9 +394,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
               onClick={onRefreshHistory}
               disabled={isSyncing}
               title="Đồng bộ lại dữ liệu chuẩn xác từ Supabase PostgreSQL Cloud"
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold glass-subcard-interactive text-slate-700 transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold tactile-btn-white transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ'}</span>
             </button>
           )}
@@ -407,7 +405,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           <button
             onClick={handleExportCSV}
             disabled={history.length === 0}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold glass-subcard-interactive text-slate-700 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold tactile-btn-white transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Xuất CSV</span>
@@ -418,9 +416,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             onClick={handleExportPDF}
             disabled={history.length === 0}
             title="Xuất dữ liệu lịch sử đo đạc từ Supabase PostgreSQL Cloud sang tệp báo cáo PDF để in hoặc lưu trữ"
-            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition disabled:opacity-50 whitespace-nowrap cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold tactile-btn-secondary transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5 text-sky-600" />
+            <FileText className="w-3.5 h-3.5" />
             <span>Xuất Báo Cáo PDF</span>
           </button>
 
@@ -428,21 +426,21 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
           {onClearHistory && (
             <>
               {showConfirmClear ? (
-                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 h-9 px-2.5 rounded-xl animate-fadeIn">
-                  <span className="text-xs text-rose-800 whitespace-nowrap font-medium">
+                <div className="flex items-center gap-1.5 bg-[#FBC2C8] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] h-9 px-2.5 rounded-xl animate-fadeIn">
+                  <span className="text-xs text-slate-900 whitespace-nowrap font-bold">
                     {showConfirmClear === 'all'
                       ? 'Xác nhận xóa TẤT CẢ tài khoản?'
                       : `Xác nhận xóa lịch sử của ${currentTargetAccountObj.id === 'all' ? (currentUser?.fullName || 'bạn') : currentTargetAccountObj.name}?`}
                   </span>
                   <button
                     onClick={() => handleConfirmClear(showConfirmClear)}
-                    className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 cursor-pointer whitespace-nowrap shadow-2xs"
+                    className="px-2.5 py-1 rounded-lg bg-rose-600 text-white border border-slate-900 text-xs font-bold hover:bg-rose-700 cursor-pointer whitespace-nowrap"
                   >
                     Xác nhận xóa
                   </button>
                   <button
                     onClick={() => setShowConfirmClear(false)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs hover:bg-slate-300 cursor-pointer whitespace-nowrap"
+                    className="px-2.5 py-1 rounded-lg bg-white text-slate-900 border border-slate-800 text-xs font-bold hover:bg-slate-100 cursor-pointer whitespace-nowrap"
                   >
                     Hủy
                   </button>
@@ -453,9 +451,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
                     onClick={() => setShowConfirmClear('current')}
                     disabled={userFilteredHistory.length === 0}
                     title="Xóa nhật ký dữ liệu cá nhân của tài khoản này"
-                    className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 transition disabled:opacity-40 whitespace-nowrap cursor-pointer shadow-2xs"
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-[#FBC2C8] hover:bg-[#f7adb5] text-slate-900 border-2 border-slate-800 shadow-[0_2px_0_#1E293B] transition disabled:opacity-40 whitespace-nowrap cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <Trash2 className="w-3.5 h-3.5 text-slate-900" />
                     <span>Xóa nhật ký cá nhân</span>
                   </button>
                 </div>
@@ -468,27 +466,27 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 mb-3">
         {/* Search Input */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Tìm theo ngày (vd: 21/09/2026), giờ, nhịp tim..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 rounded-xl text-xs glass-subcard text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
+            className="w-full pl-8 pr-3 py-2 rounded-xl text-xs bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition"
           />
         </div>
 
         {/* Date Filter Dropdown if multiple dates */}
         {availableDates.length > 1 && (
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-xs text-slate-500 font-medium whitespace-nowrap flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-slate-400" />
+            <span className="text-xs text-slate-700 font-bold whitespace-nowrap flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-slate-700" />
               Ngày:
             </span>
             <select
               value={filterDate}
               onChange={e => setFilterDate(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl text-xs glass-subcard text-slate-800 font-semibold focus:outline-none focus:border-sky-500 transition cursor-pointer"
+              className="px-2.5 py-2 rounded-xl text-xs bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 font-bold focus:outline-none transition cursor-pointer"
             >
               <option value="all">Tất cả ngày ({availableDates.length})</option>
               {availableDates.map(d => (
@@ -502,60 +500,60 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 py-1">
           <button
             onClick={() => setFilterPosture('all')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'all' 
-                ? 'bg-sky-600 text-white shadow-2xs' 
-                : 'glass-subcard text-slate-600 hover:text-slate-900'
+                ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]' 
+                : 'tactile-btn-white text-slate-700'
             }`}
           >
             Tất cả ({counts.all})
           </button>
           <button
             onClick={() => setFilterPosture('good')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'good' 
-                ? 'bg-emerald-600 text-white shadow-2xs' 
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]' 
+                : 'bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800 hover:bg-[#9deea9]'
             }`}
           >
             ✓ Đúng ({counts.good})
           </button>
           <button
             onClick={() => setFilterPosture('standing')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'standing' 
-                ? 'bg-indigo-600 text-white shadow-2xs' 
-                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+                ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]' 
+                : 'bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 hover:bg-[#a6d5e4]'
             }`}
           >
             🚶 Đứng ({counts.standing})
           </button>
           <button
             onClick={() => setFilterPosture('bad')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'bad' 
-                ? 'bg-rose-600 text-white shadow-2xs' 
-                : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                ? 'bg-rose-600 text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]' 
+                : 'bg-[#FBC2C8] text-slate-900 border-[1.5px] border-slate-800 hover:bg-[#f7adb5]'
             }`}
           >
             ⚠ Sai/Gù ({counts.bad})
           </button>
           <button
             onClick={() => setFilterPosture('presence')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition ${
               filterPosture === 'presence' 
-                ? 'bg-amber-600 text-white shadow-2xs' 
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                ? 'bg-amber-600 text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]' 
+                : 'bg-[#FDE68A] text-slate-900 border-[1.5px] border-slate-800 hover:bg-[#fcd964]'
             }`}
           >
             ⏳ Vắng / Quay lại ({counts.presence})
           </button>
           <button
             onClick={() => setFilterPosture('stranger')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
               filterPosture === 'stranger' 
-                ? 'bg-rose-700 text-white shadow-2xs ring-2 ring-rose-400' 
-                : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-300'
+                ? 'bg-rose-700 text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]' 
+                : 'bg-[#FBC2C8] text-slate-900 border-[1.5px] border-slate-800 hover:bg-[#f7adb5]'
             }`}
           >
             <ShieldAlert className="w-3.5 h-3.5" />
@@ -565,9 +563,9 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
       </div>
 
       {/* Main Table / Feed Area */}
-      <div className="rounded-xl glass-subcard overflow-hidden shadow-2xs">
+      <div className="rounded-xl bg-white border-2 border-slate-800 shadow-[0_3px_0_#1E293B] overflow-hidden">
         {filteredLogs.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-xs">
+          <div className="p-8 text-center text-slate-500 text-xs">
             {history.length === 0 
               ? 'Chưa có bản ghi nào. Dữ liệu cảm biến & camera Pi 4 sẽ tự động lưu liên tục tại đây.' 
               : 'Không tìm thấy bản ghi nào khớp với điều kiện lọc.'}
@@ -577,7 +575,7 @@ export const HistoryLogs: React.FC<HistoryLogsProps> = ({
             {/* Desktop Table View */}
             <div className="hidden sm:block overflow-x-auto max-h-[380px] overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 glass-subcard backdrop-blur-md border-b border-slate-200/70 text-slate-500 font-semibold uppercase tracking-wider z-10">
+                <thead className="sticky top-0 bg-[#FAF7F0] border-b-2 border-slate-800 text-slate-800 font-extrabold uppercase tracking-wider z-10">
                   <tr>
                     <th className="px-3 py-2.5 text-center font-mono w-12">STT</th>
                     <th className="px-4 py-2.5">Thời Gian (Ngày & Giờ)</th>

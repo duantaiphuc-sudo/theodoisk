@@ -24,7 +24,8 @@ import {
   updateUserRealtimePresence,
   checkIsQuotaExceeded,
   onQuotaExceededChange,
-  initializeFirebaseApp
+  initializeFirebaseApp,
+  TELEMETRY_STALE_THRESHOLD_SECONDS
 } from './services/firebase';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { getCurrentUser, saveCurrentUser, logout, fetchAllUsers, isUserAdmin, refreshCurrentUserClaims } from './services/authService';
@@ -155,6 +156,7 @@ export default function App() {
     } catch {}
 
     if (firebaseConfig.autoConnect) {
+      lastUserPresenceWriteAtRef.current = Date.now();
       updateUserRealtimePresence(firebaseConfig, user.id, {
         isOnline: true,
         lastActive: new Date().toISOString(),
@@ -171,6 +173,7 @@ export default function App() {
 
   const handleLogout = () => {
     if (currentUser) {
+      lastUserPresenceWriteAtRef.current = Date.now();
       updateUserRealtimePresence(firebaseConfig, currentUser.id, {
         isOnline: false,
         currentPresence: 'Away',
@@ -210,21 +213,29 @@ export default function App() {
     time: string;
   } | null>(null);
 
-  // 2.0 Wallpaper & Glassmorphism Customization State
+  // 2.0 Wallpaper & Tactile Theme State (Migrates once to Neo-Brutalist Warm Cream default)
   const [dashboardWallpaper, setDashboardWallpaper] = useState<string>(() => {
     try {
-      return localStorage.getItem('theodoisk_dashboard_wallpaper') || '/nenweb.png';
+      const migrated = localStorage.getItem('theodoisk_style_version');
+      if (migrated !== 'neo-brutalist-v1') {
+        localStorage.setItem('theodoisk_style_version', 'neo-brutalist-v1');
+        localStorage.setItem('theodoisk_dashboard_wallpaper', 'tactile-cream');
+        localStorage.setItem('theodoisk_glass_tone', 'light');
+        localStorage.setItem('theodoisk_card_opacity', '100');
+        return 'tactile-cream';
+      }
+      return localStorage.getItem('theodoisk_dashboard_wallpaper') || 'tactile-cream';
     } catch {
-      return '/nenweb.png';
+      return 'tactile-cream';
     }
   });
 
   const [wallpaperBlur, setWallpaperBlur] = useState<number>(() => {
     try {
       const val = localStorage.getItem('theodoisk_wallpaper_blur');
-      return val !== null ? Number(val) : 1;
+      return val !== null ? Number(val) : 0;
     } catch {
-      return 1;
+      return 0;
     }
   });
 
@@ -269,9 +280,9 @@ export default function App() {
   const [cardOpacity, setCardOpacity] = useState<number>(() => {
     try {
       const val = localStorage.getItem('theodoisk_card_opacity');
-      return val !== null ? Number(val) : 80;
+      return val !== null ? Number(val) : 100;
     } catch {
-      return 80;
+      return 100;
     }
   });
 
@@ -290,26 +301,27 @@ export default function App() {
   };
 
   const handleResetWallpaperDefaults = () => {
-    setDashboardWallpaper('/nenweb.png');
-    setWallpaperBlur(1);
+    setDashboardWallpaper('tactile-cream');
+    setWallpaperBlur(0);
     setWallpaperOpacity(40);
     setGlassTone('light');
-    setCardOpacity(80);
+    setCardOpacity(100);
     try {
-      localStorage.setItem('theodoisk_dashboard_wallpaper', '/nenweb.png');
-      localStorage.setItem('theodoisk_wallpaper_blur', '1');
+      localStorage.setItem('theodoisk_dashboard_wallpaper', 'tactile-cream');
+      localStorage.setItem('theodoisk_wallpaper_blur', '0');
       localStorage.setItem('theodoisk_wallpaper_opacity', '40');
       localStorage.setItem('theodoisk_glass_tone', 'light');
-      localStorage.setItem('theodoisk_card_opacity', '80');
+      localStorage.setItem('theodoisk_card_opacity', '100');
     } catch {}
-    setClearNotice('Đã khôi phục toàn bộ hình nền & hiệu ứng kính về mặc định.');
+    setClearNotice('Đã khôi phục giao diện Tactile Clean mặc định.');
     setTimeout(() => setClearNotice(null), 3000);
   };
 
-  // Dark glass mode calculation & HTML/Body class synchronization
+  // Dark mode calculation & HTML/Body class synchronization
   const isNegativeGlass = cardOpacity < 0;
   const absOpacity = Math.abs(cardOpacity) / 100;
   const isDarkGlassActive = glassTone === 'dark' || isNegativeGlass;
+  const isCleanCanvas = dashboardWallpaper === 'tactile-cream';
 
   useEffect(() => {
     if (isDarkGlassActive) {
@@ -672,6 +684,10 @@ export default function App() {
   const lastFirebaseHistorySaveRef = useRef<number>(0);
   const lastSavedMetricsRef = useRef<{ bpm: number; spo2: number }>({ bpm: 0, spo2: 0 });
   const lastPostureStatusRef = useRef<number>(-1);
+  const lastUserPresenceWriteAtRef = useRef<number>(0);
+  const lastUserPresenceSignatureRef = useRef<string>('');
+  const lastUserPresenceVitalsRef = useRef<{ bpm: number; spo2: number }>({ bpm: 0, spo2: 0 });
+  const lastSentWebTftStatusRef = useRef<{ key: string; status_code: number } | null>(null);
 
   // Refs for MAX30102, camera error, stranger, and welcome back audio alerts
   const lastFingerPlacedRef = useRef<boolean>(false);
@@ -1193,52 +1209,12 @@ export default function App() {
       });
     }
 
-    // Realtime broadcast to Firestore directly on every telemetry update (Fast-path, eliminates latency)
-    const hasLiveSignal = Boolean(
-      data && (
-        data.postureStatus >= 0 ||
-        data.bpm > 0 ||
-        data.spo2 > 0 ||
-        (data.inZone && data.trackingActive) ||
-        isCameraError
-      )
-    );
-    const isCameraUntracked = !isCameraError && (isOutOfZone || data.trackingActive === false);
-    const isPresenceAbsent = hasLiveSignal && !isCameraError && (data.postureStatus === 2 || isCameraUntracked || isAbsent);
-    const isPresenceStanding = hasLiveSignal && !isPresenceAbsent && !isCameraError && (isStanding || data.postureStatus === 5 || Boolean(data.postureLabel?.toLowerCase().includes('đứng')));
-    const isBad = hasLiveSignal && !isPresenceAbsent && !isCameraError && (data.postureStatus === 1 || data.postureStatus === 3);
-
-    const presence: 'Present' | 'Away' = 'Present'; // Active logged-in session is always Present (Đang hoạt động)
-    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = isCameraError
-      ? 'waiting'
-      : !hasLiveSignal
-      ? 'waiting'
-      : (isVerifying ? 'waiting' : (isAbsent ? 'absent' : (isStanding ? 'standing' : (isBad ? 'incorrect' : 'correct'))));
-    const postureText = isCameraError
-      ? '⚠️ Lỗi Camera'
-      : !hasLiveSignal
-      ? '– Chờ kết nối'
-      : (isVerifying ? '– Đang xác nhận' : (isAbsent ? '– Ngoài vùng' : (isStanding ? '↑ Đứng' : (isBad ? '⚠ Sai' : '✓ Đúng'))));
-
-    if (activeUser && firebaseConfig.autoConnect) {
-      updateUserRealtimePresence(firebaseConfig, activeUser.id, {
-        isOnline: true,
-        lastActive: new Date().toISOString(),
-        currentPresence: presence,
-        currentPosture: posture,
-        currentPostureText: postureText,
-        sittingMinutes: Math.floor((timeStatsRef.current.sittingSeconds || 0) / 60),
-        bpm: (isAbsent || !hasLiveSignal) ? 0 : data.bpm,
-        spo2: (isAbsent || !hasLiveSignal) ? 0 : data.spo2,
-        hasAlert: hasLiveSignal && !isAbsent && (isBad || (data.bpm > 0 && (data.bpm < currentThresholds.hrMin || data.bpm > currentThresholds.hrMax))),
-        alertReason: hasLiveSignal && !isAbsent && isBad ? (data.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
-        device: activeUser.device || ''
-      }).catch(() => {});
-    }
+    // Đồng bộ presence & live metrics lên users/{uid} được xử lý tập trung tại useEffect state-driven & throttled
+    // (loại bỏ ghi trùng lặp trên mỗi packet telemetry để tiết kiệm quota Firestore)
 
     // === SUPABASE-FIRST STORAGE STRATEGY ===
     // Lưu lịch sử telemetry vào Supabase PostgreSQL là nguồn chính.
-    // Firebase chỉ dùng để đồng bộ trạng thái présence (online/offline) ở trên.
+    // Firebase chỉ dùng để đồng bộ trạng thái presence (online/offline) có kiểm soát.
     // KHÔNG ghi lịch sử đo đạc lên Firestore để tối ưu hóa hạn mức 50k read/write/ngày.
     const isSimulated = isSimulatingRef.current || data.source?.includes('Giả Lập') || data.source?.includes('Simulated');
     const isStale = Boolean(data.isStale);
@@ -1383,69 +1359,34 @@ export default function App() {
     return () => unsub();
   }, [assignedDevice, isSimulating]);
 
-  // Đồng bộ cảnh báo tư thế thời gian thực Web -> TFT Pi 4 (Mã 3: Sai tư thế lâu, Mã 4: Ngồi quá lâu)
-  useEffect(() => {
+  // Tính toán mã trạng thái TFT rời rạc (0 | 3 | 4) từ bộ đếm để useEffect không chạy lại mỗi giây
+  const tftAlertState = useMemo(() => {
     if (!assignedDevice || !currentUser?.id || !currentAssignment?.assignment_id || isSimulating) {
-      return;
+      return null;
     }
-
-    // Chỉ đồng bộ khi thiết bị trạm đang được gán đúng cho tài khoản đang đăng nhập
     if (currentAssignment.uid !== currentUser.id) {
-      return;
+      return null;
     }
-
-    const currentThresh = thresholds;
-    const isSeated = telemetry.trackingActive && telemetry.postureStatus !== -1 && telemetry.postureStatus !== 2 && telemetry.postureStatus !== 5;
+    if (telemetry.isStale) {
+      return { status_code: 0 as const, base_posture_status: 0 as const };
+    }
+    const isSeated = Boolean(telemetry.trackingActive) && telemetry.postureStatus !== -1 && telemetry.postureStatus !== 2 && telemetry.postureStatus !== 5;
     const isBad = isSeated && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
-
-    const { status_code, base_posture_status } = calculateTftStatusCode(
+    return calculateTftStatusCode(
       isSeated,
       isBad,
       timeStats.badPostureSeconds,
       timeStats.continuousSittingSeconds,
-      currentThresh.incorrectPostureSec,
-      currentThresh.longSittingSec
+      thresholds.incorrectPostureSec,
+      thresholds.longSittingSec
     );
-
-    // Gửi tín hiệu ngay lập tức lên Firestore devices/{deviceId}/web_display/current
-    pushWebTftAlert(assignedDevice, {
-      uid: currentUser.id,
-      assignment_id: currentAssignment.assignment_id,
-      status_code,
-      base_posture_status,
-    });
-
-    // Heartbeat định kỳ 7 giây nếu đang có cảnh báo để duy trì trong khung TTL 18s của Pi
-    let heartbeatTimer: any = null;
-    if (status_code !== 0) {
-      heartbeatTimer = setInterval(() => {
-        pushWebTftAlert(assignedDevice, {
-          uid: currentUser.id,
-          assignment_id: currentAssignment.assignment_id,
-          status_code,
-          base_posture_status,
-        });
-      }, 7000);
-    }
-
-    return () => {
-      if (heartbeatTimer) clearInterval(heartbeatTimer);
-      // Khi thoát trạng thái hoặc unmount, xóa mã cảnh báo về 0
-      if (status_code !== 0) {
-        pushWebTftAlert(assignedDevice, {
-          uid: currentUser.id,
-          assignment_id: currentAssignment.assignment_id,
-          status_code: 0,
-          base_posture_status: 0,
-        }).catch(() => {});
-      }
-    };
   }, [
     assignedDevice,
     currentUser?.id,
     currentAssignment?.assignment_id,
     currentAssignment?.uid,
     isSimulating,
+    telemetry.isStale,
     telemetry.trackingActive,
     telemetry.postureStatus,
     timeStats.badPostureSeconds,
@@ -1453,6 +1394,94 @@ export default function App() {
     thresholds.incorrectPostureSec,
     thresholds.longSittingSec,
   ]);
+
+  // Đồng bộ cảnh báo tư thế thời gian thực Web -> TFT Pi 4 (chỉ ghi khi chuyển trạng thái hoặc giữ heartbeat 10s khi đang có mã 3/4)
+  useEffect(() => {
+    if (!tftAlertState || !assignedDevice || !currentUser?.id || !currentAssignment?.assignment_id) {
+      if (lastSentWebTftStatusRef.current && lastSentWebTftStatusRef.current.status_code !== 0) {
+        const prev = lastSentWebTftStatusRef.current;
+        const [prevDevice, prevUid, prevAssignmentId] = prev.key.split(':');
+        if (prevDevice && prevUid && prevAssignmentId) {
+          pushWebTftAlert(prevDevice, {
+            uid: prevUid,
+            assignment_id: prevAssignmentId,
+            status_code: 0,
+            base_posture_status: 0,
+          }).catch(() => {});
+        }
+        lastSentWebTftStatusRef.current = null;
+      }
+      return;
+    }
+
+    if (checkIsQuotaExceeded()) return;
+
+    const sessionKey = `${assignedDevice}:${currentUser.id}:${currentAssignment.assignment_id}`;
+    const { status_code, base_posture_status } = tftAlertState;
+    const prevSent = lastSentWebTftStatusRef.current;
+
+    if (status_code === 0) {
+      // Chỉ ghi mã 0 một lần khi vừa thoát khỏi cảnh báo (3 hoặc 4 -> 0); ngồi bình thường liên tục không ghi thêm
+      if (prevSent && prevSent.key === sessionKey && prevSent.status_code !== 0) {
+        pushWebTftAlert(assignedDevice, {
+          uid: currentUser.id,
+          assignment_id: currentAssignment.assignment_id,
+          status_code: 0,
+          base_posture_status,
+        }).catch(() => {});
+      }
+      lastSentWebTftStatusRef.current = { key: sessionKey, status_code: 0 };
+      return;
+    }
+
+    pushWebTftAlert(assignedDevice, {
+      uid: currentUser.id,
+      assignment_id: currentAssignment.assignment_id,
+      status_code,
+      base_posture_status,
+    }).catch(() => {});
+    lastSentWebTftStatusRef.current = { key: sessionKey, status_code };
+
+    // Heartbeat 10s trong khung TTL 18s của Pi khi đang có cảnh báo (mã 3 hoặc 4)
+    const heartbeatTimer = setInterval(() => {
+      if (checkIsQuotaExceeded()) return;
+      pushWebTftAlert(assignedDevice, {
+        uid: currentUser.id,
+        assignment_id: currentAssignment.assignment_id,
+        status_code,
+        base_posture_status,
+      }).catch(() => {});
+    }, 10000);
+
+    return () => {
+      clearInterval(heartbeatTimer);
+    };
+  }, [
+    assignedDevice,
+    currentUser?.id,
+    currentAssignment?.assignment_id,
+    tftAlertState?.status_code,
+    tftAlertState?.base_posture_status,
+  ]);
+
+  // Xóa cảnh báo TFT khi đổi thiết bị / đổi phiên / unmount
+  useEffect(() => {
+    return () => {
+      const prev = lastSentWebTftStatusRef.current;
+      if (prev && prev.status_code !== 0) {
+        const [prevDevice, prevUid, prevAssignmentId] = prev.key.split(':');
+        if (prevDevice && prevUid && prevAssignmentId) {
+          pushWebTftAlert(prevDevice, {
+            uid: prevUid,
+            assignment_id: prevAssignmentId,
+            status_code: 0,
+            base_posture_status: 0,
+          }).catch(() => {});
+        }
+        lastSentWebTftStatusRef.current = null;
+      }
+    };
+  }, [assignedDevice, currentUser?.id, currentAssignment?.assignment_id]);
 
   // Đồng bộ thời gian thực hồ sơ currentUser (bao gồm cả trường device được Admin gán hoặc thu hồi)
   useEffect(() => {
@@ -1484,13 +1513,21 @@ export default function App() {
     }
   }, [currentUser?.id, currentUser?.device, currentUser?.deviceId]);
 
-  // Heartbeat định kỳ duy trì trạng thái Trực Tuyến (Online Presence) liên tục cho tài khoản đang đăng nhập
+  // Heartbeat duy nhất chu kỳ 30s duy trì trạng thái Trực Tuyến (chia sẻ cooldown 25s với presence sync để không ghi chồng)
   useEffect(() => {
     if (!currentUser?.id || !firebaseConfig.autoConnect) return;
 
-    const pushPresence = (online: boolean) => {
+    const HEARTBEAT_INTERVAL_MS = 30000;
+    const PRESENCE_COOLDOWN_MS = 25000;
+
+    const pushPresence = (online: boolean, force = false) => {
       const activeUser = currentUserRef.current;
-      if (!activeUser?.id) return;
+      if (!activeUser?.id || checkIsQuotaExceeded()) return;
+      const now = Date.now();
+      if (online && !force && now - lastUserPresenceWriteAtRef.current < PRESENCE_COOLDOWN_MS) {
+        return;
+      }
+      lastUserPresenceWriteAtRef.current = now;
       updateUserRealtimePresence(firebaseConfig, activeUser.id, {
         isOnline: online,
         lastActive: new Date().toISOString(),
@@ -1498,32 +1535,33 @@ export default function App() {
       }).catch(() => {});
     };
 
-    // Gửi tín hiệu ngay lập tức khi đăng nhập/vào ứng dụng
+    // Gửi tín hiệu khi mới mở session (nếu handleLoginSuccess chưa vừa ghi)
     pushPresence(true);
 
-    // Sử dụng Web Worker chạy nền để browser không bóp nghẹt timer khi người dùng chuyển sang tab khác làm việc
+    // Dùng Web Worker chạy nền; chỉ fallback sang setInterval nếu môi trường chặn Worker (không chạy song song 2 timer)
     let bgWorker: Worker | null = null;
+    let workerUrl: string | null = null;
+    let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+
     try {
       const workerBlob = new Blob([
-        `setInterval(function() { postMessage('heartbeat'); }, 12000);`
+        `setInterval(function() { postMessage('heartbeat'); }, ${HEARTBEAT_INTERVAL_MS});`
       ], { type: 'application/javascript' });
-      const workerUrl = URL.createObjectURL(workerBlob);
+      workerUrl = URL.createObjectURL(workerBlob);
       bgWorker = new Worker(workerUrl);
       bgWorker.onmessage = () => {
         pushPresence(true);
       };
     } catch {
-      // Fallback nếu môi trường không cho phép tạo blob worker
+      fallbackTimer = setInterval(() => {
+        pushPresence(true);
+      }, HEARTBEAT_INTERVAL_MS);
     }
 
-    // Chu kỳ heartbeat 12 giây bằng setInterval thông thường
-    const heartbeatTimer = setInterval(() => {
-      pushPresence(true);
-    }, 12000);
-
-    // Khi người dùng chuyển tab hoặc quay lại tab, lập tức gia hạn timestamp trực tuyến
     const onVisibilityChange = () => {
-      pushPresence(true);
+      if (document.visibilityState === 'visible') {
+        pushPresence(true);
+      }
     };
 
     const onFocus = () => {
@@ -1531,7 +1569,7 @@ export default function App() {
     };
 
     const onUnload = () => {
-      pushPresence(false);
+      pushPresence(false, true);
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -1540,10 +1578,9 @@ export default function App() {
     window.addEventListener('pagehide', onUnload);
 
     return () => {
-      if (bgWorker) {
-        bgWorker.terminate();
-      }
-      clearInterval(heartbeatTimer);
+      if (bgWorker) bgWorker.terminate();
+      if (workerUrl) URL.revokeObjectURL(workerUrl);
+      if (fallbackTimer) clearInterval(fallbackTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('beforeunload', onUnload);
@@ -1599,6 +1636,29 @@ export default function App() {
       if (unsubscribe) unsubscribe();
     };
   }, [assignedDevice, firebaseConfig, isSimulating, handleIncomingTelemetry]);
+
+  // Kiểm tra định kỳ độ tươi (freshness) của gói telemetry để phát hiện kịp thời khi Pi mất kết nối / ngừng gửi
+  useEffect(() => {
+    if (!hasReceivedData || isSimulating || !assignedDevice) return;
+
+    const checkFreshness = () => {
+      setTelemetry(prev => {
+        if (!prev.timestamp) return prev;
+        const parsedMs = Date.parse(prev.timestamp);
+        if (isNaN(parsedMs)) return prev;
+        const ageSec = Math.max(0, Math.floor((Date.now() - parsedMs) / 1000));
+        const shouldBeStale = ageSec > TELEMETRY_STALE_THRESHOLD_SECONDS;
+        if (shouldBeStale && (!prev.isStale || Math.abs((prev.packetAgeSeconds ?? 0) - ageSec) >= 15)) {
+          return { ...prev, isStale: true, packetAgeSeconds: ageSec };
+        }
+        return prev;
+      });
+    };
+
+    checkFreshness();
+    const timer = setInterval(checkFreshness, 10000);
+    return () => clearInterval(timer);
+  }, [hasReceivedData, isSimulating, assignedDevice]);
 
   // Subscribe to Supabase Realtime Telemetry (WebSocket / postgres_changes)
   useEffect(() => {
@@ -1843,22 +1903,24 @@ export default function App() {
     return () => clearInterval(simInterval);
   }, [isSimulating, simPostureMode, handleIncomingTelemetry]);
 
-  const lastPresenceKeyRef = useRef<string>('');
-  const lastPresenceSyncTimeRef = useRef<number>(0);
-
-  // Synchronize presence and live metrics to Firestore user account (throttled & state-driven)
+  // Synchronize presence and live metrics to Firestore user account (single source, event-driven & throttled)
   useEffect(() => {
-    if (!currentUser || checkIsQuotaExceeded()) return;
+    if (!currentUser?.id || !firebaseConfig.autoConnect || checkIsQuotaExceeded()) return;
 
-    const isCameraError = 
+    const isTelemetryStale = Boolean(telemetry.isStale);
+    const isCameraError =
       Boolean(telemetry.postureLabel && (
-        telemetry.postureLabel.toLowerCase().includes('lỗi') || 
-        telemetry.postureLabel.toLowerCase().includes('error') || 
+        telemetry.postureLabel.toLowerCase().includes('lỗi') ||
+        telemetry.postureLabel.toLowerCase().includes('error') ||
         telemetry.postureLabel.toLowerCase().includes('mất camera') ||
+        telemetry.postureLabel.toLowerCase().includes('ngắt kết nối') ||
         telemetry.postureLabel.toLowerCase().includes('cam')
       )) || (telemetry.postureStatus === -1 && !telemetry.trackingActive && telemetry.postureLabel !== 'Chưa có dữ liệu');
 
-    const hasLiveSignal = Boolean(
+    const isVerifying = !isCameraError && telemetry.postureStatus === -1 &&
+      Boolean(telemetry.postureLabel?.toLowerCase().includes('xác nhận') || telemetry.trackingActive);
+
+    const hasLiveSignal = !isTelemetryStale && Boolean(
       telemetry && (
         telemetry.postureStatus >= 0 ||
         telemetry.bpm > 0 ||
@@ -1870,32 +1932,77 @@ export default function App() {
 
     const isOutOfZone = !isCameraError && (telemetry.inZone === false || telemetry.trackingActive === false);
     const isAbsent = hasLiveSignal && !isCameraError && (telemetry.postureStatus === 2 || isOutOfZone);
-    const isStanding = !isCameraError && telemetry.postureStatus === 5;
-    const isBad = hasLiveSignal && !isAbsent && !isCameraError && (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
+    const isStanding = hasLiveSignal && !isAbsent && !isCameraError &&
+      (telemetry.postureStatus === 5 || Boolean(telemetry.postureLabel?.toLowerCase().includes('đứng')));
+    const isBad = hasLiveSignal && !isAbsent && !isStanding && !isCameraError &&
+      (telemetry.postureStatus === 1 || telemetry.postureStatus === 3);
 
-    const presence: 'Present' | 'Away' = hasLiveSignal ? 'Present' : 'Away';
-    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' = isCameraError
+    const presence: 'Present' | 'Away' = 'Present';
+    const posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = isTelemetryStale
+      ? 'waiting'
+      : isCameraError
       ? 'waiting'
       : !hasLiveSignal
       ? 'waiting'
-      : (isStanding ? 'correct' : isAbsent ? 'absent' : (isBad ? 'incorrect' : 'correct'));
-    const postureText = isCameraError
+      : isVerifying
+      ? 'waiting'
+      : isStanding
+      ? 'standing'
+      : isAbsent
+      ? 'absent'
+      : isBad
+      ? 'incorrect'
+      : 'correct';
+    const postureText = isTelemetryStale
+      ? '– Thiết bị Offline'
+      : isCameraError
       ? '⚠️ Lỗi Camera'
       : !hasLiveSignal
       ? '– Chờ kết nối'
-      : (isStanding ? '– Đứng' : isAbsent ? '– Ngoài vùng' : (isBad ? '⚠ Sai' : '✓ Đúng'));
+      : isVerifying
+      ? '– Đang xác nhận'
+      : isStanding
+      ? '↑ Đứng'
+      : isAbsent
+      ? '– Ngoài vùng'
+      : isBad
+      ? '⚠ Sai'
+      : '✓ Đúng';
 
-    const stateKey = `${currentUser.id}_${presence}_${posture}_${telemetry.postureStatus}_${isBad}`;
+    const effectiveBpm = (!hasLiveSignal || isAbsent || isTelemetryStale) ? 0 : Math.round(telemetry.bpm || 0);
+    const effectiveSpo2 = (!hasLiveSignal || isAbsent || isTelemetryStale) ? 0 : Number((telemetry.spo2 || 0).toFixed(1));
+    const hasVitalAlert = effectiveBpm > 0 && (effectiveBpm < thresholds.hrMin || effectiveBpm > thresholds.hrMax);
+    const hasAlert = hasLiveSignal && !isAbsent && (isBad || hasVitalAlert);
+
+    const stateSignature = [
+      currentUser.id,
+      currentUser.device || '',
+      presence,
+      posture,
+      telemetry.postureStatus,
+      isTelemetryStale ? 'stale' : 'fresh',
+      isSimulating ? 'sim' : 'live',
+      hasAlert ? 'alert' : 'ok',
+      effectiveBpm > 0 ? 'hr1' : 'hr0',
+      effectiveSpo2 > 0 ? 'sp1' : 'sp0',
+    ].join('|');
+
     const now = Date.now();
-    const isStateChanged = lastPresenceKeyRef.current !== stateKey;
-    const isIntervalElapsed = now - lastPresenceSyncTimeRef.current > 45000;
+    const isStateChanged = lastUserPresenceSignatureRef.current !== stateSignature;
+    const prevVitals = lastUserPresenceVitalsRef.current;
+    const vitalsChanged = !isTelemetryStale && (
+      Math.abs(effectiveBpm - prevVitals.bpm) >= 3 ||
+      Math.abs(effectiveSpo2 - prevVitals.spo2) >= 1
+    );
+    const isIntervalElapsed = (now - lastUserPresenceWriteAtRef.current) >= 30000;
 
-    if (!isStateChanged && !isIntervalElapsed) {
+    if (!isStateChanged && !vitalsChanged && !isIntervalElapsed) {
       return;
     }
 
-    lastPresenceKeyRef.current = stateKey;
-    lastPresenceSyncTimeRef.current = now;
+    lastUserPresenceSignatureRef.current = stateSignature;
+    lastUserPresenceVitalsRef.current = { bpm: effectiveBpm, spo2: effectiveSpo2 };
+    lastUserPresenceWriteAtRef.current = now;
 
     updateUserRealtimePresence(firebaseConfig, currentUser.id, {
       isOnline: true,
@@ -1903,29 +2010,45 @@ export default function App() {
       currentPresence: presence,
       currentPosture: posture,
       currentPostureText: postureText,
-      posture_status: telemetry.postureStatus,
-      postureStatus: telemetry.postureStatus,
-      posture_label: telemetry.postureLabel,
-      postureLabel: telemetry.postureLabel,
-      in_zone: telemetry.inZone,
-      inZone: telemetry.inZone,
-      tracking_active: telemetry.trackingActive,
-      trackingActive: telemetry.trackingActive,
-      posture_warning: telemetry.postureWarning || '',
-      postureWarning: telemetry.postureWarning || '',
-      angle_neck: telemetry.angleNeck || 0,
-      angleNeck: telemetry.angleNeck || 0,
+      posture_status: isTelemetryStale ? -1 : telemetry.postureStatus,
+      postureStatus: isTelemetryStale ? -1 : telemetry.postureStatus,
+      posture_label: isTelemetryStale ? 'Thiết bị Pi 4 Offline' : telemetry.postureLabel,
+      postureLabel: isTelemetryStale ? 'Thiết bị Pi 4 Offline' : telemetry.postureLabel,
+      in_zone: isTelemetryStale ? false : telemetry.inZone,
+      inZone: isTelemetryStale ? false : telemetry.inZone,
+      tracking_active: isTelemetryStale ? false : telemetry.trackingActive,
+      trackingActive: isTelemetryStale ? false : telemetry.trackingActive,
+      posture_warning: hasLiveSignal && !isAbsent ? (telemetry.postureWarning || '') : '',
+      postureWarning: hasLiveSignal && !isAbsent ? (telemetry.postureWarning || '') : '',
+      angle_neck: isTelemetryStale ? 0 : (telemetry.angleNeck || 0),
+      angleNeck: isTelemetryStale ? 0 : (telemetry.angleNeck || 0),
       isSimulating: isSimulating,
       is_simulating: isSimulating,
-      sittingMinutes: Math.floor((timeStats.sittingSeconds || 0) / 60),
-      bpm: (isAbsent || !hasLiveSignal) ? 0 : telemetry.bpm,
-      spo2: (isAbsent || !hasLiveSignal) ? 0 : telemetry.spo2,
-      hasAlert: hasLiveSignal && (isBad || (telemetry.bpm > 0 && (telemetry.bpm < thresholds.hrMin || telemetry.bpm > thresholds.hrMax))),
-      alertReason: hasLiveSignal && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
+      sittingMinutes: Math.floor((timeStatsRef.current.sittingSeconds || 0) / 60),
+      bpm: effectiveBpm,
+      spo2: effectiveSpo2,
+      hasAlert,
+      alertReason: hasLiveSignal && !isAbsent && isBad ? (telemetry.postureWarning || 'Cột sống đang bị gù hoặc cúi cổ') : '',
       device: currentUser.device || '',
       timestamp: new Date().toISOString()
     }).catch(() => {});
-  }, [currentUser?.id, currentUser?.device, firebaseConfig, telemetry.postureStatus, telemetry.inZone, telemetry.trackingActive, isSimulating]);
+  }, [
+    currentUser?.id,
+    currentUser?.device,
+    firebaseConfig,
+    telemetry.postureStatus,
+    telemetry.postureLabel,
+    telemetry.postureWarning,
+    telemetry.angleNeck,
+    telemetry.inZone,
+    telemetry.trackingActive,
+    telemetry.bpm,
+    telemetry.spo2,
+    telemetry.isStale,
+    thresholds.hrMin,
+    thresholds.hrMax,
+    isSimulating,
+  ]);
 
   const handleResetTimers = () => {
     setTimeStats({
@@ -2265,54 +2388,65 @@ export default function App() {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Glass tone calculations with support for negative opacity (smoked dark glass) and zero opacity (crystal glass)
-  const cardGlassBg = cardOpacity === 0
+  // Tactile theme tokens calculation (Clean Solid Cream default vs Optional Photo Wallpaper)
+  const cardGlassBg = isCleanCanvas
+    ? isDarkGlassActive
+      ? '#162033'
+      : '#ffffff'
+    : cardOpacity === 0
     ? 'rgba(255, 255, 255, 0)'
-    : isNegativeGlass
-    ? `rgba(15, 23, 42, ${absOpacity})`
-    : glassTone === 'dark'
-    ? `rgba(15, 23, 42, ${absOpacity})`
-    : `rgba(255, 255, 255, ${absOpacity})`;
-  const cardGlassBorder = cardOpacity === 0
-    ? 'rgba(255, 255, 255, 0.45)'
     : isNegativeGlass || glassTone === 'dark'
-    ? `rgba(255, 255, 255, ${Math.max(0.12, absOpacity * 0.35)})`
-    : `rgba(255, 255, 255, ${Math.max(0.3, absOpacity * 0.75)})`;
-  const cardGlassBlur = `${Math.round(absOpacity * 16)}px`;
+    ? `rgba(22, 32, 51, ${absOpacity})`
+    : `rgba(255, 255, 255, ${absOpacity})`;
+  const cardGlassBorder = isDarkGlassActive ? '#475569' : '#1e293b';
+  const cardShadow = isDarkGlassActive ? '0 4px 0 #020617' : '0 4px 0 #1e293b';
+  const cardGlassBlur = isCleanCanvas || cardOpacity === 0 || absOpacity >= 0.95 ? '0px' : `${Math.round(absOpacity * 8)}px`;
 
   return (
     <div 
-      className={`relative min-h-screen text-slate-900 flex selection:bg-emerald-500 selection:text-white w-full max-w-full overflow-x-hidden ${isDarkGlassActive ? 'theme-dark-glass dark' : 'theme-light-glass'}`}
+      className={`relative min-h-screen text-slate-900 flex selection:bg-[#16B364] selection:text-white w-full max-w-full overflow-x-hidden ${isDarkGlassActive ? 'theme-dark-glass dark' : 'theme-light-glass'}`}
       style={{
         '--card-glass-bg': cardGlassBg,
         '--card-glass-border': cardGlassBorder,
+        '--card-shadow': cardShadow,
         '--card-glass-blur': cardGlassBlur,
       } as React.CSSProperties}
     >
-      {/* 0. 100% Full-bleed Fixed Wallpaper Layer (Glassmorphism Base) */}
-      <div className="fixed inset-0 w-full h-full z-0 overflow-hidden pointer-events-none bg-slate-900">
-        <img 
-          src={dashboardWallpaper} 
-          alt="Dashboard Ambient Wallpaper" 
-          className="w-full h-full object-cover object-center pointer-events-none scale-105 transition-all duration-700"
-          style={{
-            filter: `blur(${wallpaperBlur}px)`,
-          }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/nenweb.png';
-          }}
+      {/* 0. Clean Warm Cream Tactile Canvas (Default) OR Optional Custom Ambient Wallpaper */}
+      {isCleanCanvas ? (
+        <div
+          className={`fixed inset-0 w-full h-full z-0 pointer-events-none transition-colors duration-300 ${
+            isDarkGlassActive ? 'bg-[#0B1120]' : 'bg-[#FDFBF7]'
+          }`}
         />
-        {/* Semi-transparent frosted backdrop tint for high-contrast glassmorphism */}
-        <div 
-          className="absolute inset-0 transition-opacity duration-300"
-          style={{
-            backgroundColor: glassTone === 'dark' 
-              ? `rgba(15, 23, 42, ${wallpaperOpacity / 100})` 
-              : `rgba(248, 250, 252, ${wallpaperOpacity / 100})`,
-            backdropFilter: 'blur(0.5px)'
-          }}
-        />
-      </div>
+      ) : (
+        <div className="fixed inset-0 w-full h-full z-0 overflow-hidden pointer-events-none bg-slate-900">
+          <img 
+            src={dashboardWallpaper} 
+            alt="Dashboard Ambient Wallpaper" 
+            referrerPolicy="no-referrer"
+            className={`w-full h-full object-cover object-center pointer-events-none transition-all duration-700 ${
+              wallpaperBlur > 0 ? 'scale-105' : ''
+            }`}
+            style={{
+              filter: wallpaperBlur > 0 ? `blur(${wallpaperBlur}px)` : 'none',
+            }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/nenweb.png';
+            }}
+          />
+          {wallpaperOpacity > 0 && (
+            <div 
+              className="absolute inset-0 transition-opacity duration-300"
+              style={{
+                backgroundColor: glassTone === 'dark' 
+                  ? `rgba(11, 17, 32, ${Math.max(0, Math.min(1, wallpaperOpacity / 100))})` 
+                  : `rgba(253, 251, 247, ${Math.max(0, Math.min(1, wallpaperOpacity / 100))})`,
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {/* 1. Left Vertical Sidebar: Fixed on desktop, Drawer on mobile */}
       <Sidebar
@@ -2464,44 +2598,44 @@ export default function App() {
                   ));
 
                 return (
-                  <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl border text-xs shadow-xs transition-all ${
+                  <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl border-2 border-slate-800 shadow-[0_4px_0_#1E293B] text-xs transition-all ${
                     telemetry.isStale
-                      ? 'bg-amber-50/85 border-amber-200 text-amber-900 backdrop-blur-md'
+                      ? 'bg-[#FDE68A]/55 text-slate-900'
                       : isTelemetryCameraError
-                      ? 'bg-rose-50/90 border-rose-200 text-rose-900 backdrop-blur-md'
-                      : 'glass-panel border-white/60 text-slate-800'
+                      ? 'bg-[#FBC2C8]/55 text-slate-900'
+                      : 'glass-panel text-slate-900'
                   }`}>
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] ${
                         telemetry.isStale 
-                          ? 'bg-amber-100 text-amber-700 border-amber-300'
+                          ? 'bg-[#FDE68A] text-slate-900'
                           : isTelemetryCameraError
-                          ? 'bg-rose-100 text-rose-700 border-rose-300'
-                          : 'bg-sky-50 text-sky-600 border-sky-200'
+                          ? 'bg-[#FBC2C8] text-slate-900'
+                          : 'bg-[#BAE0EC] text-slate-900'
                       }`}>
                         {telemetry.isStale ? (
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          <AlertTriangle className="w-4 h-4 text-slate-900" />
                         ) : isTelemetryCameraError ? (
-                          <CameraOff className="w-4 h-4 text-rose-600 animate-pulse" />
+                          <CameraOff className="w-4 h-4 text-slate-900 animate-pulse" />
                         ) : (
-                          <Radio className="w-4 h-4 text-sky-600 animate-pulse" />
+                          <Radio className="w-4 h-4 text-slate-900 animate-pulse" />
                         )}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                          <span className="font-extrabold text-slate-900 text-xs sm:text-sm">
                             {telemetry.isStale 
                               ? 'Bản Ghi Lưu Trên Firebase' 
                               : isTelemetryCameraError 
                               ? 'Cảnh Báo: Camera Đang Ngắt Kết Nối' 
                               : 'Dữ Liệu Trực Tuyến Từ Firebase'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-slate-800 whitespace-nowrap ${
                             telemetry.isStale
-                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              ? 'bg-[#FDE68A] text-slate-900'
                               : isTelemetryCameraError
-                              ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
-                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              ? 'bg-[#FBC2C8] text-slate-900'
+                              : 'bg-[#B2F5BE] text-slate-900'
                           }`}>
                             {telemetry.isStale 
                               ? '⚠️ Bản ghi cũ (Pi 4 Offline)' 
@@ -2510,7 +2644,7 @@ export default function App() {
                               : 'Trực tuyến'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-700 font-medium mt-1 leading-relaxed">
+                        <p className="text-xs text-slate-800 font-medium mt-1 leading-relaxed">
                           {telemetry.isStale
                             ? `Dữ liệu (${telemetry.bpm} bpm, ${telemetry.spo2}% SpO₂) là bản ghi trước đó từ devices/${firebaseConfig.documentId || 'pi4_node_1'}. Bấm nút bên cạnh để đưa màn hình về trạng thái chờ rỗng (--).`
                             : isTelemetryCameraError
@@ -2525,7 +2659,7 @@ export default function App() {
                         onClick={handleClearFirebaseData}
                         disabled={isClearingFirebase}
                         title="Xóa bản ghi cũ trên Firestore và đưa màn hình về trạng thái chờ (--)"
-                        className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-rose-600 hover:bg-rose-700 text-white transition shadow-xs flex items-center gap-1.5 text-xs cursor-pointer"
+                        className="w-full sm:w-auto justify-center min-h-[38px] px-3.5 py-1.5 rounded-xl font-bold bg-[#FBC2C8] hover:bg-[#f8a9b2] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] active:translate-y-[1px] transition flex items-center gap-1.5 text-xs cursor-pointer whitespace-nowrap"
                       >
                         <Trash2 className={`w-3.5 h-3.5 ${isClearingFirebase ? 'animate-spin' : ''}`} />
                         <span>{isClearingFirebase ? 'Đang xóa...' : 'Xóa Về Trống (--)'}</span>
@@ -2581,7 +2715,7 @@ export default function App() {
                   <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                     <button
                       onClick={() => setIsSimulating(true)}
-                      className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg font-semibold bg-sky-600 hover:bg-sky-700 text-white transition shadow-xs text-xs cursor-pointer"
+                      className="w-full sm:w-auto justify-center px-3.5 py-2 rounded-xl font-bold tactile-btn-primary text-xs cursor-pointer"
                     >
                       Bật Giả Lập Thử Nghiệm
                     </button>
@@ -2766,8 +2900,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Mobile Thumb Navigation Segmented Tabs (Unified Glassmorphism) */}
-              <div className="sm:hidden flex items-center gap-1 p-1 rounded-xl glass-subcard border overflow-x-auto shadow-xs scrollbar-none">
+              {/* Mobile Thumb Navigation Segmented Tabs */}
+              <div className="sm:hidden flex items-center gap-1 p-1.5 rounded-2xl glass-subcard border overflow-x-auto scrollbar-none">
                 {[
                   { id: 'all', label: 'Tất Cả' },
                   { id: 'posture', label: 'Tư Thế' },
@@ -2778,9 +2912,9 @@ export default function App() {
                   <button
                     key={tab.id}
                     onClick={() => setMobileActiveTab(tab.id as any)}
-                    className={`flex-1 min-w-[64px] py-2 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
+                    className={`flex-1 min-w-[64px] py-2 px-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition cursor-pointer text-center shrink-0 ${
                       mobileActiveTab === tab.id
-                        ? 'bg-sky-600 text-white shadow-xs'
+                        ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -2916,24 +3050,24 @@ export default function App() {
               </div>
 
               {/* 5. Quick Access Card to AI Prediction & Data Exploitation Hub */}
-              <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="p-4 sm:p-5 rounded-2xl glass-panel flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-[#B2F5BE] text-slate-900 border-2 border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
                     <BrainCircuit className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                      AI Dự Đoán Sức Khỏe &amp; Bản Đồ Khai Thác Dữ Liệu (6 Ứng Dụng)
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                      AI Dự Đoán Sức Khỏe &amp; Tối Ưu Ngưỡng Pi 4
                     </h3>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      Dự báo nguy cơ cổ/thắt lưng, xác định khung giờ vàng tập trung, tối ưu ngưỡng Pi 4 tự động và báo cáo khai thác dữ liệu ngoài tính năng suất OHPS.
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed font-medium">
+                      Dự báo nguy cơ cổ/thắt lưng 2 giờ tới, theo dõi sinh hiệu theo giờ, tạo nhắc nhở 1 chạm và tối ưu ngưỡng Pi 4 tự động.
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMainNavTab('ai_predict')}
-                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer whitespace-nowrap shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl tactile-btn-primary text-xs sm:text-sm font-extrabold cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Mở Phân Tích &amp; Dự Báo AI
                 </button>
@@ -2941,7 +3075,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: AI PREDICTION & DATA EXPLOITATION */}
+          {/* TAB 2: AI PREDICTION */}
           {mainNavTab === 'ai_predict' && currentUser && (
             <AIPredictionHub
               currentUser={currentUser}
@@ -2954,6 +3088,7 @@ export default function App() {
               ohpsData={ohpsData}
               tasks={userTasks}
               onApplyThresholds={saveThresholdsForPi}
+              onCreateTask={handleCreateTaskFromAI}
               onOpenSettingsModal={() => {
                 if (!isManager) return;
                 setThresholdTargetUserId(currentUser?.id || '');
@@ -3030,7 +3165,7 @@ export default function App() {
                 {isManager && (
                   <button
                     onClick={() => setIsUserManagementOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl tactile-btn-primary font-extrabold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Tạo Task Mới</span>
@@ -3189,7 +3324,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMainNavTab('overview')}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold tactile-btn-primary cursor-pointer"
                 >
                   Quay Lại Trang Chủ
                 </button>
@@ -3198,13 +3333,13 @@ export default function App() {
           )}
         </main>
 
-        {/* Footer (Synchronized with Glassmorphism) */}
-        <footer className="border-t border-white/30 glass-panel py-4 sm:py-5 text-center text-xs text-slate-600 mt-auto backdrop-blur-xl">
+        {/* Footer (Synchronized with Tactile Clean Design) */}
+        <footer className="border-t-2 border-slate-800 bg-white py-4 sm:py-5 text-center text-xs text-slate-600 mt-auto">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p>© Hệ Thống Theo Dõi Sức Khỏe & Tư Thế Thông Minh • Kết Nối Raspberry Pi 4</p>
+            <p className="font-semibold text-slate-700">© Hệ Thống Theo Dõi Sức Khỏe &amp; Tư Thế Thông Minh • Raspberry Pi 4 IoT</p>
             {isManager ? (
-              <div className="flex items-center gap-3 text-slate-600">
-                <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-sky-600 transition cursor-pointer">
+              <div className="flex items-center gap-3 text-slate-700 font-semibold">
+                <button onClick={() => setIsFirebaseModalOpen(true)} className="hover:text-[#16B364] transition cursor-pointer">
                   Cấu hình Firebase
                 </button>
                 <span>•</span>
@@ -3213,20 +3348,20 @@ export default function App() {
                     setThresholdTargetUserId(currentUser?.id || '');
                     setIsSettingsModalOpen(true);
                   }}
-                  className="hover:text-sky-600 transition cursor-pointer"
+                  className="hover:text-[#16B364] transition cursor-pointer"
                 >
                   Ngưỡng đo cảnh báo
                 </button>
                 <span>•</span>
-                <button onClick={() => setIsUserManagementOpen(true)} className="hover:text-indigo-600 text-indigo-700 font-semibold transition cursor-pointer">
+                <button onClick={() => setIsUserManagementOpen(true)} className="text-[#16B364] hover:underline font-extrabold transition cursor-pointer">
                   Quản lý tài khoản
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-slate-600 text-xs">
+              <div className="flex items-center gap-2 text-slate-700 text-xs font-semibold">
                 <span>Tài khoản: <b className="text-slate-900">{currentUser.fullName}</b> (Nhân viên)</span>
                 <span>•</span>
-                <button onClick={() => setIsProfileModalOpen(true)} className="text-sky-600 hover:underline cursor-pointer">
+                <button onClick={() => setIsProfileModalOpen(true)} className="text-[#16B364] hover:underline cursor-pointer">
                   Hồ sơ sức khỏe
                 </button>
                 <span>•</span>
@@ -3256,9 +3391,16 @@ export default function App() {
           onOpenChange={setIsChatbotOpen}
           initialSelectedMemberId={targetChatbotMemberId}
           thresholds={thresholds}
-          onApplyThresholds={(next) =>
+          ohpsData={ohpsData}
+          tasks={userTasks}
+          userProfile={currentUser}
+          onApplyThresholds={(next, targetUid) =>
             saveThresholdsForUser(
-              targetChatbotMemberId !== 'all' && isManager ? targetChatbotMemberId : currentUser.id,
+              targetUid && targetUid !== 'all' && isManager
+                ? targetUid
+                : targetChatbotMemberId !== 'all' && isManager
+                ? targetChatbotMemberId
+                : currentUser.id,
               next
             )
           }

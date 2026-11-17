@@ -16,15 +16,15 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BrainCircuit,
+  CalendarClock,
   CheckCircle2,
   Clock,
   Cpu,
   Download,
   HeartPulse,
-  Layers,
+  ListPlus,
   Loader2,
   RefreshCw,
-  ShieldCheck,
   Sliders,
   Sparkles,
   TrendingUp,
@@ -65,14 +65,21 @@ interface AIPredictionResponse {
     trendLabel: string;
     reasoning: string;
   };
+  next2HourForecast?: {
+    statusSummary: string;
+    postureRiskPercent: number;
+    recommendedActionNow: string;
+  };
+  vitalForecastSummary?: string;
   goldenHours: string;
   slumpWarningWindow: string;
   breakScheduleRecommendation: string;
   riskForecasts: PredictiveRiskDomain[];
-  dataExploitationSummary: Array<{
-    purpose: string;
-    insight: string;
-    recommendedAction: string;
+  recommendedTasks?: Array<{
+    title: string;
+    content: string;
+    priority: 'normal' | 'high' | 'urgent';
+    suggestedTime?: string;
   }>;
   aiNote?: string;
 }
@@ -88,6 +95,13 @@ interface AIPredictionHubProps {
   ohpsData: OHPSCalculationResult;
   tasks: UserTaskNotification[];
   onApplyThresholds: (nextThresholds: AlertThresholds) => Promise<void> | void;
+  onCreateTask?: (task: {
+    title: string;
+    content: string;
+    priority: 'normal' | 'high' | 'urgent';
+    targetUserName?: string;
+    deadline?: string;
+  }) => Promise<void> | void;
   onOpenSettingsModal?: () => void;
 }
 
@@ -102,6 +116,7 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
   ohpsData,
   tasks,
   onApplyThresholds,
+  onCreateTask,
   onOpenSettingsModal,
 }) => {
   const [selectedTargetId, setSelectedTargetId] = useState<string>(currentUser.id);
@@ -110,6 +125,10 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
   const [isApplyingThresholds, setIsApplyingThresholds] = useState<boolean>(false);
   const [thresholdNotice, setThresholdNotice] = useState<string | null>(null);
+  const [chartViewMode, setChartViewMode] = useState<'posture' | 'vitals'>('posture');
+  const [creatingTaskKey, setCreatingTaskKey] = useState<string | null>(null);
+  const [createdTaskKeys, setCreatedTaskKeys] = useState<Record<string, boolean>>({});
+  const [taskNotice, setTaskNotice] = useState<string | null>(null);
 
   const selectedTargetUser = useMemo(() => {
     if (!isManager || selectedTargetId === currentUser.id) return currentUser;
@@ -216,6 +235,45 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTargetId]);
 
+  const teamRiskRanking = useMemo(() => {
+    if (!isManager || selectedTargetId !== 'all' || allUsers.length === 0) return [];
+    return allUsers
+      .map(member => {
+        const memberEmail = (member.email || '').toLowerCase().trim();
+        const logs = history.filter(item => {
+          const uid = item.userId || (item as any).user_id;
+          const email = (item.userEmail || '').toLowerCase().trim();
+          return uid === member.id || (memberEmail && email === memberEmail);
+        });
+        const total = logs.length;
+        const goodCount = logs.filter(l => l.postureStatus === 0).length;
+        const badCount = logs.filter(l => l.postureStatus === 1 || l.postureStatus === 3).length;
+        const alertCount = logs.filter(l => Boolean(l.hasAlert)).length;
+        const validBpm = logs.filter(l => Number(l.bpm) > 0);
+        const avgBpm = validBpm.length > 0
+          ? Math.round(validBpm.reduce((s, l) => s + Number(l.bpm), 0) / validBpm.length)
+          : (member.bpm || 0);
+        const goodRatio = total > 0 ? Math.round((goodCount / total) * 100) : 100;
+        const riskScore = total > 0 ? Math.min(99, Math.round((badCount / total) * 70 + Math.min(30, alertCount * 4))) : 0;
+        const riskLevel: 'Cao' | 'Trung bình' | 'Thấp' =
+          riskScore >= 55 ? 'Cao' : riskScore >= 25 ? 'Trung bình' : 'Thấp';
+
+        return {
+          id: member.id,
+          name: member.fullName || member.username || member.email || 'Thành viên',
+          department: member.department || 'Nhân sự',
+          total,
+          goodRatio,
+          badCount,
+          alertCount,
+          avgBpm,
+          riskScore,
+          riskLevel,
+        };
+      })
+      .sort((a, b) => b.riskScore - a.riskScore || b.alertCount - a.alertCount);
+  }, [isManager, selectedTargetId, allUsers, history]);
+
   const handleApplySuggestedThresholds = async () => {
     setIsApplyingThresholds(true);
     setThresholdNotice(null);
@@ -230,48 +288,65 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
     }
   };
 
-  const handleExportThesisReport = () => {
+  const handleCreateRecommendedTask = async (
+    key: string,
+    task: { title: string; content: string; priority: 'normal' | 'high' | 'urgent' }
+  ) => {
+    if (!onCreateTask || creatingTaskKey || createdTaskKeys[key]) return;
+    setCreatingTaskKey(key);
+    setTaskNotice(null);
+    try {
+      await onCreateTask({
+        title: task.title,
+        content: task.content,
+        priority: task.priority,
+        targetUserName:
+          isManager && selectedTargetUser && selectedTargetUser.id !== currentUser.id
+            ? selectedTargetUser.fullName
+            : undefined,
+      });
+      setCreatedTaskKeys(prev => ({ ...prev, [key]: true }));
+      setTaskNotice(`Đã tạo nhiệm vụ nhắc nhở "${task.title}" thành công.`);
+      setTimeout(() => setTaskNotice(null), 5000);
+    } catch (err: any) {
+      setTaskNotice(err?.message || 'Không thể tạo nhiệm vụ nhắc nhở.');
+    } finally {
+      setCreatingTaskKey(null);
+    }
+  };
+
+  const handleExportReport = () => {
+    const activeTasks = aiForecast?.recommendedTasks?.length
+      ? aiForecast.recommendedTasks
+      : analytics.suggestedTasks;
     const lines: string[] = [
-      `# BÁO CÁO AI DỰ ĐOÁN & KHAI THÁC DỮ LIỆU CÔNG THÁI HỌC`,
-      `Đối tượng phân tích: ${targetDisplayName}`,
-      `Thời điểm xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`,
-      `Tổng số bản ghi phân tích: ${analytics.sampleCount} bản ghi (Sinh hiệu hợp lệ: ${analytics.validVitalCount})`,
+      `# BÁO CÁO AI DỰ ĐOÁN SỨC KHỎE & CÔNG THÁI HỌC`,
+      `Đối tượng: ${targetDisplayName}`,
+      `Thời điểm xuất: ${new Date().toLocaleString('vi-VN')}`,
+      `Số mẫu phân tích: ${analytics.sampleCount} bản ghi (${analytics.validVitalCount} mẫu MAX30102)`,
       ``,
-      `## I. CHỈ SỐ DỰ BÁO ĐỊNH LƯỢNG`,
-      `- Điểm OHPS hiện tại: ${analytics.ohpsForecast.currentScore}/100`,
-      `- Dự báo OHPS ca tới: ${aiForecast?.predictedOhpsNextShift.score ?? analytics.ohpsForecast.predictedScore}/100 (Xu hướng: ${aiForecast?.predictedOhpsNextShift.trendLabel ?? analytics.ohpsForecast.trendLabel}, Độ tin cậy: ${aiForecast?.predictedOhpsNextShift.confidencePercent ?? analytics.ohpsForecast.confidencePercent}%)`,
-      `- Nguy cơ đốt sống cổ C5-C7: ${analytics.postureFatigue.neckSpineRiskPercent}% | Nguy cơ thắt lưng L4-L5: ${analytics.postureFatigue.lumbarRiskPercent}%`,
-      `- Thời gian ước tính tới ngưỡng mỏi cổ/lưng: ~${analytics.postureFatigue.predictedMinutesUntilSlouch} phút ngồi liên tục`,
-      `- Tương quan sinh hiệu: Ngồi chuẩn ${analytics.vitalCorrelation.goodPostureAvgBpm} BPM (${analytics.vitalCorrelation.goodPostureAvgSpo2}% SpO2) vs Sai tư thế ${analytics.vitalCorrelation.badPostureAvgBpm} BPM (${analytics.vitalCorrelation.badPostureAvgSpo2}% SpO2)`,
-      `- Khung giờ vàng tập trung: ${aiForecast?.goldenHours ?? analytics.circadian.goldenHoursWindow}`,
-      `- Khung giờ dễ suy giảm năng lượng: ${aiForecast?.slumpWarningWindow ?? analytics.circadian.slumpRiskWindow}`,
+      `## I. CHỈ SỐ DỰ BÁO`,
+      `- OHPS hiện tại: ${analytics.ohpsForecast.currentScore}/100 → Dự báo ca tới: ${aiForecast?.predictedOhpsNextShift.score ?? analytics.ohpsForecast.predictedScore}/100 (${aiForecast?.predictedOhpsNextShift.trendLabel ?? analytics.ohpsForecast.trendLabel}, độ tin cậy ${aiForecast?.predictedOhpsNextShift.confidencePercent ?? analytics.ohpsForecast.confidencePercent}%)`,
+      `- Dự báo 2 giờ tới: ${aiForecast?.next2HourForecast?.statusSummary || analytics.immediate2hRisk.headline}`,
+      `- Nguy cơ Cổ C5-C7: ${analytics.postureFatigue.neckSpineRiskPercent}% | Thắt lưng L4-L5: ${analytics.postureFatigue.lumbarRiskPercent}% (~${analytics.postureFatigue.predictedMinutesUntilSlouch} phút ngồi tới ngưỡng mỏi)`,
+      `- Dự báo sinh hiệu: ${aiForecast?.vitalForecastSummary || analytics.vitalForecast.summaryText}`,
+      `- Giờ vàng tập trung: ${aiForecast?.goldenHours ?? analytics.circadian.goldenHoursWindow} | Dễ suy giảm: ${aiForecast?.slumpWarningWindow ?? analytics.circadian.slumpRiskWindow}`,
       ``,
-      `## II. CHỈ SỐ ĐÁNH GIÁ MÔ HÌNH ĐỊNH LƯỢNG & BẤT THƯỜNG SINH HỌC`,
-      `- Mô hình chuỗi thời gian WLS + EWMA: R² = ${analytics.modelMetrics.rSquared} | MAE = ${analytics.modelMetrics.mae} | EWMA = ${analytics.modelMetrics.ewmaScore}% | Slope = ${analytics.modelMetrics.regressionSlope >= 0 ? '+' : ''}${analytics.modelMetrics.regressionSlope}/block`,
-      `- Chất lượng tín hiệu cảm biến MAX30102 (SQI): ${analytics.modelMetrics.sqiScore}/100`,
-      `- Đường cơ sở nhịp tim cá nhân: ${analytics.modelMetrics.baselineBpmMean || '--'} ± ${analytics.modelMetrics.baselineBpmStd || '--'} BPM (Latest Z-Score: ${analytics.modelMetrics.latestBpmZScore >= 0 ? '+' : ''}${analytics.modelMetrics.latestBpmZScore}σ)`,
-      `- Số điểm bất thường phát hiện (|Z| ≥ 2.0σ hoặc SpO2 < 94%): ${analytics.modelMetrics.zScoreAnomalyCount} sự kiện`,
+      `## II. KIỂM ĐỊNH MÔ HÌNH (WLS · EWMA · SQI · Z-SCORE)`,
+      `- R² = ${analytics.modelMetrics.rSquared} | MAE = ${analytics.modelMetrics.mae} | EWMA = ${analytics.modelMetrics.ewmaScore}% | Slope = ${analytics.modelMetrics.regressionSlope >= 0 ? '+' : ''}${analytics.modelMetrics.regressionSlope}`,
+      `- SQI MAX30102: ${analytics.modelMetrics.sqiScore}/100 | Nền BPM: ${analytics.modelMetrics.baselineBpmMean || '--'} ± ${analytics.modelMetrics.baselineBpmStd || '--'} (Z-Score mới nhất: ${analytics.modelMetrics.latestBpmZScore}σ | Bất thường: ${analytics.modelMetrics.zScoreAnomalyCount})`,
       ``,
-      `## III. NHẬN ĐỊNH TỪ MÔ HÌNH AI (${aiForecast?.engine || 'statistical-engine'})`,
+      `## III. NHẬN ĐỊNH & HÀNH ĐỘNG ĐỀ XUẤT (${aiForecast?.engine || 'statistical-engine'})`,
       aiForecast?.executiveSummary || analytics.ohpsForecast.trendReason,
       ``,
-      `## IV. 6 MỤC ĐÍCH KHAI THÁC DỮ LIỆU THU THẬP ĐƯỢC`,
-      ...analytics.exploitationMatrix.flatMap(item => [
-        `### ${item.title}`,
-        `- Nhóm ứng dụng: ${item.category}`,
-        `- Dữ liệu đầu vào: ${item.inputSignals.join(', ')}`,
-        `- Phương pháp xử lý: ${item.processingMethod}`,
-        `- Kết quả đo được: ${item.liveMetricLabel} = ${item.liveMetricValue}`,
-        `- Giá trị thực tiễn: ${item.businessValue}`,
-        ``,
-      ]),
+      ...activeTasks.map((t, i) => `${i + 1}. [${t.priority.toUpperCase()}] ${t.title}: ${t.content}`),
     ];
 
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `bao-cao-ai-khai-thac-du-lieu-${new Date().toISOString().slice(0, 10)}.md`;
+    link.download = `bao-cao-ai-du-doan-${new Date().toISOString().slice(0, 10)}.md`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -284,36 +359,36 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
 
   return (
     <div className="space-y-5 sm:space-y-6 pb-8">
-      {/* Header Control Bar (Clinical Light/Dark Glass Surface) */}
-      <section className="p-4 sm:p-6 rounded-2xl glass-panel border border-white/60 shadow-lg">
+      {/* Header Control Bar (Tactile Neo-Brutalist Surface) */}
+      <section className="p-4 sm:p-6 rounded-2xl glass-panel">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
-            <div className="w-11 h-11 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-[#B2F5BE] text-slate-900 border-2 border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
               <BrainCircuit className="w-6 h-6" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <h2 className="text-base sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                  AI Dự Đoán &amp; Khai Thác Dữ Liệu Đa Mục Đích
+                  AI Dự Đoán Sức Khỏe &amp; Công Thái Học
                 </h2>
-                <span className="text-xs font-mono font-semibold text-teal-700">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap">
                   {aiForecast?.engine === 'gemini-4-hydrogen' ? 'Gemini 4 AI' : 'Statistical Trend Engine'}
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                Phân tích dữ liệu thu thập từ Raspberry Pi 4 ({analytics.sampleCount} bản ghi · {analytics.validVitalCount} mẫu sinh hiệu MAX30102) để dự báo rủi ro sức khỏe, nhịp điệu tập trung và tối ưu ngưỡng thiết bị ngoài bài toán tính năng suất OHPS.
+                Phân tích {analytics.sampleCount} bản ghi Pi 4 ({analytics.validVitalCount} mẫu MAX30102) — dự báo rủi ro 2 giờ tới, sinh hiệu &amp; tối ưu ngưỡng tự động.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             {isManager && (
-              <div className="flex items-center gap-2 glass-subcard rounded-xl px-3 min-h-[44px]">
-                <Users className="w-4 h-4 text-slate-500 shrink-0" />
+              <div className="flex items-center gap-2 bg-white border-2 border-slate-800 shadow-[0_2px_0_#1E293B] rounded-xl px-3 min-h-[44px]">
+                <Users className="w-4 h-4 text-slate-700 shrink-0" />
                 <select
                   value={selectedTargetId}
                   onChange={e => setSelectedTargetId(e.target.value)}
-                  className="bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                  className="bg-transparent text-xs sm:text-sm font-bold text-slate-900 focus:outline-none cursor-pointer pr-1"
                   aria-label="Chọn đối tượng phân tích dự báo"
                 >
                   <option value={currentUser.id}>Cá nhân ({currentUser.fullName})</option>
@@ -333,23 +408,23 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
               type="button"
               onClick={runAIPrediction}
               disabled={isLoadingAI}
-              className="min-h-[44px] px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs whitespace-nowrap"
+              className="min-h-[44px] px-4 py-2 rounded-xl tactile-btn-primary disabled:opacity-60 text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap"
             >
               {isLoadingAI ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Sparkles className="w-4 h-4 text-sky-100" />
+                <Sparkles className="w-4 h-4" />
               )}
               <span>{isLoadingAI ? 'Đang dự báo...' : 'Phân tích AI ngay'}</span>
             </button>
 
             <button
               type="button"
-              onClick={handleExportThesisReport}
-              className="min-h-[44px] px-3.5 py-2 rounded-xl glass-subcard-interactive text-slate-700 text-xs sm:text-sm font-semibold flex items-center gap-2 transition cursor-pointer whitespace-nowrap"
-              title="Xuất báo cáo phân tích và 6 mục đích khai thác dữ liệu dưới dạng Markdown"
+              onClick={handleExportReport}
+              className="min-h-[44px] px-3.5 py-2 rounded-xl tactile-btn-white text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap"
+              title="Xuất báo cáo dự báo sức khỏe dưới dạng Markdown"
             >
-              <Download className="w-4 h-4 text-slate-500" />
+              <Download className="w-4 h-4 text-slate-800" />
               <span>Xuất Báo Cáo</span>
             </button>
           </div>
@@ -387,138 +462,145 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
       {/* Row 1: 4 Predictive KPI Summary Cards */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Next Shift OHPS Forecast */}
-        <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl glass-panel flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">
               Dự báo OHPS ca tới
             </span>
-            <TrendingUp className="w-4 h-4 text-teal-600 shrink-0" />
+            <div className="w-7 h-7 rounded-lg bg-[#B2F5BE] border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 text-slate-900" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tabular-nums">
               {displayedOhpsScore}
             </span>
             <span className="text-xs font-mono text-slate-500">/ 100đ</span>
             <span
-              className={`text-xs font-mono font-bold inline-flex items-center gap-0.5 ${
-                displayedDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'
+              className={`px-2 py-0.5 rounded-full border-[1.5px] border-slate-800 text-[11px] font-mono font-bold inline-flex items-center gap-0.5 ${
+                displayedDelta >= 0 ? 'bg-[#B2F5BE] text-slate-900' : 'bg-[#FBC2C8] text-slate-900'
               }`}
             >
               {displayedDelta >= 0 ? (
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                <ArrowUpRight className="w-3 h-3" />
               ) : (
-                <ArrowDownRight className="w-3.5 h-3.5" />
+                <ArrowDownRight className="w-3 h-3" />
               )}
               {displayedDelta >= 0 ? `+${displayedDelta}` : displayedDelta}đ
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            Độ tin cậy <strong className="font-mono text-slate-800">{displayedConfidence}%</strong> · {aiForecast?.predictedOhpsNextShift.trendLabel || analytics.ohpsForecast.trendLabel}
+            Độ tin cậy <strong className="font-mono text-slate-900">{displayedConfidence}%</strong> · {aiForecast?.predictedOhpsNextShift.trendLabel || analytics.ohpsForecast.trendLabel}
           </p>
         </div>
 
         {/* Card 2: Musculoskeletal Risk */}
-        <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl glass-panel flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">
               Nguy cơ Cổ / Lưng
             </span>
-            <AlertTriangle
-              className={`w-4 h-4 shrink-0 ${
-                analytics.postureFatigue.overallRiskLevel === 'Cao'
-                  ? 'text-rose-600'
-                  : analytics.postureFatigue.overallRiskLevel === 'Trung bình'
-                  ? 'text-amber-600'
-                  : 'text-emerald-600'
-              }`}
-            />
+            <div className={`w-7 h-7 rounded-lg border-[1.5px] border-slate-800 flex items-center justify-center shrink-0 ${
+              analytics.postureFatigue.overallRiskLevel === 'Cao'
+                ? 'bg-[#FBC2C8]'
+                : analytics.postureFatigue.overallRiskLevel === 'Trung bình'
+                ? 'bg-[#FDE68A]'
+                : 'bg-[#B2F5BE]'
+            }`}>
+              <AlertTriangle className="w-3.5 h-3.5 text-slate-900" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tabular-nums">
               {Math.max(analytics.postureFatigue.neckSpineRiskPercent, analytics.postureFatigue.lumbarRiskPercent)}%
             </span>
             <span
-              className={`text-xs font-bold ${
+              className={`px-2 py-0.5 rounded-full border-[1.5px] border-slate-800 text-[11px] font-bold ${
                 analytics.postureFatigue.overallRiskLevel === 'Cao'
-                  ? 'text-rose-700'
+                  ? 'bg-[#FBC2C8] text-slate-900'
                   : analytics.postureFatigue.overallRiskLevel === 'Trung bình'
-                  ? 'text-amber-700'
-                  : 'text-emerald-700'
+                  ? 'bg-[#FDE68A] text-slate-900'
+                  : 'bg-[#B2F5BE] text-slate-900'
               }`}
             >
               Mức {analytics.postureFatigue.overallRiskLevel}
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            Dự báo mỏi sau <strong className="font-mono text-slate-800">~{analytics.postureFatigue.predictedMinutesUntilSlouch} phút</strong> ngồi liên tục
+            Dự báo mỏi sau <strong className="font-mono text-slate-900">~{analytics.postureFatigue.predictedMinutesUntilSlouch} phút</strong> ngồi liên tục
           </p>
         </div>
 
         {/* Card 3: Vital Drift & Stress */}
-        <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl glass-panel flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">
               Stress &amp; Lệch Sinh hiệu
             </span>
-            <HeartPulse className="w-4 h-4 text-sky-600 shrink-0" />
+            <div className="w-7 h-7 rounded-lg bg-[#FBC2C8] border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+              <HeartPulse className="w-3.5 h-3.5 text-slate-900" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tabular-nums">
               {analytics.vitalCorrelation.stressIndex}
             </span>
             <span className="text-xs font-mono text-slate-500">/ 100</span>
-            <span className="text-xs font-mono font-semibold text-sky-700">
+            <span className="px-2 py-0.5 rounded-full border-[1.5px] border-slate-800 bg-[#BAE0EC] text-[11px] font-mono font-bold text-slate-900">
               {analytics.vitalCorrelation.bpmDriftOnSlouch >= 0 ? '+' : ''}
               {analytics.vitalCorrelation.bpmDriftOnSlouch} BPM khi gù
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            TB: <strong className="font-mono text-slate-800">{analytics.avgBpm || '--'}</strong> BPM · SpO₂{' '}
-            <strong className="font-mono text-slate-800">{analytics.avgSpo2 || '--'}%</strong>
+            TB: <strong className="font-mono text-slate-900">{analytics.avgBpm || '--'}</strong> BPM · Dự kiến{' '}
+            <strong className="font-mono text-slate-900">{analytics.vitalForecast.predictedNextBpm || '--'}</strong> BPM · SpO₂{' '}
+            <strong className="font-mono text-slate-900">{analytics.avgSpo2 || '--'}%</strong>
           </p>
         </div>
 
         {/* Card 4: Optimal Break Cadence */}
-        <div className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl glass-panel flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">
               Lịch nghỉ tối ưu AI
             </span>
-            <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="w-7 h-7 rounded-lg bg-[#FDE68A] border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+              <Clock className="w-3.5 h-3.5 text-slate-900" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tabular-nums">
               {analytics.recommendedBreakCadence.sitMinutes}p
             </span>
-            <span className="text-xs font-semibold text-slate-500">ngồi :</span>
-            <span className="text-xl sm:text-2xl font-extrabold font-mono text-emerald-700">
+            <span className="text-xs font-semibold text-slate-600">ngồi :</span>
+            <span className="text-xl sm:text-2xl font-extrabold font-mono text-emerald-700 tabular-nums">
               {analytics.recommendedBreakCadence.standMinutes}p
             </span>
-            <span className="text-xs font-semibold text-slate-500">đứng</span>
+            <span className="text-xs font-semibold text-slate-600">đứng</span>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            Giờ vàng: <strong className="font-mono text-slate-800">{aiForecast?.goldenHours || analytics.circadian.goldenHoursWindow}</strong>
+            Giờ vàng: <strong className="font-mono text-slate-900">{aiForecast?.goldenHours || analytics.circadian.goldenHoursWindow}</strong>
           </p>
         </div>
       </section>
 
       {/* Row 1.5: Quantitative Model Diagnostics & Z-Score Anomaly Detection */}
-      <section className="p-4 sm:p-5 rounded-2xl glass-panel border border-white/60 shadow-lg space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/70">
+      <section className="p-4 sm:p-5 rounded-2xl glass-panel space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-slate-800/15">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Độ Tin Cậy Mô Hình Định Lượng &amp; Bất Thường Z-Score (WLS · EWMA · SQI)
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                Độ Tin Cậy Mô Hình (WLS · EWMA · SQI · Z-Score)
               </h3>
               <p className="text-xs text-slate-600">
-                Kiểm định hồi quy tuyến tính có trọng số (WLS), chỉ số chất lượng tín hiệu quang học MAX30102 và ngưỡng lệch chuẩn cá nhân.
+                Kiểm định hồi quy chuỗi thời gian, chất lượng tín hiệu MAX30102 và phát hiện bất thường cá nhân.
               </p>
             </div>
           </div>
-          <span className="text-xs font-mono font-semibold text-teal-700 shrink-0">
+          <span className="px-2.5 py-1 rounded-full bg-[#FAF7F0] border-[1.5px] border-slate-800 text-xs font-mono font-bold text-slate-900 shrink-0 whitespace-nowrap">
             R² = {analytics.modelMetrics.rSquared} · MAE = {analytics.modelMetrics.mae}
           </span>
         </div>
@@ -569,11 +651,11 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
                   : 'Nhiễu chuyển động'}
               </span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+            <div className="w-full h-2.5 rounded-full tactile-progress-track">
               <div
                 className={`h-full rounded-full ${
                   analytics.modelMetrics.sqiScore >= 80
-                    ? 'bg-emerald-500'
+                    ? 'bg-[#16B364]'
                     : analytics.modelMetrics.sqiScore >= 55
                     ? 'bg-amber-500'
                     : 'bg-rose-500'
@@ -623,7 +705,7 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
               <span className="text-xs font-semibold text-slate-600">sự kiện gần nhất</span>
             </div>
             <p className="text-xs text-slate-600">
-              Phát hiện lệch sinh hiệu theo từng cá nhân thay vì ngưỡng cứng tĩnh.
+              Ngưỡng lệch chuẩn ±2.0σ so với nền nhịp tim cá nhân.
             </p>
           </div>
         </div>
@@ -661,90 +743,173 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
         )}
       </section>
 
-      {/* Row 2: Hourly Trajectory Chart + Gemini AI Risk Forecast */}
+      {/* Row 2: Hourly Trajectory Chart (Posture / Vitals Toggle) + Gemini AI Risk Forecast */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-        {/* Left: Circadian & Forecast Trajectory Chart */}
-        <div className="lg:col-span-7 p-4 sm:p-6 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        {/* Left: Circadian & Vital Trajectory Chart */}
+        <div className="lg:col-span-7 p-4 sm:p-6 rounded-2xl glass-panel flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Đường Cong Nhịp Điệu Tập Trung &amp; Dự Báo Theo Giờ (08:00 – 18:00)
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                {chartViewMode === 'posture'
+                  ? 'Nhịp Điệu Tập Trung & Dự Báo Tư Thế (08:00 – 18:00)'
+                  : 'Biến Thiên Nhịp Tim & SpO₂ Theo Giờ (08:00 – 18:00)'}
               </h3>
               <p className="text-xs text-slate-600 mt-0.5">
-                Đối chiếu hiệu suất tư thế thực tế với đường dự báo suy giảm công thái học theo khung giờ làm việc.
+                {chartViewMode === 'posture'
+                  ? 'Đối chiếu điểm tư thế thực tế với đường dự báo theo khung giờ.'
+                  : aiForecast?.vitalForecastSummary || analytics.vitalForecast.summaryText}
               </p>
             </div>
-            <div className="flex items-center gap-3 text-xs font-medium text-slate-600 shrink-0">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-teal-500" />
-                Thực tế
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-0.5 border-t-2 border-dashed border-sky-600" />
-                AI Dự báo
-              </span>
+
+            <div className="inline-flex items-center p-1 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setChartViewMode('posture')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap transition ${
+                  chartViewMode === 'posture'
+                    ? 'bg-[#B2F5BE] text-slate-900 border border-slate-800 shadow-[0_1px_0_#1E293B]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tư thế (%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartViewMode('vitals')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap transition ${
+                  chartViewMode === 'vitals'
+                    ? 'bg-[#BAE0EC] text-slate-900 border border-slate-800 shadow-[0_1px_0_#1E293B]'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Nhịp tim &amp; SpO₂
+              </button>
             </div>
           </div>
 
           <div className="w-full h-64 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={analytics.circadian.hourlyCurve} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="focusActualGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0d9488" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#0d9488" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis
-                  dataKey="hourLabel"
-                  tick={{ fontSize: 11, fill: '#475569' }}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                  tickLine={false}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  tick={{ fontSize: 11, fill: '#475569' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    borderColor: 'rgba(148, 163, 184, 0.25)',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    color: '#f8fafc',
-                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.22)',
-                  }}
-                  itemStyle={{ color: '#f8fafc' }}
-                  labelStyle={{ color: '#cbd5e1', fontWeight: 700 }}
-                  formatter={(value: any, name: any) => {
-                    if (name === 'actualFocusScore') return [`${value}%`, 'Điểm tư thế thực tế'];
-                    if (name === 'predictedFocusScore') return [`${value}%`, 'AI Dự báo hiệu suất'];
-                    return [value, name];
-                  }}
-                />
-                <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="4 4" />
-                <Area
-                  type="monotone"
-                  dataKey="actualFocusScore"
-                  name="actualFocusScore"
-                  stroke="#0d9488"
-                  strokeWidth={2.5}
-                  fill="url(#focusActualGrad)"
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="predictedFocusScore"
-                  name="predictedFocusScore"
-                  stroke="#0284c7"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ r: 3, fill: '#0284c7' }}
-                />
-              </ComposedChart>
+              {chartViewMode === 'posture' ? (
+                <ComposedChart data={analytics.circadian.hourlyCurve} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="focusActualGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.22} />
+                      <stop offset="95%" stopColor="#0d9488" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis
+                    dataKey="hourLabel"
+                    tick={{ fontSize: 11, fill: '#475569' }}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fontSize: 11, fill: '#475569' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                      borderColor: 'rgba(148, 163, 184, 0.25)',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: '#f8fafc',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.22)',
+                    }}
+                    itemStyle={{ color: '#f8fafc' }}
+                    labelStyle={{ color: '#cbd5e1', fontWeight: 700 }}
+                    formatter={(value: any, name: any) => {
+                      if (name === 'actualFocusScore') return [`${value}%`, 'Điểm tư thế thực tế'];
+                      if (name === 'predictedFocusScore') return [`${value}%`, 'AI Dự báo hiệu suất'];
+                      return [value, name];
+                    }}
+                  />
+                  <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="4 4" />
+                  <Area
+                    type="monotone"
+                    dataKey="actualFocusScore"
+                    name="actualFocusScore"
+                    stroke="#0d9488"
+                    strokeWidth={2.5}
+                    fill="url(#focusActualGrad)"
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="predictedFocusScore"
+                    name="predictedFocusScore"
+                    stroke="#0284c7"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={{ r: 3, fill: '#0284c7' }}
+                  />
+                </ComposedChart>
+              ) : (
+                <ComposedChart data={analytics.circadian.hourlyCurve} margin={{ top: 8, right: 6, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis
+                    dataKey="hourLabel"
+                    tick={{ fontSize: 11, fill: '#475569' }}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    yAxisId="bpm"
+                    domain={[45, 130]}
+                    tick={{ fontSize: 11, fill: '#e11d48' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    yAxisId="spo2"
+                    orientation="right"
+                    domain={[88, 100]}
+                    tick={{ fontSize: 11, fill: '#0284c7' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                      borderColor: 'rgba(148, 163, 184, 0.25)',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: '#f8fafc',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.22)',
+                    }}
+                    itemStyle={{ color: '#f8fafc' }}
+                    labelStyle={{ color: '#cbd5e1', fontWeight: 700 }}
+                    formatter={(value: any, name: any) => {
+                      if (name === 'avgBpm') return [`${value} BPM`, 'Nhịp tim TB'];
+                      if (name === 'avgSpo2') return [`${value}%`, 'SpO₂ TB'];
+                      return [value, name];
+                    }}
+                  />
+                  <Line
+                    yAxisId="bpm"
+                    type="monotone"
+                    dataKey="avgBpm"
+                    name="avgBpm"
+                    stroke="#e11d48"
+                    strokeWidth={2.5}
+                    dot={{ r: 3.5, fill: '#e11d48' }}
+                    connectNulls
+                  />
+                  <Line
+                    yAxisId="spo2"
+                    type="monotone"
+                    dataKey="avgSpo2"
+                    name="avgSpo2"
+                    stroke="#0284c7"
+                    strokeWidth={2.5}
+                    dot={{ r: 3.5, fill: '#0284c7' }}
+                    connectNulls
+                  />
+                </ComposedChart>
+              )}
             </ResponsiveContainer>
           </div>
 
@@ -754,50 +919,64 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
               <div className="font-mono font-extrabold text-sm text-emerald-950 mt-0.5">
                 {aiForecast?.goldenHours || analytics.circadian.goldenHoursWindow}
               </div>
-              <p className="text-emerald-800 mt-1 leading-relaxed">
-                Tư thế ổn định và nhịp tim cân bằng nhất; phù hợp xếp việc phân tích chuyên sâu.
-              </p>
             </div>
             <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80">
-              <div className="font-bold text-amber-800">Khung giờ dễ suy giảm năng lượng</div>
+              <div className="font-bold text-amber-800">Khung giờ dễ suy giảm</div>
               <div className="font-mono font-extrabold text-sm text-amber-950 mt-0.5">
                 {aiForecast?.slumpWarningWindow || analytics.circadian.slumpRiskWindow}
               </div>
-              <p className="text-amber-800 mt-1 leading-relaxed">
-                Tần suất cúi gù và mệt mỏi tăng; nên chuyển sang chế độ đứng làm việc 5-10 phút.
-              </p>
             </div>
           </div>
         </div>
 
-        {/* Right: Gemini AI Structured Clinical & Ergonomic Risks */}
-        <div className="lg:col-span-5 p-4 sm:p-6 rounded-2xl glass-panel border border-white/60 shadow-lg flex flex-col justify-between space-y-4">
+        {/* Right: Gemini AI 2-Hour & Risk Forecasts */}
+        <div className="lg:col-span-5 p-4 sm:p-6 rounded-2xl glass-panel flex flex-col justify-between space-y-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Chẩn Đoán Dự Báo Rủi Ro Sức Khỏe (AI Forecast)
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                Dự Báo Rủi Ro &amp; Khuyến Nghị AI
               </h3>
               <p className="text-xs text-slate-600 mt-0.5">
-                Phân tích xác suất phát sinh sự cố trong phiên tiếp theo từ chuỗi dữ liệu tích lũy.
+                Xác suất sự cố trong ca tiếp theo từ chuỗi cảm biến Pi 4.
               </p>
             </div>
             <button
               type="button"
               onClick={runAIPrediction}
               disabled={isLoadingAI}
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+              className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer shrink-0"
               title="Làm mới phân tích AI"
             >
               <RefreshCw className={`w-4 h-4 ${isLoadingAI ? 'animate-spin' : ''}`} />
             </button>
           </div>
 
+          {/* 2-Hour Immediate Forecast Highlight */}
+          <div className="p-3.5 rounded-xl bg-[#FDE68A]/50 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                <CalendarClock className="w-3.5 h-3.5 text-slate-900" />
+                <span>Dự báo 2 giờ tới</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-white border border-slate-800 text-[11px] font-mono font-bold text-slate-900 whitespace-nowrap">
+                Rủi ro {aiForecast?.next2HourForecast?.postureRiskPercent ?? analytics.immediate2hRisk.postureRiskPercent}%
+              </span>
+            </div>
+            <p className="text-xs font-bold text-slate-900 leading-snug">
+              {aiForecast?.next2HourForecast?.statusSummary || analytics.immediate2hRisk.headline}
+            </p>
+            <p className="text-xs text-slate-700 leading-snug">
+              {aiForecast?.next2HourForecast?.recommendedActionNow ||
+                `Ngồi ${analytics.recommendedBreakCadence.sitMinutes}p : Đứng ${analytics.recommendedBreakCadence.standMinutes}p · Nghỉ giải lao sau ~${analytics.immediate2hRisk.minutesToNextBreak} phút.`}
+            </p>
+          </div>
+
           {/* Executive Summary Box */}
-          <div className="p-3.5 rounded-xl glass-subcard text-xs sm:text-sm text-slate-700 leading-relaxed">
+          <div className="p-3 rounded-xl glass-subcard text-xs text-slate-700 leading-relaxed">
             {isLoadingAI && !aiForecast ? (
               <div className="flex items-center gap-2 text-slate-500">
-                <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                <span>Đang tổng hợp dữ liệu sinh trắc học &amp; chạy mô hình dự báo...</span>
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                <span>Đang chạy mô hình dự báo...</span>
               </div>
             ) : (
               aiForecast?.executiveSummary || analytics.ohpsForecast.trendReason
@@ -805,35 +984,35 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
           </div>
 
           {/* Risk Domains List */}
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {(aiForecast?.riskForecasts || []).map((risk, idx) => {
               const barColor =
                 risk.severity === 'Cao'
                   ? 'bg-rose-600'
                   : risk.severity === 'Trung bình'
                   ? 'bg-amber-500'
-                  : 'bg-emerald-600';
-              const textColor =
+                  : 'bg-[#16B364]';
+              const badgeColor =
                 risk.severity === 'Cao'
-                  ? 'text-rose-700'
+                  ? 'bg-[#FBC2C8] text-slate-900'
                   : risk.severity === 'Trung bình'
-                  ? 'text-amber-700'
-                  : 'text-emerald-700';
+                  ? 'bg-[#FDE68A] text-slate-900'
+                  : 'bg-[#B2F5BE] text-slate-900';
               return (
                 <div key={idx} className="p-3 rounded-xl glass-subcard space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-bold text-slate-900">{risk.domain}</span>
-                    <span className={`text-xs font-mono font-extrabold ${textColor} whitespace-nowrap`}>
+                    <span className="text-xs font-bold text-slate-900">{risk.domain}</span>
+                    <span className={`px-2 py-0.5 rounded-full border-[1.5px] border-slate-800 text-[11px] font-mono font-extrabold ${badgeColor} whitespace-nowrap`}>
                       {risk.probabilityPercent}% · {risk.severity}
                     </span>
                   </div>
-                  <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="w-full h-2 rounded-full tactile-progress-track">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${barColor}`}
                       style={{ width: `${risk.probabilityPercent}%` }}
                     />
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-snug">
                     <strong className="text-slate-800">{risk.timeframe}:</strong> {risk.evidence}
                   </p>
                   <p className="text-xs text-teal-800 font-medium">
@@ -846,25 +1025,25 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
 
           {/* Break Recommendation Footer */}
           <div className="p-3 rounded-xl bg-sky-50/80 border border-sky-200/80 text-xs text-sky-900 leading-relaxed">
-            <strong className="font-bold">Khuyến nghị lịch giải lao:</strong>{' '}
+            <strong className="font-bold">Lịch nghỉ đề xuất:</strong>{' '}
             {aiForecast?.breakScheduleRecommendation || analytics.recommendedBreakCadence.rationale}
           </div>
         </div>
       </section>
 
-      {/* Row 3: Closed-Loop Adaptive Threshold Optimization -> Raspberry Pi 4 */}
-      <section className="p-4 sm:p-6 rounded-2xl glass-panel border border-white/60 shadow-lg space-y-4">
+      {/* Row 3: Closed-Loop Adaptive Threshold Optimization & 1-Click Recommended Tasks */}
+      <section className="p-4 sm:p-6 rounded-2xl glass-panel space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#FDE68A] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Tối Ưu Ngưỡng Cảnh Báo Thích Ứng (Closed-Loop AI → Raspberry Pi 4)
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                Tối Ưu Ngưỡng Pi 4 &amp; Nhiệm Vụ Hành Động
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                Hệ thống đối chiếu hồ sơ bệnh nền + hành vi sai tư thế thực tế để đề xuất bộ ngưỡng tối ưu và ghi trực tiếp xuống Pi 4 qua Firestore.
+                Đồng bộ ngưỡng cá nhân hóa xuống Pi 4 hoặc tạo ngay nhiệm vụ nhắc nhở chỉ với 1 chạm.
               </p>
             </div>
           </div>
@@ -874,7 +1053,7 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
               <button
                 type="button"
                 onClick={onOpenSettingsModal}
-                className="min-h-[44px] px-3.5 py-2 rounded-xl glass-subcard-interactive text-slate-700 text-xs font-semibold transition cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl tactile-btn-white text-xs font-bold cursor-pointer whitespace-nowrap"
               >
                 Mở bảng ngưỡng chi tiết
               </button>
@@ -883,7 +1062,7 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
               type="button"
               onClick={handleApplySuggestedThresholds}
               disabled={isApplyingThresholds}
-              className="min-h-[44px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs whitespace-nowrap"
+              className="min-h-[44px] px-4 py-2 rounded-xl tactile-btn-primary disabled:opacity-60 text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap"
             >
               {isApplyingThresholds ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -901,17 +1080,17 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
             return (
               <div
                 key={String(item.key)}
-                className={`p-3.5 rounded-xl border ${
-                  hasDiff ? 'bg-sky-50/50 border-sky-200' : 'glass-subcard'
+                className={`p-3.5 rounded-xl border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] ${
+                  hasDiff ? 'bg-[#BAE0EC]/40' : 'bg-[#FAF7F0]'
                 }`}
               >
-                <div className="text-xs font-bold text-slate-800">{item.label}</div>
+                <div className="text-xs font-bold text-slate-900">{item.label}</div>
                 <div className="mt-2 flex items-center gap-2 font-mono">
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-600">
                     Hiện tại: <strong>{item.currentValue}</strong> {item.unit}
                   </span>
-                  <span className="text-slate-400">→</span>
-                  <span className={`text-sm font-extrabold ${hasDiff ? 'text-teal-700' : 'text-slate-800'}`}>
+                  <span className="text-slate-500">→</span>
+                  <span className={`text-sm font-extrabold ${hasDiff ? 'text-emerald-700' : 'text-slate-900'}`}>
                     {item.suggestedValue} {item.unit}
                   </span>
                 </div>
@@ -920,82 +1099,172 @@ export const AIPredictionHub: React.FC<AIPredictionHubProps> = ({
             );
           })}
         </div>
+
+        {/* 1-Click AI Intervention Tasks */}
+        <div className="pt-4 border-t-2 border-slate-800/15 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <ListPlus className="w-4 h-4 text-emerald-700" />
+              <span>Nhiệm Vụ Đề Xuất Từ AI (Tạo 1 chạm)</span>
+            </div>
+            {taskNotice && (
+              <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{taskNotice}</span>
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {(aiForecast?.recommendedTasks?.length ? aiForecast.recommendedTasks : analytics.suggestedTasks).map(
+              (taskItem, idx) => {
+                const taskKey = `${selectedTargetId}-${idx}-${taskItem.title}`;
+                const isDone = Boolean(createdTaskKeys[taskKey]);
+                const isCreating = creatingTaskKey === taskKey;
+                return (
+                  <div
+                    key={taskKey}
+                    className="p-3.5 rounded-xl glass-subcard flex flex-col justify-between gap-3"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded-full border border-slate-800 text-[10px] font-mono font-bold uppercase ${
+                            taskItem.priority === 'urgent'
+                              ? 'bg-[#FBC2C8] text-slate-900'
+                              : taskItem.priority === 'high'
+                              ? 'bg-[#FDE68A] text-slate-900'
+                              : 'bg-[#BAE0EC] text-slate-900'
+                          }`}
+                        >
+                          {taskItem.priority === 'urgent'
+                            ? 'Khẩn cấp'
+                            : taskItem.priority === 'high'
+                            ? 'Ưu tiên cao'
+                            : 'Đề xuất'}
+                        </span>
+                        {'suggestedTime' in taskItem && typeof taskItem.suggestedTime === 'string' && taskItem.suggestedTime && (
+                          <span className="text-[11px] font-mono text-slate-500">
+                            {taskItem.suggestedTime}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                        {taskItem.title}
+                      </h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">{taskItem.content}</p>
+                    </div>
+
+                    {onCreateTask && (
+                      <button
+                        type="button"
+                        disabled={isDone || isCreating}
+                        onClick={() => handleCreateRecommendedTask(taskKey, taskItem)}
+                        className={`w-full min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                          isDone
+                            ? 'bg-[#B2F5BE] border-[1.5px] border-slate-800 text-slate-900 cursor-default'
+                            : 'tactile-btn-white'
+                        }`}
+                      >
+                        {isCreating ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang tạo...</span>
+                          </>
+                        ) : isDone ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Đã thêm vào Nhiệm vụ</span>
+                          </>
+                        ) : (
+                          <>
+                            <ListPlus className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Đặt lịch nhắc</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+            )}
+          </div>
+        </div>
       </section>
 
-      {/* Row 4: 6 Multi-Purpose Data Exploitation Matrix (Answering Advisor Question) */}
-      <section className="p-4 sm:p-6 rounded-2xl glass-panel border border-white/60 shadow-lg space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/60">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Bản Đồ Khai Thác Dữ Liệu Đa Mục Đích (6 Hướng Ứng Dụng Thực Tiễn)
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                Ngoài việc tính Điểm Năng Suất OHPS, dữ liệu cảm biến MAX30102 và Camera AI được xử lý cho 5 bài toán chuyên sâu khác dưới đây.
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-mono font-semibold text-slate-500 shrink-0">
-            6 luồng xử lý đang hoạt động
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {analytics.exploitationMatrix.map(card => (
-            <div
-              key={card.id}
-              className="p-4 rounded-xl glass-subcard-interactive transition flex flex-col justify-between space-y-3"
-            >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-500">
-                  <span className="text-teal-700 font-bold uppercase tracking-wider">{card.category}</span>
-                  <span className="font-mono">{card.statusLabel}</span>
-                </div>
-                <h4 className="text-sm font-bold text-slate-900 leading-snug">{card.title}</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">{card.processingMethod}</p>
+      {/* Row 4 (Admin Only when viewing All Team): Team Risk Ranking */}
+      {isManager && selectedTargetId === 'all' && teamRiskRanking.length > 0 && (
+        <section className="p-4 sm:p-6 rounded-2xl glass-panel space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-slate-800/15">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#FBC2C8] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4" />
               </div>
-
-              <div className="space-y-2.5 pt-2 border-t border-slate-200/70">
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="text-slate-500">{card.liveMetricLabel}:</span>
-                  <span className="font-mono font-extrabold text-slate-900">{card.liveMetricValue}</span>
-                </div>
-                <div className="text-[11px] text-slate-500 font-mono">
-                  Đầu vào: {card.inputSignals.join(' · ')}
-                </div>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 inline mr-1 -mt-0.5" />
-                  {card.businessValue}
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                  Xếp Hạng Rủi Ro Đội Ngũ
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Sắp xếp theo tỷ lệ sai tư thế và số cảnh báo; chọn thành viên để chạy dự báo chi tiết.
                 </p>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* AI Synthesized Exploitation Highlights (if available) */}
-        {aiForecast?.dataExploitationSummary && aiForecast.dataExploitationSummary.length > 0 && (
-          <div className="pt-3 border-t border-slate-100 space-y-2.5">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-teal-600" />
-              <span>Gợi ý khai thác chuyên sâu theo tập dữ liệu của {targetDisplayName}</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {aiForecast.dataExploitationSummary.map((item, idx) => (
-                <div key={idx} className="p-3.5 rounded-xl bg-teal-50/50 border border-teal-200/70 space-y-1">
-                  <div className="text-xs font-bold text-teal-900">{item.purpose}</div>
-                  <p className="text-xs text-slate-700 leading-relaxed">{item.insight}</p>
-                  <p className="text-xs font-semibold text-teal-800 pt-1">
-                    Hành động: {item.recommendedAction}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <span className="px-2.5 py-1 rounded-full bg-[#FAF7F0] border-[1.5px] border-slate-800 text-xs font-mono font-bold text-slate-900 whitespace-nowrap">
+              {teamRiskRanking.length} thành viên
+            </span>
           </div>
-        )}
-      </section>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {teamRiskRanking.map((member, idx) => (
+              <div
+                key={member.id}
+                className="p-3.5 rounded-xl glass-subcard-interactive flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-mono text-slate-500">#{idx + 1} · {member.department}</div>
+                    <div className="text-sm font-extrabold text-slate-900 truncate">{member.name}</div>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full border border-slate-800 text-[11px] font-bold whitespace-nowrap ${
+                      member.riskLevel === 'Cao'
+                        ? 'bg-[#FBC2C8] text-slate-900'
+                        : member.riskLevel === 'Trung bình'
+                        ? 'bg-[#FDE68A] text-slate-900'
+                        : 'bg-[#B2F5BE] text-slate-900'
+                    }`}
+                  >
+                    Rủi ro {member.riskLevel}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono bg-white/70 p-2 rounded-lg border border-slate-200">
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-sans">Chuẩn</div>
+                    <div className="font-bold text-slate-900">{member.goodRatio}%</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-sans">BPM TB</div>
+                    <div className="font-bold text-slate-900">{member.avgBpm || '--'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-sans">Cảnh báo</div>
+                    <div className="font-bold text-rose-700">{member.alertCount}</div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTargetId(member.id)}
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl tactile-btn-white text-xs font-bold cursor-pointer whitespace-nowrap"
+                >
+                  Phân tích chi tiết
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

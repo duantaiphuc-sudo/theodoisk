@@ -81,7 +81,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   }, []);
 
   // Background image handling:
-  // Uses /nenweb.png directly from public/
+  // Uses user's original /nenweb.png with zero blur or fog layer
   const bgImage = '/nenweb.png';
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
@@ -180,356 +180,498 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col font-sans select-none overflow-x-hidden">
-      {/* 1. FULL-SCREEN BACKGROUND LAYER (Desktop: 100% sharp full-bleed wallpaper; Mobile: soft ambient light background) */}
-      <div className="fixed inset-0 w-full h-full z-0 overflow-hidden bg-slate-100">
-        {!imageLoadFailed ? (
-          <>
-            {/* Desktop Wallpaper: 100% sharp, zero blur, object-cover centered */}
-            <img 
-              src={bgImage} 
-              alt="Giám sát sức khỏe văn phòng" 
-              className="hidden sm:block w-full h-full object-cover object-center pointer-events-none"
-              loading="eager"
-              onError={() => setImageLoadFailed(true)}
-              referrerPolicy="no-referrer"
-            />
-            {/* Mobile Ambient Glow: Soft light ambiance matching the sunny room tones */}
-            <div className="sm:hidden absolute inset-0 bg-gradient-to-b from-sky-100/70 via-slate-50 to-slate-100 pointer-events-none" />
-            <img 
-              src={bgImage} 
-              alt="Ambient" 
-              className="sm:hidden absolute inset-0 w-full h-full object-cover blur-3xl opacity-20 scale-110 pointer-events-none"
-              aria-hidden="true"
-            />
-          </>
-        ) : (
-          /* High-Fidelity Vector Scene matching nenweb.png if /nenweb.png file is not yet placed in public */
-          <div className="relative w-full h-full bg-gradient-to-br from-sky-100 via-white to-amber-50 flex items-center justify-between p-8 overflow-hidden pointer-events-none">
-            {/* Sunlit window rays */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-sky-200/40 via-transparent to-transparent" />
-            <div className="absolute top-12 left-12 text-slate-800 space-y-2 max-w-md hidden lg:block">
-              <h2 className="text-3xl font-extrabold tracking-tight">
-                Giám sát sức khỏe <span className="text-sky-600">văn phòng</span>
-              </h2>
-              <p className="text-sm text-slate-600">
-                Theo dõi nhịp tim • SpO2 • Tư thế • Thời gian ngồi
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+    <div className="relative min-h-screen w-full flex flex-col font-sans select-none overflow-x-hidden bg-[#FDFBF7] text-slate-900">
+      {/* 0. CRISP TECH OFFICE BACKGROUND LAYER (NO BLUR, NO FOG OVERLAY) */}
+      {!imageLoadFailed && (
+        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+          <img
+            src={bgImage}
+            alt="Văn phòng công nghệ thông minh"
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover object-center"
+            onError={() => setImageLoadFailed(true)}
+          />
+        </div>
+      )}
 
-      {/* 2. TOP HEADER NAVIGATION (Balanced, single-line, all interactive) */}
-      <header className="relative z-30 w-full border-b border-white/40 bg-white/95 backdrop-blur-md shadow-xs">
-        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
-          {/* Logo & Brand (Clickable -> Opens Overview) */}
+      {/* 1. FLOATING NEO-BRUTALIST HEADER BAR */}
+      <div className="relative z-30 w-full max-w-[1200px] mx-auto px-3 sm:px-6 pt-3 sm:pt-5">
+        <header className="w-full rounded-2xl bg-white/55 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] px-3.5 sm:px-5 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
+          {/* Logo & Brand */}
           <button
+            type="button"
             onClick={() => handleOpenModal('overview')}
-            className="flex items-center gap-2 sm:gap-3 shrink-0 group text-left cursor-pointer transition active:scale-95"
+            className="flex items-center gap-2 sm:gap-2.5 shrink-0 group text-left cursor-pointer transition active:translate-y-0.5"
             title="Nhấp để xem Tổng quan hệ thống"
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 shrink-0 group-hover:rotate-6 transition-transform">
-              <Activity className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#22C55E] to-[#16A34A] border-2 border-slate-900 shadow-[0_2px_0_#0F172A] flex items-center justify-center text-white shrink-0 group-hover:rotate-3 transition-transform">
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4]" />
             </div>
-            <div className="shrink-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-extrabold text-sm sm:text-base lg:text-lg tracking-tight text-slate-900 group-hover:text-sky-600 transition whitespace-nowrap">
-                  HealthOffice
-                </span>
-                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
-                  Pi 4 IoT
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 hidden xl:block whitespace-nowrap">
-                Giám sát nhịp tim, SpO2 & Tư thế công thái học
-              </p>
+            <div className="shrink-0 flex items-center gap-1.5 sm:gap-2">
+              <span className="font-extrabold text-sm sm:text-base lg:text-lg tracking-tight text-slate-950 whitespace-nowrap">
+                Health<span className="text-[#16A34A]">Office</span>
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap hidden sm:inline-flex">
+                Pi 4 IoT
+              </span>
             </div>
           </button>
 
-          {/* Desktop Interactive Nav Items (Balanced & Single-line) */}
-          <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2.5 shrink-0">
+          {/* Desktop Center Nav Items */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 shrink-0">
             <button
+              type="button"
               onClick={() => handleOpenModal('overview')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-slate-700 hover:text-sky-700 hover:bg-slate-100/90 transition cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-slate-950 hover:bg-[#FAF7F0] transition cursor-pointer whitespace-nowrap"
             >
-              <Layers className="w-4 h-4 text-sky-600 shrink-0" />
-              <span className="whitespace-nowrap">Tổng quan</span>
+              Tổng quan
             </button>
-
             <button
+              type="button"
               onClick={() => handleOpenModal('sensor')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-slate-700 hover:text-rose-700 hover:bg-slate-100/90 transition cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-slate-950 hover:bg-[#FAF7F0] transition cursor-pointer whitespace-nowrap"
             >
-              <Heart className="w-4 h-4 text-rose-600 shrink-0" />
-              <span className="whitespace-nowrap">Cảm biến MAX30102</span>
+              MAX30102
             </button>
-
             <button
+              type="button"
               onClick={() => handleOpenModal('camera')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-slate-700 hover:text-emerald-700 hover:bg-slate-100/90 transition cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-slate-950 hover:bg-[#FAF7F0] transition cursor-pointer whitespace-nowrap"
             >
-              <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="whitespace-nowrap">Camera Tư Thế</span>
+              Camera Tư Thế
             </button>
-
             <button
+              type="button"
               onClick={() => handleOpenModal('hardware')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-slate-700 hover:text-indigo-700 hover:bg-slate-100/90 transition cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-slate-950 hover:bg-[#FAF7F0] transition cursor-pointer whitespace-nowrap"
             >
-              <Cpu className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="whitespace-nowrap">Phần cứng Pi 4</span>
+              Phần cứng
             </button>
-
             <button
+              type="button"
               onClick={() => handleOpenModal('guide')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-slate-700 hover:text-amber-700 hover:bg-slate-100/90 transition cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-slate-950 hover:bg-[#FAF7F0] transition cursor-pointer whitespace-nowrap"
             >
-              <HelpCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="whitespace-nowrap">Hướng dẫn</span>
+              Hướng dẫn
             </button>
           </nav>
 
-          {/* Right Header Status / Action */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Status indicator */}
+          {/* Right Actions */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => handleOpenModal('overview')}
-              className="hidden xl:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer whitespace-nowrap shrink-0"
+              type="button"
+              onClick={() => {
+                setAuthMethod('register');
+                setIsLoginModalOpen(true);
+              }}
+              className="hidden sm:inline-flex items-center px-3 py-2 text-xs sm:text-sm font-bold text-slate-800 hover:text-[#16B364] transition cursor-pointer whitespace-nowrap"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="whitespace-nowrap">Hệ thống trực tuyến</span>
+              Đăng ký
             </button>
 
-            {/* Header Login Button (Prominent, responsive, no wrapping) */}
             <button
-              onClick={() => setIsLoginModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 h-9 sm:h-10 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-md shadow-sky-500/20 active:scale-95 transition cursor-pointer whitespace-nowrap shrink-0"
+              type="button"
+              onClick={() => {
+                setAuthMethod('email');
+                setIsLoginModalOpen(true);
+              }}
+              className="tactile-btn-primary min-h-10 sm:min-h-10 px-3.5 sm:px-5 rounded-xl text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
               title="Nhấp để mở khung đăng nhập"
             >
-              <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-              <span className="whitespace-nowrap">Đăng Nhập</span>
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span>Đăng nhập</span>
             </button>
 
-            {/* Mobile Hamburger Toggle (Ensured visible & accessible on all screens) */}
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer shrink-0 active:scale-95"
+              className="lg:hidden min-h-10 min-w-10 flex items-center justify-center rounded-xl tactile-btn-white cursor-pointer shrink-0"
               aria-label="Open menu"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Mobile Dropdown Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-200/80 bg-white/95 backdrop-blur-md px-4 py-3 space-y-2 animate-fadeIn shadow-lg">
-            {/* Prominent Login Button for Mobile */}
+          <div className="lg:hidden mt-2 rounded-2xl bg-white border-2 border-slate-800 shadow-[0_4px_0_#1E293B] p-3 space-y-1.5 animate-fadeIn">
             <button
+              type="button"
               onClick={() => {
+                setAuthMethod('email');
                 setIsLoginModalOpen(true);
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md cursor-pointer mb-2 whitespace-nowrap"
+              className="w-full min-h-11 tactile-btn-primary rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer mb-2 whitespace-nowrap"
             >
               <Lock className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap">Đăng Nhập Hệ Thống</span>
+              <span>Đăng Nhập Hệ Thống</span>
             </button>
 
             <button
+              type="button"
               onClick={() => handleOpenModal('overview')}
-              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition whitespace-nowrap"
+              className="w-full min-h-11 flex items-center gap-2.5 px-3 rounded-xl text-xs font-bold text-slate-800 hover:bg-[#FAF7F0] border border-transparent hover:border-slate-800 transition whitespace-nowrap"
             >
-              <Layers className="w-4 h-4 text-sky-600 shrink-0" />
-              <span className="whitespace-nowrap">Tổng quan hệ thống</span>
+              <Layers className="w-4 h-4 text-[#16B364] shrink-0" />
+              <span>Tổng quan hệ thống</span>
             </button>
 
             <button
+              type="button"
               onClick={() => handleOpenModal('sensor')}
-              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition whitespace-nowrap"
+              className="w-full min-h-11 flex items-center gap-2.5 px-3 rounded-xl text-xs font-bold text-slate-800 hover:bg-[#FAF7F0] border border-transparent hover:border-slate-800 transition whitespace-nowrap"
             >
               <Heart className="w-4 h-4 text-rose-600 shrink-0" />
-              <span className="whitespace-nowrap">Cảm biến MAX30102</span>
+              <span>Cảm biến MAX30102</span>
             </button>
 
             <button
+              type="button"
               onClick={() => handleOpenModal('camera')}
-              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition whitespace-nowrap"
+              className="w-full min-h-11 flex items-center gap-2.5 px-3 rounded-xl text-xs font-bold text-slate-800 hover:bg-[#FAF7F0] border border-transparent hover:border-slate-800 transition whitespace-nowrap"
             >
-              <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="whitespace-nowrap">Camera Tư Thế</span>
+              <Camera className="w-4 h-4 text-sky-700 shrink-0" />
+              <span>Camera Tư Thế</span>
             </button>
 
             <button
+              type="button"
               onClick={() => handleOpenModal('hardware')}
-              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition whitespace-nowrap"
+              className="w-full min-h-11 flex items-center gap-2.5 px-3 rounded-xl text-xs font-bold text-slate-800 hover:bg-[#FAF7F0] border border-transparent hover:border-slate-800 transition whitespace-nowrap"
             >
-              <Cpu className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="whitespace-nowrap">Phần cứng Raspberry Pi 4</span>
+              <Cpu className="w-4 h-4 text-slate-800 shrink-0" />
+              <span>Phần cứng Raspberry Pi 4</span>
             </button>
 
             <button
+              type="button"
               onClick={() => handleOpenModal('guide')}
-              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition whitespace-nowrap"
+              className="w-full min-h-11 flex items-center gap-2.5 px-3 rounded-xl text-xs font-bold text-slate-800 hover:bg-[#FAF7F0] border border-transparent hover:border-slate-800 transition whitespace-nowrap"
             >
               <HelpCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="whitespace-nowrap">Hướng dẫn đăng nhập & phân quyền</span>
+              <span>Hướng dẫn hệ thống</span>
             </button>
           </div>
         )}
-      </header>
+      </div>
 
-      {/* 3. MAIN BODY (Desktop: full view with modal trigger; Mobile: uncropped 16:9 hero card & welcome CTA) */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center p-3.5 sm:p-6 lg:p-8">
-        {/* MOBILE HERO SHOWCASE & QUICK ACCESS (Displayed on mobile screens: perfectly uncropped 16:9 with all 4 cards & office worker complete!) */}
-        {!isLoginModalOpen && (
-          <div className="sm:hidden w-full max-w-sm mx-auto space-y-3 animate-fadeIn py-1">
-            {/* 16:9 Uncropped Hero Frame (Clean, zero overlapping badges, zero buttons) */}
-            <div className="relative w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200/90 bg-white">
-              <div className="relative aspect-[1672/941] w-full bg-slate-100 overflow-hidden">
-                <img
-                  src={bgImage}
-                  alt="Không gian giám sát sức khỏe văn phòng"
-                  className="w-full h-full object-contain pointer-events-none"
-                  loading="eager"
-                  referrerPolicy="no-referrer"
-                />
+      {/* 2. HERO SECTION (CREAM CANVAS MATCHING REFERENCE STYLE) */}
+      <main className="relative z-20 flex-1 flex flex-col">
+        <section className="w-full max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8 pt-7 pb-12 sm:pt-12 sm:pb-16">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Hero Left Copy (Transparent container so /nenweb.png background shows clearly with zero blur) */}
+            <div className="lg:col-span-6 space-y-5 text-left rounded-2xl bg-white/45 border-2 border-slate-800 shadow-[0_6px_0_#1E293B] p-5 sm:p-7">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B2F5BE] border-[1.5px] border-slate-800 text-[11px] sm:text-xs font-extrabold text-slate-900 shadow-[0_2px_0_#1E293B]">
+                <span className="w-2 h-2 rounded-full bg-[#16B364] border border-slate-900 shrink-0" />
+                <span>Mới: Giám sát sức khỏe & tư thế với Edge AI</span>
+              </div>
+
+              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-950 leading-[1.12]">
+                Theo dõi sức khỏe,{' '}
+                <span className="text-[#16B364]">mọi lúc mọi nơi</span>
+                , bảo vệ cột sống!
+              </h1>
+
+              <p className="text-sm sm:text-base text-slate-800 leading-relaxed max-w-lg font-semibold">
+                Kết hợp Raspberry Pi 4, cảm biến sinh trắc học MAX30102 và nhận diện tư thế MediaPipe theo thời gian thực — giúp nhân viên văn phòng duy trì nhịp tim ổn định và thói quen đứng ngồi khoa học.
+              </p>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethod('email');
+                    setIsLoginModalOpen(true);
+                  }}
+                  className="tactile-btn-primary min-h-12 px-5 sm:px-6 rounded-xl text-sm inline-flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <span>Đăng nhập ngay</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethod('register');
+                    setIsLoginModalOpen(true);
+                  }}
+                  className="tactile-btn-secondary min-h-12 px-5 sm:px-6 rounded-xl text-sm inline-flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <span>Tạo tài khoản mới</span>
+                </button>
+              </div>
+
+              {/* Quick Telemetry Highlight Numbers */}
+              <div className="grid grid-cols-3 gap-4 pt-3 max-w-md border-t-2 border-slate-800/20">
+                <div>
+                  <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-950 tabular-nums">400Hz</div>
+                  <div className="text-[11px] font-bold text-slate-800 mt-0.5">Lấy mẫu MAX30102</div>
+                </div>
+                <div>
+                  <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-950 tabular-nums">33 điểm</div>
+                  <div className="text-[11px] font-bold text-slate-800 mt-0.5">Mốc cột sống 3D</div>
+                </div>
+                <div>
+                  <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-950 tabular-nums">128D</div>
+                  <div className="text-[11px] font-bold text-slate-800 mt-0.5">Xác thực SFace</div>
+                </div>
               </div>
             </div>
 
-            {/* Mobile Welcome & CTA Card */}
-            <div className="w-full rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-sm p-4 text-slate-800 space-y-3">
-              <div>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-sky-700 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200">
-                  <Activity className="w-3 h-3 text-sky-600" />
-                  <span>Raspberry Pi 4 • Firebase IoT</span>
-                </span>
-                <h1 className="text-base font-extrabold text-slate-900 mt-1.5 tracking-tight leading-snug">
-                  Giám Sát Sức Khỏe & Tư Thế Thông Minh
-                </h1>
-                <p className="text-xs text-slate-500 leading-relaxed mt-1">
-                  Đo nhịp tim, SpO₂ tự động và phân tích góc nghiêng cột sống công thái học theo thời gian thực.
-                </p>
+            {/* Hero Right Tactile Preview Card (Mirrors image_f0ee8e85.png) */}
+            <div className="lg:col-span-6 relative px-2 sm:px-4">
+              {/* Floating Top-Right Coral Badge */}
+              <div className="hidden sm:flex absolute -top-4 right-1 z-20 w-12 h-12 rounded-xl bg-[#FBC2C8] border-2 border-slate-800 shadow-[0_3px_0_#1E293B] items-center justify-center rotate-6">
+                <Heart className="w-5 h-5 text-slate-900" />
               </div>
 
-              {/* Prominent Login CTA Button */}
-              <button
-                type="button"
-                onClick={() => setIsLoginModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-md shadow-sky-500/25 active:scale-[0.98] transition cursor-pointer"
-              >
-                <Lock className="w-4 h-4" />
-                <span>Đăng Nhập Vào Hệ Thống</span>
-              </button>
+              {/* Floating Mid-Right Mint Badge */}
+              <div className="hidden sm:flex absolute top-1/2 -translate-y-1/2 -right-1 z-20 w-9 h-9 rounded-full bg-[#B2F5BE] border-2 border-slate-800 shadow-[0_3px_0_#1E293B] items-center justify-center">
+                <Sparkles className="w-4 h-4 text-slate-900" />
+              </div>
 
-              {/* 4 Feature Badges in 2x2 grid */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-xs">
+              {/* Floating Bottom-Left Sky Badge */}
+              <div className="hidden sm:flex absolute -bottom-4 left-0 z-20 w-11 h-11 rounded-xl bg-[#BAE0EC] border-2 border-slate-800 shadow-[0_3px_0_#1E293B] items-center justify-center -rotate-6">
+                <Camera className="w-5 h-5 text-slate-900" />
+              </div>
+
+              {/* Main Tactile Showcase Card (Transparent over crisp background) */}
+              <div className="relative z-10 rounded-2xl bg-white/50 border-2 border-slate-800 shadow-[0_6px_0_#1E293B] p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-[#BAE0EC] border-2 border-slate-800 flex items-center justify-center text-slate-900 shrink-0">
+                    <UserCheck className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base sm:text-lg font-extrabold text-slate-950 truncate">
+                      Trạm Giám Sát Văn Phòng Pi 4
+                    </h2>
+                    <p className="text-xs font-semibold text-slate-700 mt-0.5 truncate">
+                      Nhịp tim • SpO₂ • Tư thế • Chu kỳ Đứng-Ngồi
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-[#B2F5BE] border-[1.5px] border-slate-800 text-[10px] font-extrabold text-slate-900 whitespace-nowrap shrink-0">
+                    Trực tuyến
+                  </span>
+                </div>
+
+                {/* Progress Track */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-slate-800">Chỉ số hiệu suất công thái học (OHPS)</span>
+                    <span className="font-mono font-extrabold text-[#16A34A] tabular-nums">88%</span>
+                  </div>
+                  <div className="tactile-progress-track">
+                    <div className="tactile-progress-fill" style={{ width: '88%' }} />
+                  </div>
+                </div>
+
+                {/* 3 Live Metric Preview Chips */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-white/55 border-[1.5px] border-slate-800 text-center">
+                    <div className="text-[10px] font-bold uppercase text-slate-700">Nhịp tim</div>
+                    <div className="text-sm sm:text-base font-extrabold font-mono text-slate-950 tabular-nums mt-0.5">72 BPM</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/55 border-[1.5px] border-slate-800 text-center">
+                    <div className="text-[10px] font-bold uppercase text-slate-700">SpO₂</div>
+                    <div className="text-sm sm:text-base font-extrabold font-mono text-slate-950 tabular-nums mt-0.5">98%</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/55 border-[1.5px] border-slate-800 text-center">
+                    <div className="text-[10px] font-bold uppercase text-slate-700">Tư thế</div>
+                    <div className="text-sm sm:text-base font-extrabold text-[#16A34A] mt-0.5">Chuẩn S</div>
+                  </div>
+                </div>
+
+                {/* Primary Card Action */}
                 <button
                   type="button"
-                  onClick={() => handleOpenModal('sensor')}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
+                  onClick={() => {
+                    setAuthMethod('email');
+                    setIsLoginModalOpen(true);
+                  }}
+                  className="w-full min-h-11 tactile-btn-primary rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                    <Heart className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-bold text-slate-900 block text-[11px] truncate">MAX30102</span>
-                    <span className="text-[10px] text-slate-500 block truncate">Nhịp tim & SpO₂</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenModal('camera')}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <Camera className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-bold text-slate-900 block text-[11px] truncate">Camera Tư Thế</span>
-                    <span className="text-[10px] text-slate-500 block truncate">Tư thế cột sống</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenModal('guide')}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                    <Clock className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-bold text-slate-900 block text-[11px] truncate">Giải Lao</span>
-                    <span className="text-[10px] text-slate-500 block truncate">Nhắc nhở tự động</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenModal('hardware')}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/70 hover:bg-slate-100 transition text-left cursor-pointer"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                    <Cpu className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-bold text-slate-900 block text-[11px] truncate">Pi 4 IoT</span>
-                    <span className="text-[10px] text-slate-500 block truncate">Đồng bộ đám mây</span>
-                  </div>
+                  <Lock className="w-4 h-4 shrink-0" />
+                  <span>Mở Bảng Điều Khiển Sức Khỏe</span>
                 </button>
               </div>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* LOGIN MODAL */}
+        {/* 3. LOWER FEATURE CARDS SECTION (TRANSPARENT SO BACKGROUND SHOWS CLEARLY) */}
+        <section className="w-full bg-transparent border-t-2 border-slate-800/40 py-10 sm:py-14 px-4 sm:px-6 lg:px-8 flex-1">
+          <div className="max-w-[1160px] mx-auto space-y-8">
+            <div className="text-center space-y-2.5 max-w-2xl mx-auto rounded-2xl bg-white/45 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] px-5 py-4">
+              <span className="inline-flex items-center px-3.5 py-1 rounded-full bg-[#BAE0EC] border-[1.5px] border-slate-800 text-xs font-extrabold text-slate-900">
+                Các mô-đun cốt lõi
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950">
+                Khám phá hệ sinh thái giám sát thông minh
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-800 font-semibold">
+                Nhấp vào từng mô-đun bên dưới để xem thông số kỹ thuật phần cứng và luồng xử lý dữ liệu thời gian thực.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              <button
+                type="button"
+                onClick={() => handleOpenModal('sensor')}
+                className="text-left p-5 rounded-2xl bg-white/50 hover:bg-white/65 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] hover:-translate-y-0.5 transition flex items-start justify-between gap-4 cursor-pointer"
+              >
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#FBC2C8] border-2 border-slate-800 flex items-center justify-center text-slate-900 shrink-0">
+                    <Heart className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-950">
+                      Cảm biến Sinh trắc học MAX30102
+                    </h3>
+                    <p className="text-xs text-slate-800 mt-0.5 font-semibold">
+                      Đo nhịp tim (BPM) & nồng độ oxy SpO₂ quang phổ học PPG qua giao tiếp I2C.
+                    </p>
+                    <div className="flex items-center gap-3 mt-2.5 text-[11px] font-bold text-slate-700">
+                      <span>400Hz</span>
+                      <span>•</span>
+                      <span>LED 660/880nm</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#B2F5BE] border-[1.5px] border-slate-800 text-[11px] font-extrabold text-slate-900 whitespace-nowrap shrink-0">
+                  ★ PPG
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenModal('camera')}
+                className="text-left p-5 rounded-2xl bg-white/50 hover:bg-white/65 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] hover:-translate-y-0.5 transition flex items-start justify-between gap-4 cursor-pointer"
+              >
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#BAE0EC] border-2 border-slate-800 flex items-center justify-center text-slate-900 shrink-0">
+                    <Camera className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-950">
+                      Camera Tư Thế & Nhận Diện Khuôn Mặt
+                    </h3>
+                    <p className="text-xs text-slate-800 mt-0.5 font-semibold">
+                      MediaPipe 33 điểm mốc 3D kết hợp vector SFace 128D phát hiện ngồi sai & người lạ.
+                    </p>
+                    <div className="flex items-center gap-3 mt-2.5 text-[11px] font-bold text-slate-700">
+                      <span>30 FPS</span>
+                      <span>•</span>
+                      <span>Xử lý tại biên</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#B2F5BE] border-[1.5px] border-slate-800 text-[11px] font-extrabold text-slate-900 whitespace-nowrap shrink-0">
+                  ★ Vision
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenModal('hardware')}
+                className="text-left p-5 rounded-2xl bg-white/50 hover:bg-white/65 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] hover:-translate-y-0.5 transition flex items-start justify-between gap-4 cursor-pointer"
+              >
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#B2F5BE] border-2 border-slate-800 flex items-center justify-center text-slate-900 shrink-0">
+                    <Cpu className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-950">
+                      Bộ Xử Lý Biên Raspberry Pi 4
+                    </h3>
+                    <p className="text-xs text-slate-800 mt-0.5 font-semibold">
+                      Broadcom BCM2711 chạy Python 3.11 đồng bộ trực tiếp Firestore & Supabase Cloud.
+                    </p>
+                    <div className="flex items-center gap-3 mt-2.5 text-[11px] font-bold text-slate-700">
+                      <span>4GB RAM</span>
+                      <span>•</span>
+                      <span>Raspberry Pi OS</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#B2F5BE] border-[1.5px] border-slate-800 text-[11px] font-extrabold text-slate-900 whitespace-nowrap shrink-0">
+                  ★ Edge
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenModal('guide')}
+                className="text-left p-5 rounded-2xl bg-white/50 hover:bg-white/65 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] hover:-translate-y-0.5 transition flex items-start justify-between gap-4 cursor-pointer"
+              >
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#FDE68A] border-2 border-slate-800 flex items-center justify-center text-slate-900 shrink-0">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-950">
+                      AI Dự Đoán & Chu Kỳ Sit-Stand
+                    </h3>
+                    <p className="text-xs text-slate-800 mt-0.5 font-semibold">
+                      Phân tích xu hướng kiệt sức, cảnh báo giọng nói đa tầng & trợ lý sức khỏe 24/7.
+                    </p>
+                    <div className="flex items-center gap-3 mt-2.5 text-[11px] font-bold text-slate-700">
+                      <span>20-20-20</span>
+                      <span>•</span>
+                      <span>Gemini & ML Engine</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#B2F5BE] border-[1.5px] border-slate-800 text-[11px] font-extrabold text-slate-900 whitespace-nowrap shrink-0">
+                  ★ AI 4.0
+                </span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* LOGIN MODAL (NEO-BRUTALIST BORDERED CARD) */}
         {isLoginModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-xs animate-fadeIn pointer-events-auto">
-            {/* Backdrop click to close */}
-            <div 
-              className="absolute inset-0 cursor-pointer" 
-              onClick={() => setIsLoginModalOpen(false)} 
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/55 backdrop-blur-xs animate-fadeIn pointer-events-auto">
+            <div
+              className="absolute inset-0 cursor-pointer"
+              onClick={() => setIsLoginModalOpen(false)}
               title="Nhấp vào ngoài để đóng ô đăng nhập"
             />
 
-            <div className="relative z-10 w-full max-w-[420px] rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-2xl shadow-slate-900/20 p-6 sm:p-8 text-slate-900 animate-fadeIn pointer-events-auto">
-              {/* Close button */}
+            <div className="relative z-10 w-full max-w-[430px] max-h-[92vh] overflow-y-auto rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] p-5 sm:p-7 text-slate-900 animate-fadeIn pointer-events-auto">
               <button
                 type="button"
                 onClick={() => setIsLoginModalOpen(false)}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                title="Đóng ô đăng nhập (Xem hình nền)"
+                className="absolute top-4 right-4 w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer"
+                title="Đóng ô đăng nhập"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
 
-              {/* Card Header */}
-              <div className="text-center space-y-1.5 pb-3 border-b border-slate-100">
-                <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
+              <div className="text-center space-y-1.5 pb-3 border-b-2 border-slate-800">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-[#16B364] border-2 border-slate-900 shadow-[0_3px_0_#0F172A] flex items-center justify-center text-white">
                   <Lock className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
+                <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-950">
                   {authMethod === 'register' ? 'Đăng Ký Tài Khoản' : 'Đăng Nhập'}
                 </h2>
-                <p className="text-xs text-slate-500">
-                  Hệ thống giám sát sức khỏe & tư thế văn phòng IoT (Firebase Backend)
+                <p className="text-xs font-medium text-slate-600">
+                  Hệ thống giám sát sức khỏe & tư thế văn phòng IoT
                 </p>
               </div>
 
-
-
               {/* Method Selector Tabs */}
-              <div className="mt-3 flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-600">
+              <div className="mt-3.5 flex items-center p-1 bg-[#FAF7F0] rounded-xl border-2 border-slate-800 text-xs font-bold text-slate-700 gap-1">
                 <button
                   type="button"
                   onClick={() => { setAuthMethod('email'); setError(null); }}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    authMethod === 'email' 
-                      ? 'bg-white text-sky-700 font-bold shadow-xs border border-slate-200/60' 
-                      : 'hover:text-slate-900'
+                  className={`flex-1 py-2 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authMethod === 'email'
+                      ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
+                      : 'hover:bg-white text-slate-700'
                   }`}
                 >
                   <Mail className="w-3.5 h-3.5" />
@@ -538,10 +680,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 <button
                   type="button"
                   onClick={() => { setAuthMethod('register'); setError(null); }}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    authMethod === 'register' 
-                      ? 'bg-white text-sky-700 font-bold shadow-xs border border-slate-200/60' 
-                      : 'hover:text-slate-900'
+                  className={`flex-1 py-2 px-2 rounded-lg text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authMethod === 'register'
+                      ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
+                      : 'hover:bg-white text-slate-700'
                   }`}
                 >
                   <KeyRound className="w-3.5 h-3.5" />
@@ -552,9 +694,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               {/* METHOD 1: EMAIL & PASSWORD LOGIN */}
               {authMethod === 'email' && (
                 <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
-                  {/* Identifier input */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
                       Email đăng nhập
                     </label>
                     <div className="relative">
@@ -563,16 +704,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         value={identifier}
                         onChange={e => { setIdentifier(e.target.value); setError(null); }}
                         placeholder="email@example.com"
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#16B364]/40 transition"
                         required
                       />
-                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
 
-                  {/* Password input */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
                       Mật khẩu
                     </label>
                     <div className="relative">
@@ -581,29 +721,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         value={password}
                         onChange={e => { setPassword(e.target.value); setError(null); }}
                         placeholder="••••••••"
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#16B364]/40 transition font-mono"
                         required
                       />
-                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         aria-label="Toggle password visibility"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1 cursor-pointer transition"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Remember & Help */}
                   <div className="flex items-center justify-between text-xs pt-0.5">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-semibold">
                       <input
                         type="checkbox"
                         checked={rememberMe}
                         onChange={e => setRememberMe(e.target.checked)}
-                        className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                        className="w-4 h-4 rounded accent-[#16B364] border-2 border-slate-800 cursor-pointer"
                       />
                       <span>Ghi nhớ phiên</span>
                     </label>
@@ -611,27 +750,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <button
                       type="button"
                       onClick={() => handleOpenModal('guide')}
-                      className="text-sky-600 hover:text-sky-700 font-semibold cursor-pointer"
+                      className="text-[#16B364] hover:underline font-extrabold cursor-pointer"
                     >
                       Hướng dẫn?
                     </button>
                   </div>
 
-                  {/* Error banner for Email Auth */}
                   {error && (
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span className="leading-snug">{error}</span>
-                      </div>
+                    <div className="p-3 rounded-xl bg-[#FBC2C8]/50 border-2 border-rose-700 text-rose-950 text-xs font-bold flex items-start gap-2 animate-fadeIn">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-700" />
+                      <span className="leading-snug">{error}</span>
                     </div>
                   )}
 
-                  {/* Submit button */}
                   <button
                     type="submit"
                     disabled={emailLoading}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60"
+                    className="w-full min-h-11 tactile-btn-primary rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60"
                   >
                     <span>{emailLoading ? 'Đang xác thực Firebase...' : 'Đăng Nhập'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -639,12 +774,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </form>
               )}
 
-
-              {/* METHOD 3: REGISTER NEW ACCOUNT (EMAIL/PASSWORD) */}
+              {/* METHOD 2: REGISTER NEW ACCOUNT */}
               {authMethod === 'register' && (
                 <form onSubmit={handleRegister} className="mt-4 space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-extrabold text-slate-800 mb-1">
                       Họ và Tên
                     </label>
                     <input
@@ -652,13 +786,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       value={regFullName}
                       onChange={e => setRegFullName(e.target.value)}
                       placeholder="Ví dụ: Nguyễn Văn A"
-                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#16B364]/40 transition"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-extrabold text-slate-800 mb-1">
                       Địa chỉ Email
                     </label>
                     <input
@@ -666,13 +800,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       value={regEmail}
                       onChange={e => setRegEmail(e.target.value)}
                       placeholder="tenban@example.com"
-                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#16B364]/40 transition"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-extrabold text-slate-800 mb-1">
                       Mật khẩu (tối thiểu 6 ký tự)
                     </label>
                     <input
@@ -680,28 +814,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       value={regPassword}
                       onChange={e => setRegPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition shadow-inner font-mono"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#16B364]/40 transition font-mono"
                       required
                     />
                   </div>
 
-                  {/* Giới tính & Độ tuổi (Tự động thích ứng thông số đo) */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-extrabold text-slate-800 mb-1">
                         Giới tính
                       </label>
                       <select
                         value={regGender}
                         onChange={e => setRegGender(e.target.value as any)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition cursor-pointer"
+                        className="w-full px-3 py-2 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs font-semibold focus:outline-none cursor-pointer"
                       >
                         <option value="male">Nam (Male)</option>
                         <option value="female">Nữ (Female)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-extrabold text-slate-800 mb-1">
                         Độ tuổi
                       </label>
                       <input
@@ -710,24 +843,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         max="85"
                         value={regAge}
                         onChange={e => setRegAge(parseInt(e.target.value) || 25)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition font-mono font-semibold"
+                        className="w-full px-3 py-2 rounded-xl bg-white border-2 border-slate-800 text-slate-900 text-xs font-mono font-bold focus:outline-none"
                         required
                       />
                     </div>
                   </div>
 
-                  {/* Bệnh nền y tế (Cột sống, tim mạch, huyết áp...) */}
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Stethoscope className="w-3.5 h-3.5 text-rose-500" />
-                        <span>Tiền sử bệnh nền (nếu có):</span>
+                  <div className="p-3 rounded-xl bg-[#FAF7F0] border-2 border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                        <Stethoscope className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Tiền sử bệnh nền:</span>
                       </span>
-                      <span className="text-[10px] text-sky-700 font-semibold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                        Tự căn chỉnh ngưỡng đo
+                      <span className="text-[10px] text-slate-900 font-extrabold bg-[#BAE0EC] px-2 py-0.5 rounded-full border border-slate-800">
+                        Tự căn chỉnh ngưỡng
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 gap-1.5 max-h-28 overflow-y-auto pr-1">
                       {COMMON_MEDICAL_CONDITIONS.map(cond => {
                         const isSelected = regConditions.includes(cond.id);
                         return (
@@ -735,18 +867,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             key={cond.id}
                             type="button"
                             onClick={() => {
-                              setRegConditions(prev => 
+                              setRegConditions(prev =>
                                 isSelected ? prev.filter(x => x !== cond.id) : [...prev, cond.id]
                               );
                             }}
-                            className={`p-1.5 rounded-lg text-left text-xs border transition flex items-center gap-2 cursor-pointer ${
+                            className={`p-1.5 rounded-lg text-left text-xs border-[1.5px] transition flex items-center gap-2 cursor-pointer ${
                               isSelected
-                                ? 'bg-rose-50 border-rose-300 text-rose-900 font-semibold'
-                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                                ? 'bg-[#FBC2C8]/60 border-slate-800 text-slate-950 font-bold'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-slate-800'
                             }`}
                           >
-                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 text-[10px] border ${
-                              isSelected ? 'bg-rose-600 border-rose-600 text-white' : 'border-slate-300 bg-white'
+                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 text-[10px] border border-slate-800 ${
+                              isSelected ? 'bg-[#16B364] text-white' : 'bg-white'
                             }`}>
                               {isSelected ? '✓' : ''}
                             </span>
@@ -758,17 +890,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-extrabold text-slate-800 mb-1">
                       Vai trò người dùng
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setRegRole('employee')}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                          regRole === 'employee' 
-                            ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold' 
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        className={`py-2 px-2 rounded-xl text-xs font-extrabold border-2 transition cursor-pointer ${
+                          regRole === 'employee'
+                            ? 'bg-[#BAE0EC] border-slate-900 text-slate-950 shadow-[0_2px_0_#0F172A]'
+                            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-800'
                         }`}
                       >
                         Nhân viên
@@ -776,10 +908,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       <button
                         type="button"
                         onClick={() => setRegRole('manager')}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                          regRole === 'manager' 
-                            ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold' 
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        className={`py-2 px-2 rounded-xl text-xs font-extrabold border-2 transition cursor-pointer ${
+                          regRole === 'manager'
+                            ? 'bg-[#BAE0EC] border-slate-900 text-slate-950 shadow-[0_2px_0_#0F172A]'
+                            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-800'
                         }`}
                       >
                         Quản trị (Admin)
@@ -787,10 +919,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     </div>
                   </div>
 
-                  {/* Error banner */}
                   {error && (
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2 animate-fadeIn">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div className="p-3 rounded-xl bg-[#FBC2C8]/50 border-2 border-rose-700 text-rose-950 text-xs font-bold flex items-start gap-2 animate-fadeIn">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-700" />
                       <span className="leading-snug">{error}</span>
                     </div>
                   )}
@@ -798,7 +929,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   <button
                     type="submit"
                     disabled={regLoading}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white transition shadow-md shadow-sky-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer mt-1 disabled:opacity-60"
+                    className="w-full min-h-11 tactile-btn-primary rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer mt-1 disabled:opacity-60"
                   >
                     <span>{regLoading ? 'Đang tạo tài khoản...' : 'Hoàn Tất Đăng Ký'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -809,9 +940,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               {/* Divider */}
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200" />
+                  <div className="w-full border-t-2 border-slate-200" />
                 </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                <div className="relative flex justify-center text-[10px] uppercase font-extrabold tracking-wider text-slate-500">
                   <span className="bg-white px-2.5">Hoặc đăng nhập nhanh với</span>
                 </div>
               </div>
@@ -821,58 +952,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 type="button"
                 onClick={handleGoogleLogin}
                 disabled={googleLoading}
-                className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-xs hover:border-slate-400 transition active:scale-[0.99] flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+                className="w-full min-h-11 tactile-btn-white rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.97 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                  />
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z" />
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.97 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
                 </svg>
                 <span>{googleLoading ? 'Đang kết nối tài khoản Google...' : 'Đăng nhập bằng tài khoản Google'}</span>
               </button>
 
-              {/* Specialized Unauthorized Domain Helper Card */}
               {isUnauthorizedDomain && (
-                <div className="mt-3 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 text-xs space-y-2.5 animate-fadeIn">
+                <div className="mt-3 p-3.5 rounded-2xl bg-[#FDE68A]/50 border-2 border-slate-800 text-slate-900 text-xs space-y-2.5 animate-fadeIn">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <div className="font-bold text-amber-900 text-xs">
+                      <div className="font-extrabold text-slate-950 text-xs">
                         Tên miền deploy chưa được cấp quyền trong Firebase Auth
                       </div>
-                      <p className="text-[11px] text-amber-800/90 leading-relaxed">
-                        Do chính sách bảo mật của Firebase, tên miền <code className="px-1.5 py-0.5 rounded bg-amber-100 font-mono font-bold text-amber-950 text-[10px] break-all">{typeof window !== 'undefined' ? window.location.hostname : 'hiện tại'}</code> cần được thêm vào mục <b>Authorized domains</b> trong Firebase Console.
+                      <p className="text-[11px] text-slate-800 leading-relaxed">
+                        Tên miền <code className="px-1.5 py-0.5 rounded bg-white border border-slate-800 font-mono font-bold text-slate-950 text-[10px] break-all">{typeof window !== 'undefined' ? window.location.hostname : 'hiện tại'}</code> cần được thêm vào <b>Authorized domains</b> trong Firebase Console.
                       </p>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-2 gap-2 pt-0.5">
                     <button
                       type="button"
                       onClick={handleCopyDomain}
-                      className="py-1.5 px-2.5 rounded-lg bg-white hover:bg-amber-100/50 border border-amber-300 text-amber-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs"
+                      className="tactile-btn-white py-1.5 px-2.5 rounded-lg text-[11px] flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-700" />}
+                      {copiedDomain ? <Check className="w-3.5 h-3.5 text-[#16B364]" /> : <Copy className="w-3.5 h-3.5 text-slate-800" />}
                       <span>{copiedDomain ? 'Đã sao chép!' : 'Chép Tên Miền'}</span>
                     </button>
                     <a
                       href="https://console.firebase.google.com/project/theodoisk-66ddb/authentication/settings"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs"
+                      className="tactile-btn-primary py-1.5 px-2.5 rounded-lg text-[11px] flex items-center justify-center gap-1.5"
                     >
                       <span>Mở Firebase</span>
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -881,103 +998,77 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </div>
               )}
 
-              {/* Other Google Errors (popup blocked, closed, etc.) */}
               {googleError && !isUnauthorizedDomain && (
-                <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span className="leading-snug">{googleError}</span>
-                  </div>
+                <div className="mt-2.5 p-3 rounded-xl bg-[#FBC2C8]/50 border-2 border-rose-700 text-rose-950 text-xs font-bold flex items-start gap-2 animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{googleError}</span>
                 </div>
               )}
-
-
             </div>
           </div>
         )}
       </main>
 
-      {/* 4. MODALS FOR HEADER ITEMS */}
-      {/* Overview Modal */}
+      {/* 4. NEO-BRUTALIST INFO MODALS */}
       {activeModal === 'overview' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b-2 border-slate-800 bg-[#FDFBF7]">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-200">
-                  <Layers className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-[#BAE0EC] border-2 border-slate-800 flex items-center justify-center text-slate-900">
+                  <Layers className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Tổng Quan Kiến Trúc Hệ Thống</h3>
-                  <p className="text-xs text-slate-500">Nền tảng giám sát sức khỏe & tư thế công thái học IoT</p>
+                  <h3 className="text-base font-extrabold text-slate-950">Tổng Quan Kiến Trúc Hệ Thống</h3>
+                  <p className="text-xs font-medium text-slate-600">Nền tảng giám sát sức khỏe & tư thế công thái học IoT</p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
-              <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200">
-                <h4 className="font-bold text-sky-900 mb-1 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-sky-600" /> Mục tiêu & Ứng dụng thực tế:
+              <div className="p-3.5 rounded-xl bg-[#B2F5BE]/50 border-2 border-slate-800">
+                <h4 className="font-extrabold text-slate-950 mb-1 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#16B364]" /> Mục tiêu & Ứng dụng thực tế:
                 </h4>
-                <p className="text-slate-600">
+                <p className="text-slate-800 font-medium">
                   Hệ thống kết hợp phần cứng biên <b>Raspberry Pi 4 Model B</b>, cảm biến đo thể tích máu <b>MAX30102</b> và mô hình thị giác máy tính <b>MediaPipe</b> nhằm bảo vệ toàn diện cột sống, nhịp tim và nồng độ oxy trong máu cho người làm việc văn phòng.
                 </p>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                  <div className="flex items-center gap-2 text-rose-700 font-bold">
-                    <Heart className="w-4 h-4" />
+                <div className="p-3.5 rounded-xl bg-white border-2 border-slate-800 shadow-[0_3px_0_#1E293B] space-y-1.5">
+                  <div className="flex items-center gap-2 text-slate-950 font-extrabold">
+                    <Heart className="w-4 h-4 text-rose-600" />
                     <span>Cảm biến Sinh hiệu MAX30102</span>
                   </div>
-                  <p className="text-slate-600 text-[11px]">
-                    Đo trực tiếp nhịp tim (BPM) và độ bão hòa oxy trong máu (SpO2) qua mao mạch đầu ngón tay với tần số lấy mẫu lên đến 400Hz.
-                  </p>
+                  <p className="text-slate-600 text-[11px] font-medium">Đo nhịp tim (BPM) và độ bão hòa oxy SpO2 qua mao mạch đầu ngón tay ở tần số 400Hz.</p>
                 </div>
-
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                  <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                    <Camera className="w-4 h-4" />
+                <div className="p-3.5 rounded-xl bg-white border-2 border-slate-800 shadow-[0_3px_0_#1E293B] space-y-1.5">
+                  <div className="flex items-center gap-2 text-slate-950 font-extrabold">
+                    <Camera className="w-4 h-4 text-[#16B364]" />
                     <span>Camera Tư Thế</span>
                   </div>
-                  <p className="text-slate-600 text-[11px]">
-                    Nhận diện 33 điểm mốc sinh trắc 3D theo thời gian thực (30 FPS), tính toán góc gập cổ và độ nghiêng vai để nhắc nhở điều chỉnh tư thế.
-                  </p>
+                  <p className="text-slate-600 text-[11px] font-medium">Nhận diện 33 điểm mốc 3D thời gian thực, tính góc cổ & độ nghiêng vai.</p>
                 </div>
-
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                  <div className="flex items-center gap-2 text-indigo-700 font-bold">
-                    <Clock className="w-4 h-4" />
+                <div className="p-3.5 rounded-xl bg-white border-2 border-slate-800 shadow-[0_3px_0_#1E293B] space-y-1.5">
+                  <div className="flex items-center gap-2 text-slate-950 font-extrabold">
+                    <Clock className="w-4 h-4 text-amber-600" />
                     <span>Theo dõi Thời gian Ngồi</span>
                   </div>
-                  <p className="text-slate-600 text-[11px]">
-                    Áp dụng quy tắc công thái học 20-20-20 và cảnh báo khi ngồi liên tục quá 45 phút mà không đứng dậy vận động.
-                  </p>
+                  <p className="text-slate-600 text-[11px] font-medium">Áp dụng quy tắc 20-20-20 và nhắc nhở chu kỳ Sit-Stand khoa học.</p>
                 </div>
-
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                  <div className="flex items-center gap-2 text-sky-700 font-bold">
-                    <Layers className="w-4 h-4" />
+                <div className="p-3.5 rounded-xl bg-white border-2 border-slate-800 shadow-[0_3px_0_#1E293B] space-y-1.5">
+                  <div className="flex items-center gap-2 text-slate-950 font-extrabold">
+                    <Layers className="w-4 h-4 text-sky-700" />
                     <span>Đồng bộ Đám mây Firebase</span>
                   </div>
-                  <p className="text-slate-600 text-[11px]">
-                    Lưu trữ tức thời vào tài liệu Firestore, hỗ trợ cảnh báo giọng nói tiếng Việt đa tầng và truy xuất báo cáo CSV.
-                  </p>
+                  <p className="text-slate-600 text-[11px] font-medium">Lưu trữ Firestore tức thời, cảnh báo giọng nói đa tầng và xuất báo cáo CSV.</p>
                 </div>
               </div>
             </div>
-
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
-              >
+            <div className="p-4 border-t-2 border-slate-800 bg-[#FDFBF7] flex justify-end">
+              <button type="button" onClick={() => setActiveModal(null)} className="tactile-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Đóng
               </button>
             </div>
@@ -985,70 +1076,42 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </div>
       )}
 
-      {/* Sensor Modal */}
       {activeModal === 'sensor' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b-2 border-slate-800 bg-[#FDFBF7]">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">
-                  <Heart className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-[#FBC2C8] border-2 border-slate-800 flex items-center justify-center text-slate-900">
+                  <Heart className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Chi Tiết Kỹ Thuật Cảm Biến MAX30102</h3>
-                  <p className="text-xs text-slate-500">Nguyên lý quang phổ và sơ đồ đấu nối vi điều khiển</p>
+                  <h3 className="text-base font-extrabold text-slate-950">Chi Tiết Kỹ Thuật Cảm Biến MAX30102</h3>
+                  <p className="text-xs font-medium text-slate-600">Nguyên lý quang phổ và sơ đồ đấu nối I2C</p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
-                <h4 className="font-bold text-rose-900 mb-1">Nguyên lý quang phổ học (PPG):</h4>
-                <p className="text-slate-600">
-                  Cảm biến tích hợp 2 đèn LED có bước sóng khác nhau: <b>LED Đỏ (660 nm)</b> và <b>LED Hồng ngoại (880 nm)</b>. Hemoglobin chứa oxy (HbO2) hấp thụ nhiều ánh sáng hồng ngoại hơn, trong khi Hemoglobin không chứa oxy (Hb) hấp thụ nhiều ánh sáng đỏ hơn. Bằng cách đo tỉ số hấp thụ xung AC/DC, hệ thống tính toán chính xác độ bão hòa SpO2 (%).
+              <div className="p-3.5 rounded-xl bg-[#FBC2C8]/40 border-2 border-slate-800">
+                <h4 className="font-extrabold text-slate-950 mb-1">Nguyên lý quang phổ học (PPG):</h4>
+                <p className="text-slate-800 font-medium">
+                  Cảm biến tích hợp <b>LED Đỏ (660 nm)</b> và <b>LED Hồng ngoại (880 nm)</b>. Tỉ số hấp thụ xung AC/DC cho phép tính chính xác độ bão hòa oxy SpO2 (%) và nhịp tim (BPM).
                 </p>
               </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-900">Sơ đồ kết nối I2C giữa MAX30102 và Raspberry Pi 4:</h4>
+              <div className="p-4 rounded-xl bg-[#FAF7F0] border-2 border-slate-800 space-y-2">
+                <h4 className="font-extrabold text-slate-950">Sơ đồ kết nối I2C với Raspberry Pi 4:</h4>
                 <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
-                    <span className="text-rose-600 font-bold">VIN</span> → Chân Pin 1 (3.3V)
-                  </div>
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
-                    <span className="text-slate-600 font-bold">GND</span> → Chân Pin 6 hoặc 9 (GND)
-                  </div>
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
-                    <span className="text-sky-600 font-bold">SDA</span> → Chân Pin 3 (GPIO 2 / I2C1)
-                  </div>
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
-                    <span className="text-emerald-600 font-bold">SCL</span> → Chân Pin 5 (GPIO 3 / I2C1)
-                  </div>
+                  <div className="p-2 rounded-lg bg-white border-[1.5px] border-slate-800"><span className="text-rose-600 font-bold">VIN</span> → Pin 1 (3.3V)</div>
+                  <div className="p-2 rounded-lg bg-white border-[1.5px] border-slate-800"><span className="text-slate-800 font-bold">GND</span> → Pin 6 / 9</div>
+                  <div className="p-2 rounded-lg bg-white border-[1.5px] border-slate-800"><span className="text-sky-700 font-bold">SDA</span> → Pin 3 (GPIO 2)</div>
+                  <div className="p-2 rounded-lg bg-white border-[1.5px] border-slate-800"><span className="text-[#16B364] font-bold">SCL</span> → Pin 5 (GPIO 3)</div>
                 </div>
               </div>
-
-              <div className="space-y-1.5">
-                <h4 className="font-bold text-slate-900">Thông số hoạt động:</h4>
-                <ul className="list-disc pl-5 space-y-1 text-slate-600 text-[11px]">
-                  <li>Dải đo nhịp tim: 30 - 240 BPM (Độ chính xác: ±1 BPM)</li>
-                  <li>Dải đo nồng độ oxy SpO2: 70% - 100% (Độ chính xác: ±1.5%)</li>
-                  <li>Điện áp hoạt động: 1.8V - 3.3V DC (Giao tiếp I2C tiêu chuẩn)</li>
-                  <li>Dòng điện tiêu thụ: &lt; 1.2 mA trong chế độ đo liên tục</li>
-                </ul>
-              </div>
             </div>
-
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
-              >
+            <div className="p-4 border-t-2 border-slate-800 bg-[#FDFBF7] flex justify-end">
+              <button type="button" onClick={() => setActiveModal(null)} className="tactile-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Đóng
               </button>
             </div>
@@ -1056,68 +1119,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </div>
       )}
 
-      {/* Camera AI Modal */}
       {activeModal === 'camera' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b-2 border-slate-800 bg-[#FDFBF7]">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <Camera className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-[#BAE0EC] border-2 border-slate-800 flex items-center justify-center text-slate-900">
+                  <Camera className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Camera Giám Sát Tư Thế & Thị Giác Máy Tính</h3>
-                  <p className="text-xs text-slate-500">Mô hình MediaPipe Pose 33 điểm mốc công thái học</p>
+                  <h3 className="text-base font-extrabold text-slate-950">Camera Giám Sát Tư Thế & Thị Giác Máy Tính</h3>
+                  <p className="text-xs font-medium text-slate-600">MediaPipe Pose 33 điểm mốc + SFace 128D</p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
-
-            <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                <h4 className="font-bold text-emerald-900 mb-1">Mô hình nhận diện MediaPipe BlazePose:</h4>
-                <p className="text-slate-600">
-                  Thuật toán trích xuất 33 điểm mốc cơ thể (khớp vai, tai, mũi, cột sống, hông) theo không gian 3 chiều (x, y, z) tại biên trên Raspberry Pi 4 mà không cần gửi video lên máy chủ đám mây, đảm bảo 100% sự riêng tư.
-                </p>
+            <div className="p-5 overflow-y-auto space-y-3 text-xs leading-relaxed text-slate-700">
+              <div className="p-3.5 rounded-xl bg-[#B2F5BE]/60 border-2 border-slate-800 text-slate-900">
+                <b>Tư thế Chuẩn (Mã 0):</b> Lưng tựa sát ghế, góc nghiêng cổ &lt; 15°, hai vai cân bằng song song mặt bàn.
               </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Tiêu chuẩn phân loại tư thế:</h4>
-                <div className="space-y-2 text-[11px]">
-                  <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 text-emerald-900 flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold">Tư thế Chuẩn (Mã 0):</span> Lưng tựa sát vào tựa ghế, góc nghiêng cổ so với phương thẳng đứng &lt; 15°, hai vai cân bằng song song mặt bàn.
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200 text-rose-900 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold">Tư thế Cúi gù / Lệch (Mã 1):</span> Đầu chúi về phía trước màn hình (góc cổ &gt; 30° kéo dài trên 5 giây) hoặc vai nghiêng lệch quá 10°.
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-900 flex items-start gap-2">
-                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold">Ngoài vùng camera (Mã 2):</span> Người dùng rời khỏi vị trí làm việc hoặc nằm ngoài vùng camera quan sát.
-                    </div>
-                  </div>
-                </div>
+              <div className="p-3.5 rounded-xl bg-[#FBC2C8]/50 border-2 border-slate-800 text-slate-900">
+                <b>Tư thế Cúi gù / Lệch (Mã 1):</b> Đầu chúi về phía trước màn hình (góc cổ &gt; 30°).
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#FDE68A]/50 border-2 border-slate-800 text-slate-900">
+                <b>Ngoài vùng camera (Mã 2):</b> Người dùng rời khỏi vị trí làm việc hoặc nằm ngoài vùng quan sát.
               </div>
             </div>
-
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
-              >
+            <div className="p-4 border-t-2 border-slate-800 bg-[#FDFBF7] flex justify-end">
+              <button type="button" onClick={() => setActiveModal(null)} className="tactile-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Đóng
               </button>
             </div>
@@ -1125,68 +1156,45 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </div>
       )}
 
-      {/* Hardware Modal */}
       {activeModal === 'hardware' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b-2 border-slate-800 bg-[#FDFBF7]">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  <Cpu className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-[#B2F5BE] border-2 border-slate-800 flex items-center justify-center text-slate-900">
+                  <Cpu className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Phần Cứng Raspberry Pi 4 Model B</h3>
-                  <p className="text-xs text-slate-500">Trung tâm xử lý biên Edge Computing</p>
+                  <h3 className="text-base font-extrabold text-slate-950">Phần Cứng Raspberry Pi 4 Model B</h3>
+                  <p className="text-xs font-medium text-slate-600">Trung tâm xử lý biên Edge Computing</p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
               <div className="grid grid-cols-2 gap-3 font-mono text-[11px]">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="p-3 rounded-xl bg-[#FAF7F0] border-2 border-slate-800">
                   <p className="text-slate-500 text-[10px]">CPU / SoC</p>
-                  <p className="font-bold text-slate-900">Broadcom BCM2711</p>
-                  <p className="text-slate-600 text-[10px]">4x Cortex-A72 @ 1.5GHz</p>
+                  <p className="font-extrabold text-slate-950">Broadcom BCM2711</p>
                 </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="p-3 rounded-xl bg-[#FAF7F0] border-2 border-slate-800">
                   <p className="text-slate-500 text-[10px]">RAM</p>
-                  <p className="font-bold text-slate-900">4GB LPDDR4-3200</p>
-                  <p className="text-slate-600 text-[10px]">Tối ưu cho thị giác máy tính</p>
+                  <p className="font-extrabold text-slate-950">4GB LPDDR4-3200</p>
                 </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-slate-500 text-[10px]">Cổng Camera</p>
-                  <p className="font-bold text-slate-900">MIPI CSI 2-lane</p>
-                  <p className="text-slate-600 text-[10px]">Hỗ trợ Camera v2 / v3 1080p</p>
+                <div className="p-3 rounded-xl bg-[#FAF7F0] border-2 border-slate-800">
+                  <p className="text-slate-500 text-[10px]">Camera</p>
+                  <p className="font-extrabold text-slate-950">USB / MIPI CSI 1080p</p>
                 </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-slate-500 text-[10px]">Kết nối mạng</p>
-                  <p className="font-bold text-slate-900">Wi-Fi Dual-band + GigE</p>
-                  <p className="text-slate-600 text-[10px]">2.4 / 5.0 GHz 802.11ac</p>
+                <div className="p-3 rounded-xl bg-[#FAF7F0] border-2 border-slate-800">
+                  <p className="text-slate-500 text-[10px]">Mạng</p>
+                  <p className="font-extrabold text-slate-950">Wi-Fi Dual-band + GigE</p>
                 </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 space-y-1 text-slate-700">
-                <p className="font-bold text-indigo-900">Môi trường thực thi phần mềm:</p>
-                <p className="text-slate-600 text-[11px]">
-                  Hệ điều hành Raspberry Pi OS (64-bit), môi trường Python 3.11, gói SDK <code className="bg-white px-1.5 py-0.5 rounded font-mono font-bold text-indigo-700">firebase-admin</code>, <code className="bg-white px-1.5 py-0.5 rounded font-mono font-bold text-indigo-700">opencv-python</code> và <code className="bg-white px-1.5 py-0.5 rounded font-mono font-bold text-indigo-700">mediapipe</code>.
-                </p>
               </div>
             </div>
-
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
-              >
+            <div className="p-4 border-t-2 border-slate-800 bg-[#FDFBF7] flex justify-end">
+              <button type="button" onClick={() => setActiveModal(null)} className="tactile-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Đóng
               </button>
             </div>
@@ -1194,57 +1202,43 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </div>
       )}
 
-      {/* Guide Modal */}
       {activeModal === 'guide' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b-2 border-slate-800 bg-[#FDFBF7]">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
-                  <HelpCircle className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-[#FDE68A] border-2 border-slate-800 flex items-center justify-center text-slate-900">
+                  <HelpCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Giới Thiệu Hệ Thống Giám Sát Sức Khỏe IoT</h3>
-                  <p className="text-xs text-slate-500">Nền tảng theo dõi công thái học & sinh trắc học thời gian thực</p>
+                  <h3 className="text-base font-extrabold text-slate-950">Giới Thiệu Hệ Thống Giám Sát Sức Khỏe IoT</h3>
+                  <p className="text-xs font-medium text-slate-600">Nền tảng theo dõi công thái học & sinh trắc học thời gian thực</p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
-
-            <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700">
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 text-emerald-600" />
-                    Theo Dõi Tư Thế Công Thái Học & Sinh Trắc Học
-                  </span>
-                  <p className="text-slate-600 text-[11px]">
-                    Hệ thống tự động phân tích tư thế ngồi (chuẩn, cúi đầu, gù lưng, nghiêng), đo nhịp tim (BPM) và nồng độ oxy trong máu (SpO₂) từ cảm biến Raspberry Pi 4.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <User className="w-4 h-4 text-sky-600" />
-                    Đồng Bộ & Lưu Trữ Lịch Sử
-                  </span>
-                  <p className="text-slate-600 text-[11px]">
-                    Dữ liệu thời gian thực được kết nối trực tiếp, các bản ghi lịch sử đo đạc được lưu trữ tập trung trên cơ sở dữ liệu Supabase PostgreSQL Cloud để tra cứu bất kỳ lúc nào.
-                  </p>
-                </div>
+            <div className="p-5 overflow-y-auto space-y-3 text-xs leading-relaxed text-slate-700">
+              <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-2 border-slate-800 space-y-1.5">
+                <span className="font-extrabold text-slate-950 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-[#16B364]" /> Theo Dõi Tư Thế & Sinh Trắc Học
+                </span>
+                <p className="text-slate-700 text-[11px] font-medium">
+                  Phân tích tư thế ngồi (chuẩn, cúi đầu, gù lưng), nhịp tim (BPM) và nồng độ oxy trong máu (SpO₂) từ trạm Raspberry Pi 4.
+                </p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#FAF7F0] border-2 border-slate-800 space-y-1.5">
+                <span className="font-extrabold text-slate-950 flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-sky-700" /> Đồng Bộ Đám Mây Thời Gian Thực
+                </span>
+                <p className="text-slate-700 text-[11px] font-medium">
+                  Dữ liệu realtime đồng bộ trực tiếp Firestore & Supabase PostgreSQL Cloud, hỗ trợ AI dự đoán xu hướng sức khỏe.
+                </p>
               </div>
             </div>
-
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs cursor-pointer"
-              >
+            <div className="p-4 border-t-2 border-slate-800 bg-[#FDFBF7] flex justify-end">
+              <button type="button" onClick={() => setActiveModal(null)} className="tactile-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Đã Hiểu
               </button>
             </div>

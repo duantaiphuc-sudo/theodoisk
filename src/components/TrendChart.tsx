@@ -100,15 +100,17 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
   const latestActivePoint = activeHourlyPoints[activeHourlyPoints.length - 1];
 
   return (
-    <div className="rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg">
+    <div className="rounded-2xl glass-panel p-4 sm:p-5 lg:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-sky-600 shrink-0" />
+          <h2 className="text-sm sm:text-base font-extrabold text-slate-950 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-[#B2F5BE] border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4 text-slate-900 shrink-0" />
+            </span>
             <span>Xu Hướng Sinh Trắc Học Theo Giờ (HR & SpO₂)</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-sky-600" />
+          <p className="text-xs text-slate-600 font-medium mt-0.5 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-[#16B364]" />
             <span>Tổng hợp trung bình theo từng khung giờ làm việc trong ngày (08:00 - 18:00)</span>
           </p>
         </div>
@@ -118,26 +120,26 @@ export const TrendChart: React.FC<TrendChartProps> = ({ history, hrMin, hrMax, s
           <button
             type="button"
             onClick={() => setShowHR(!showHR)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold border-[1.5px] transition cursor-pointer whitespace-nowrap ${
               showHR
-                ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-2xs'
-                : 'bg-slate-100 text-slate-400 border-slate-200'
+                ? 'bg-[#FBC2C8] text-slate-950 border-slate-800 shadow-[0_2px_0_#1E293B]'
+                : 'bg-slate-100 text-slate-500 border-slate-300'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span className="w-2 h-2 rounded-full bg-rose-600 border border-slate-900"></span>
             <span>BPM TB ({latestActivePoint ? `${latestActivePoint.avgBpm}` : '--'})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowSpO2(!showSpO2)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold border-[1.5px] transition cursor-pointer whitespace-nowrap ${
               showSpO2
-                ? 'bg-sky-50 text-sky-700 border-sky-200 shadow-2xs'
-                : 'bg-slate-100 text-slate-400 border-slate-200'
+                ? 'bg-[#BAE0EC] text-slate-950 border-slate-800 shadow-[0_2px_0_#1E293B]'
+                : 'bg-slate-100 text-slate-500 border-slate-300'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+            <span className="w-2 h-2 rounded-full bg-sky-600 border border-slate-900"></span>
             <span>SpO₂ TB ({latestActivePoint ? `${latestActivePoint.avgSpo2}%` : '--'})</span>
           </button>
         </div>

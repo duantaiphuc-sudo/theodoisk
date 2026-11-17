@@ -134,23 +134,23 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
   const isSittingLong = !isCameraError && !isAbsent && !isVerifying && postureStatus === 4;
 
   return (
-    <div className={`rounded-2xl glass-panel border border-white/60 p-4 sm:p-5 lg:p-6 shadow-lg flex flex-col justify-between ${className || ''}`}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 mb-3 border-b border-slate-200/70">
+    <div className={`rounded-2xl glass-panel p-4 sm:p-5 lg:p-6 flex flex-col justify-between ${className || ''}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 mb-3 border-b-2 border-slate-800/15">
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900">
+          <h2 className="text-sm sm:text-base font-extrabold text-slate-950">
             Mô Hình & Chẩn Đoán Tư Thế
           </h2>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">Phân tích cột sống & thị giác góc nghiêng thời gian thực</p>
+          <p className="text-xs text-slate-600 font-medium mt-0.5">Phân tích cột sống & thị giác góc nghiêng thời gian thực</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex glass-subcard p-0.5 rounded-xl border text-xs">
+          <div className="flex bg-[#FAF7F0] p-1 rounded-xl border-[1.5px] border-slate-800 text-xs gap-1">
             <button
               type="button"
               onClick={() => setViewMode('skeleton')}
               title="Xem mô hình giải phẫu tư thế ngồi"
-              className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 cursor-pointer ${
-                viewMode === 'skeleton' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                viewMode === 'skeleton' ? 'bg-[#16B364] text-white border border-slate-900 shadow-[0_2px_0_#0F172A]' : 'text-slate-700 hover:text-slate-950'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -160,13 +160,13 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
               type="button"
               onClick={() => setViewMode('camera')}
               title="Xem hình ảnh trực tiếp từ Camera Pi 4"
-              className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 cursor-pointer ${
-                viewMode === 'camera' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                viewMode === 'camera' ? 'bg-[#16B364] text-white border border-slate-900 shadow-[0_2px_0_#0F172A]' : 'text-slate-700 hover:text-slate-950'
               }`}
             >
               <Camera className="w-3.5 h-3.5" />
               <span>Camera</span>
-              {image && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>}
+              {image && <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>}
             </button>
           </div>
 
@@ -175,25 +175,25 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             onClick={handleTestPostureVoice}
             disabled={isPlayingVoice}
             title="Nghe thử âm thanh nhắc nhở khi ngồi sai tư thế"
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1 transition cursor-pointer whitespace-nowrap ${
               isPlayingVoice
-                ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                : 'glass-subcard glass-subcard-interactive text-slate-700'
+                ? 'bg-[#FBC2C8] text-slate-950 border-2 border-slate-800 animate-pulse'
+                : 'tactile-btn-white'
             }`}
           >
-            <Volume2 className={`w-3.5 h-3.5 ${isPlayingVoice ? 'text-rose-600' : 'text-slate-500'}`} />
+            <Volume2 className={`w-3.5 h-3.5 ${isPlayingVoice ? 'text-rose-700' : 'text-slate-700'}`} />
             <span>Thử nhắc</span>
           </button>
 
-          <span className={`px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider border whitespace-nowrap ${
-            isCameraError ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' :
-            isVerifying ? 'bg-sky-100 text-sky-800 border-sky-300 animate-pulse' :
-            isAbsent ? 'bg-amber-100 text-amber-800 border-amber-300' :
-            isGood ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-            isBad ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse' :
-            isStanding ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold' :
-            isSittingLong ? 'bg-amber-100 text-amber-800 border-amber-300' :
-            'bg-slate-100 text-slate-600 border-slate-200'
+          <span className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-extrabold uppercase tracking-wider border-[1.5px] border-slate-800 whitespace-nowrap ${
+            isCameraError ? 'bg-[#FBC2C8] text-slate-950' :
+            isVerifying ? 'bg-[#BAE0EC] text-slate-950 animate-pulse' :
+            isAbsent ? 'bg-[#FDE68A] text-slate-950' :
+            isGood ? 'bg-[#B2F5BE] text-slate-950' :
+            isBad ? 'bg-[#FBC2C8] text-slate-950 animate-pulse' :
+            isStanding ? 'bg-[#BAE0EC] text-slate-950' :
+            isSittingLong ? 'bg-[#FDE68A] text-slate-950' :
+            'bg-slate-100 text-slate-700'
           }`}>
             {isCameraError ? 'LỖI CAMERA' : isVerifying ? 'ĐANG ĐO' : isAbsent ? 'NGOÀI VÙNG' : postureLabel}
           </span>
@@ -411,13 +411,13 @@ export const PostureVisualizer: React.FC<PostureVisualizerProps> = ({ telemetry,
             </p>
           </div>
 
-          {/* Ergonomic Tip Box - flex-1 fills the vertical height naturally without awkward holes */}
-          <div className="flex-1 p-3.5 sm:p-4 rounded-xl bg-sky-50/80 border border-sky-200/90 shadow-2xs flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 text-sky-900 text-xs font-bold mb-1.5">
-              <Info className="w-4 h-4 text-sky-600 shrink-0" />
+          {/* Ergonomic Tip Box - flex-1 fills the vertical height naturally */}
+          <div className="flex-1 p-3.5 sm:p-4 rounded-xl bg-[#BAE0EC]/50 border-2 border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-center">
+            <div className="flex items-center gap-1.5 text-slate-950 text-xs font-extrabold mb-1.5">
+              <Info className="w-4 h-4 text-slate-900 shrink-0" />
               <span>Khuyến nghị từ Chuyên viên Công Thái Học:</span>
             </div>
-            <p className="text-xs text-slate-800 leading-relaxed font-medium">
+            <p className="text-xs text-slate-900 leading-relaxed font-semibold">
               {currentAdvice.tip}
             </p>
           </div>

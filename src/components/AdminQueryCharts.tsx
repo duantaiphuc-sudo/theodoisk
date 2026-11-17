@@ -206,12 +206,12 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
 
   if (!data || data.length === 0) {
     return (
-      <div className="glass-panel rounded-2xl border border-white/60 p-8 text-center space-y-3 shadow-lg">
-        <div className="w-12 h-12 rounded-2xl glass-subcard text-slate-400 flex items-center justify-center mx-auto">
+      <div className="glass-panel rounded-2xl p-8 text-center space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-[#FAF7F0] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-600 flex items-center justify-center mx-auto">
           <PieChartIcon className="w-6 h-6" />
         </div>
-        <h4 className="text-sm font-bold text-slate-800">Chưa Có Dữ Liệu Biểu Đồ Trực Quan</h4>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
+        <h4 className="text-sm font-extrabold text-slate-900">Chưa Có Dữ Liệu Biểu Đồ Trực Quan</h4>
+        <p className="text-xs text-slate-600 max-w-md mx-auto">
           Hãy bấm nút <b>"Truy Xuất Dữ Liệu"</b> ở trên để tải dữ liệu lịch sử từ PostgreSQL Supabase và kết xuất biểu đồ phân tích.
         </p>
       </div>
@@ -219,37 +219,37 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
   }
 
   return (
-    <div className="glass-panel rounded-2xl border border-white/60 p-5 sm:p-6 shadow-lg space-y-5 animate-fadeIn">
+    <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-5 animate-fadeIn">
       {/* Header with Segmented Tab Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-200/60">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b-2 border-slate-800/15">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-600 text-white flex items-center justify-center shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-[#BAE0EC] border-2 border-slate-800 shadow-[0_2px_0_#1E293B] text-slate-900 flex items-center justify-center shrink-0">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h4 className="text-base font-bold text-slate-900 tracking-tight">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-base font-extrabold text-slate-900 tracking-tight">
                 Phân Tích Trực Quan Dữ Liệu Đo Đạc
               </h4>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800 whitespace-nowrap">
                 {data.length} mẫu dữ liệu
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Mô hình hóa biến thiên nhịp tim, nồng độ oxy và tỷ lệ tư thế ngồi chuẩn theo dòng thời gian.
             </p>
           </div>
         </div>
 
         {/* View Mode Segmented Switcher */}
-        <div className="flex items-center gap-1 p-1 rounded-xl glass-subcard self-stretch sm:self-auto overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] self-stretch sm:self-auto overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'overview'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-[#16B364] text-white border border-slate-900 shadow-[0_1.5px_0_#0F172A]'
+                : 'text-slate-700 hover:text-slate-900'
             }`}
           >
             <PieChartIcon className="w-3.5 h-3.5" />
@@ -261,8 +261,8 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
             onClick={() => setActiveTab('timeline')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'timeline'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-[#16B364] text-white border border-slate-900 shadow-[0_1.5px_0_#0F172A]'
+                : 'text-slate-700 hover:text-slate-900'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -275,8 +275,8 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
               onClick={() => setActiveTab('comparison')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'comparison'
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#16B364] text-white border border-slate-900 shadow-[0_1.5px_0_#0F172A]'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -358,7 +358,7 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
             </div>
 
             {/* Horizontal Stacked Segmented Ratio Bar */}
-            <div className="w-full h-4 rounded-xl overflow-hidden flex bg-slate-100 border border-slate-200/90 shadow-inner p-0.5 gap-0.5">
+            <div className="w-full h-4 rounded-xl overflow-hidden flex bg-white border-2 border-slate-800 p-0.5 gap-0.5">
               {distribution.map(item => item.percent > 0 ? (
                 <div
                   key={item.id}
@@ -377,13 +377,13 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                   key={item.id}
                   onMouseEnter={() => setHoveredSlice(item.id)}
                   onMouseLeave={() => setHoveredSlice(null)}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer ${item.bg} ${item.border} ${
-                    hoveredSlice === item.id ? 'ring-2 ring-emerald-500 shadow-xs scale-[1.02]' : 'shadow-2xs'
+                  className={`p-3.5 rounded-xl border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] transition-all cursor-pointer ${item.bg} ${
+                    hoveredSlice === item.id ? 'ring-2 ring-emerald-500 scale-[1.02]' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full border border-slate-800 shrink-0" style={{ backgroundColor: item.color }} />
                       <span>{item.label}</span>
                     </span>
                     <span className={`text-xs font-extrabold font-mono ${item.text}`}>
@@ -391,13 +391,13 @@ export const AdminQueryCharts: React.FC<AdminQueryChartsProps> = ({
                     </span>
                   </div>
 
-                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-600">
                     <span>Số lượng ghi nhận:</span>
-                    <span className="font-mono font-bold text-slate-800">{item.count} lần</span>
+                    <span className="font-mono font-bold text-slate-900">{item.count} lần</span>
                   </div>
 
                   {/* Micro Progress Bar */}
-                  <div className="mt-2 w-full h-1.5 bg-white/80 rounded-full overflow-hidden border border-slate-200/50">
+                  <div className="mt-2 w-full h-2 rounded-full tactile-progress-track">
                     <div 
                       className="h-full rounded-full transition-all duration-500" 
                       style={{ width: `${item.percent}%`, backgroundColor: item.color }} 

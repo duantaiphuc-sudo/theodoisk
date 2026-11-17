@@ -238,6 +238,10 @@ app.post(['/api/chat', '/chat'], async (req: Request, res: Response) => {
       conversationHistory = [],
       bonusPolicy,
       bonusResult,
+      ohpsData,
+      tasks: clientTasks = [],
+      userProfile,
+      predictiveSummary,
       image,
       thresholds
     } = req.body;
@@ -462,13 +466,14 @@ app.post(['/api/chat', '/chat'], async (req: Request, res: Response) => {
     : (req.body.userId || callerUid);
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  // Query danh sách task được giao cho user từ Supabase
+  // Query danh sách task được giao cho user từ Supabase (sử dụng activeSupabase)
   let userTasksList: TaskItem[] = [];
-  if (supabase) {
+  let detailedTasksList: Array<{ id: string; title: string; status: string; priority?: string; deadline?: string }> = [];
+  if (activeSupabase) {
     try {
-      const { data: tasksData } = await supabase
+      const { data: tasksData } = await activeSupabase
         .from('tasks')
-        .select('id, status, assigned_to')
+        .select('id, title, status, priority, deadline, assigned_to')
         .eq('assigned_to', targetUserId);
       if (tasksData && tasksData.length > 0) {
         userTasksList = tasksData.map((t: any) => ({
@@ -476,10 +481,42 @@ app.post(['/api/chat', '/chat'], async (req: Request, res: Response) => {
           status: t.status === 'completed' ? 'completed' : 'pending',
           assigned_to: String(t.assigned_to)
         }));
+        detailedTasksList = tasksData.map((t: any) => ({
+          id: String(t.id),
+          title: String(t.title || 'Nhiệm vụ'),
+          status: String(t.status || 'pending'),
+          priority: t.priority ? String(t.priority) : 'normal',
+          deadline: t.deadline ? String(t.deadline) : undefined,
+        }));
       }
     } catch (err) {
       console.warn('Lỗi query tasks từ Supabase:', err);
     }
+  }
+
+  // Merge thêm danh sách task từ client Firestore nếu Supabase chưa đồng bộ đủ
+  if (Array.isArray(clientTasks) && clientTasks.length > 0) {
+    const seenTaskIds = new Set(detailedTasksList.map(t => t.id));
+    clientTasks.forEach((ct: any) => {
+      const tid = String(ct.id || ct.title || '');
+      if (tid && !seenTaskIds.has(tid)) {
+        seenTaskIds.add(tid);
+        detailedTasksList.push({
+          id: tid,
+          title: String(ct.title || 'Nhiệm vụ'),
+          status: String(ct.status || 'pending'),
+          priority: ct.priority ? String(ct.priority) : 'normal',
+          deadline: ct.deadline ? String(ct.deadline) : undefined,
+        });
+      }
+      if (ct.id && !userTasksList.some(u => u.id === String(ct.id))) {
+        userTasksList.push({
+          id: String(ct.id),
+          status: ct.status === 'completed' ? 'completed' : 'pending',
+          assigned_to: String(ct.targetUserId || targetUserId),
+        });
+      }
+    });
   }
 
   // Chuẩn bị danh sách telemetry logs cho user cần tính toán OHPS (ưu tiên top 50 log mới nhất)
@@ -497,12 +534,16 @@ app.post(['/api/chat', '/chat'], async (req: Request, res: Response) => {
     }));
 
   const completedBreaks = Math.max(1, Math.floor(((Number(timeStats?.standingSeconds) || 0) + (Number(timeStats?.movingSeconds) || 0)) / 60));
-  const ohpsResult = calculateOHPSFromLogs(rawLogsForOHPS, userTasksList, 4, completedBreaks, 100, isAdmin ? 'admin' : 'employee', targetUserId);
+  const computedOhps = calculateOHPSFromLogs(rawLogsForOHPS, userTasksList, 4, completedBreaks, 100, isAdmin ? 'admin' : 'employee', targetUserId);
+  const ohpsResult: OHPSCalculationResult =
+    rawLogsForOHPS.length === 0 && ohpsData && typeof ohpsData.ohpsScore === 'number'
+      ? ohpsData
+      : computedOhps;
 
   // Lưu hoặc cập nhật (UPSERT) kết quả vào bảng daily_ohps_summary trên Supabase
-  if (supabase) {
+  if (activeSupabase && rawLogsForOHPS.length > 0) {
     try {
-      await supabase.from('daily_ohps_summary').upsert({
+      await activeSupabase.from('daily_ohps_summary').upsert({
         user_id: targetUserId,
         date: todayStr,
         posture_score: ohpsResult.breakdown.S_posture,
@@ -532,26 +573,55 @@ app.post(['/api/chat', '/chat'], async (req: Request, res: Response) => {
     2
   );
 
+  const bonusContextStr = bonusPolicy
+    ? `=== CHÍNH SÁCH THƯỞNG CÔNG THÁI HỌC & MỨC THƯỞNG ===
+- Công ty: ${bonusPolicy.companyName || 'Công ty'} | Chu kỳ: ${bonusPolicy.cycle === 'daily' ? 'Hàng ngày' : bonusPolicy.cycle === 'weekly' ? 'Hàng tuần' : 'Hàng tháng'}
+- Mức thưởng tối đa: ${Number(bonusPolicy.maxRewardAmount || 0).toLocaleString('vi-VN')} VNĐ | Điểm sàn: ${bonusPolicy.minScoreToReward}đ
+- Tiền thưởng ước tính hiện tại: +${Number(bonusResult?.totalReward || 0).toLocaleString('vi-VN')} VNĐ (${bonusResult?.achievementRate || 0}% hạn mức) | Xếp loại: ${bonusResult?.tierAchieved?.tierName || (bonusResult?.isEligible ? 'Đạt chuẩn' : 'Chưa đạt sàn')}
+- Gợi ý tăng thưởng: ${bonusResult?.tipsToReachNextTier || 'Duy trì tư thế thẳng và đứng nghỉ định kỳ.'}`
+    : '';
+
+  const predictiveContextStr = predictiveSummary
+    ? `=== DỰ BÁO ĐỊNH LƯỢNG & RỦI RO (WLS · Z-SCORE) ===
+- Dự báo OHPS ca tới: ${predictiveSummary?.ohpsForecast?.predictedScore ?? '--'}/100 (${predictiveSummary?.ohpsForecast?.trendLabel || 'Ổn định'})
+- Nguy cơ cổ C5-C7: ${predictiveSummary?.postureFatigue?.neckSpineRiskPercent ?? '--'}% | Nguy cơ thắt lưng L4-L5: ${predictiveSummary?.postureFatigue?.lumbarRiskPercent ?? '--'}% | Thời gian tới ngưỡng mỏi: ~${predictiveSummary?.postureFatigue?.predictedMinutesUntilSlouch ?? '--'} phút
+- Đường cơ sở BPM cá nhân: ${predictiveSummary?.modelMetrics?.baselineBpmMean || '--'} ± ${predictiveSummary?.modelMetrics?.baselineBpmStd || '--'} BPM | Bất thường Z-Score: ${predictiveSummary?.modelMetrics?.zScoreAnomalyCount ?? 0} sự kiện | SQI: ${predictiveSummary?.modelMetrics?.sqiScore ?? '--'}/100
+- Khung giờ vàng: ${predictiveSummary?.circadian?.goldenHoursWindow || '09:00 - 11:00'} | Khung giờ dễ uể oải: ${predictiveSummary?.circadian?.slumpRiskWindow || '14:00 - 15:30'}`
+    : '';
+
+  const tasksSummaryStr = detailedTasksList.length > 0
+    ? `=== DANH SÁCH NHIỆM VỤ (${detailedTasksList.filter(t => t.status !== 'completed').length} chưa xong / ${detailedTasksList.length} tổng) ===\n` +
+      detailedTasksList.slice(0, 12).map((t, i) => `${i + 1}. [${t.status === 'completed' ? 'XONG' : 'CHƯA XONG'}] ${t.title}${t.deadline ? ` (Hạn: ${t.deadline})` : ''}`).join('\n')
+    : '=== DANH SÁCH NHIỆM VỤ ===\nHiện chưa có nhiệm vụ nào được giao.';
+
+  const userProfileStr = userProfile
+    ? `=== HỒ SƠ SỨC KHỎE CÁ NHÂN ===\nTuổi: ${userProfile.age ?? 'Chưa rõ'} | Chiều cao: ${userProfile.height ?? '--'} cm | Cân nặng: ${userProfile.weight ?? '--'} kg | Bệnh nền: ${Array.isArray(userProfile.medicalConditions) && userProfile.medicalConditions.length > 0 ? userProfile.medicalConditions.join(', ') : 'Không có'}`
+    : '';
+
   const systemInstruction = `BẠN LÀ TRỢ LÝ AI CÔNG THÁI HỌC VÀ HIỆU SUẤT VĂN PHÒNG (OHPS COACH).
 Người đang tương tác: "${userName}" (UID: ${targetUserId}, Vai trò: ${isAdmin ? 'QUẢN TRỊ VIÊN' : 'NHÂN VIÊN'}).
 Thời gian hệ thống hiện tại: ${new Date().toLocaleString('vi-VN')}.
 
 === NGUYÊN TẮC GIAO TIẾP BẮT BUỘC ===
-1. TUYỆT ĐỐI KHÔNG SỬ DỤNG BẤT KỲ EMOJI HAY BIỂU TƯỢNG ĐỒ HỌA NÀO. Chỉ sử dụng chữ viết tiếng Việt chuẩn mực, chuyên nghiệp và Markdown thanh lịch (danh sách gạch đầu dòng, in đậm từ khóa quan trọng).
-2. TRẢ LỜI ĐÚNG TRỌNG TÂM, TỰ NHIÊN NHƯ CHATGPT / GEMINI HIỆN ĐẠI:
-   - Nếu người dùng hỏi chào hỏi, hỏi ngày giờ ("hôm nay thứ mấy", "mấy giờ rồi"): Trả lời trực tiếp, ngắn gọn, tự nhiên. TUYỆT ĐỐI KHÔNG tự tiện chèn báo cáo cảm biến hay số liệu nhịp tim/tư thế vào câu trả lời này.
-   - Nếu người dùng hỏi về năng lực/chức năng ("bạn có thể làm được việc gì", "bạn là ai", "chức năng"): Trình bày rõ ràng các năng lực chính của bạn (giám sát tư thế qua camera AI, đo nhịp tim & SpO2 qua cảm biến MAX30102, theo dõi thời gian làm việc, đánh giá điểm năng suất tổng hợp OHPS, gợi ý bài tập giãn cơ 1-2 phút, tra cứu nhật ký lịch sử Supabase). KHÔNG dump số đo cảm biến nếu người dùng không yêu cầu.
-   - Nếu người dùng hỏi về sức khỏe, tư thế, nhịp tim, bài tập giãn cơ hoặc điểm OHPS: Hãy sử dụng dữ liệu đo đạc và chuỗi nhật ký bên dưới để phân tích chuyên sâu, mạch lạc và đưa ra giải pháp cơ sinh học thực tế.
-3. KHÔNG TỰ ĐỘNG GẮN DISCLAIMER Y TẾ VÀO MỌI CÂU HỎI. Disclaimer chỉ cần thiết khi tư vấn về bệnh lý hoặc chẩn đoán nghiêm trọng.
+1. TUYỆT ĐỐI KHÔNG SỬ DỤNG BẤT KỲ EMOJI HAY BIỂU TƯỢNG ĐỒ HỌA NÀO. Chỉ sử dụng chữ viết tiếng Việt chuẩn mực, súc tích và Markdown rõ ràng.
+2. TRẢ LỜI ĐÚNG TRỌNG TÂM, TỰ NHIÊN, CÓ SỐ LIỆU CỤ THỂ:
+   - Nếu hỏi chào hỏi, ngày giờ: Trả lời trực tiếp, ngắn gọn. KHÔNG chèn báo cáo cảm biến nếu không được hỏi.
+   - Nếu hỏi về năng lực ("bạn trả lời được những câu hỏi gì", "làm được gì"): Liệt kê 7 nhóm câu hỏi & hành động thực tế bạn xử lý được (1. Tư thế & Camera AI Vision, 2. Nhịp tim BPM & SpO2 MAX30102, 3. Dự báo rủi ro cổ/lưng & giờ vàng WLS/Z-Score, 4. Điểm OHPS & tiền thưởng VNĐ, 5. Tra cứu lịch sử đo đạc Supabase theo giờ/ngày, 6. Quản lý & tạo nhiệm vụ nhắc nhở, 7. Tinh chỉnh & đồng bộ ngưỡng Pi 4 trực tiếp${isAdmin ? ', kèm tra cứu/xếp hạng toàn đội ngũ' : ''}).
+   - Nếu hỏi về rủi ro, xu hướng, điểm thưởng, task hoặc lịch sử: Chủ động gọi các Function Tool phù hợp hoặc trích xuất chính xác số liệu trong context bên dưới.
+3. KHÔNG TỰ ĐỘNG GẮN DISCLAIMER Y TẾ VÀO MỌI CÂU HỎI. Chỉ gắn khi tư vấn bệnh lý cột sống/tim mạch cụ thể.
 
 === DỮ LIỆU ĐIỂM NĂNG SUẤT TỔNG HỢP (OHPS) THAM KHẢO ===
-- Sức khỏe & Công thái học (HES - 70%): ${ohpsResult.hesScore}/100
-  * Tư thế (35%): ${ohpsResult.breakdown.S_posture}/100
-  * Giải lao (20%): ${ohpsResult.breakdown.S_break}/100
-  * Sinh hiệu (15%): ${ohpsResult.hasVitalData ? `${ohpsResult.breakdown.S_vital}/100` : 'Mất cảm biến (Đã tự động cân bằng lại)'}
+- Sức khỏe & Công thái học (HES - 70%): ${ohpsResult.hesScore}/100 (Tư thế: ${ohpsResult.breakdown.S_posture}/100 | Giải lao: ${ohpsResult.breakdown.S_break}/100 | Sinh hiệu: ${ohpsResult.hasVitalData ? `${ohpsResult.breakdown.S_vital}/100` : 'Chờ cảm biến'})
 - Tiến độ công việc (TS - 30%): ${ohpsResult.breakdown.S_task}/100
-- ĐIỂM OHPS TỔNG HỢP: ${ohpsResult.ohpsScore}/100 (Độ tin cậy dữ liệu: ${ohpsResult.dataConfidence}%)
-- Xếp loại: ${ohpsResult.evaluation.level} (${ohpsResult.evaluation.meaning})
+- ĐIỂM OHPS TỔNG HỢP: ${ohpsResult.ohpsScore}/100 (Độ tin cậy: ${ohpsResult.dataConfidence}% | Xếp loại: ${ohpsResult.evaluation.level})
+
+${bonusContextStr}
+
+${predictiveContextStr}
+
+${tasksSummaryStr}
+
+${userProfileStr}
 
 === CHUỖI NHẬT KÝ CHI TIẾT (TELEMETRY LOGS GẦN NHẤT) ===
 ${recentLogsJson}`;
@@ -626,11 +696,14 @@ function generateErgonomicAnalysisServer(params: {
     return `Hôm nay là ${dayName}, ngày ${dateStr}. Hiện tại là ${timeStr}.\n\nChúc bạn một ngày làm việc hiệu quả, tập trung và luôn duy trì tư thế ngồi thoải mái!`;
   }
 
-  // 2. Hỏi về năng lực, chức năng, giới thiệu bản thân
+  // 2. Hỏi về năng lực, chức năng, câu hỏi chatbot trả lời được
   if (
     text.includes('làm được việc gì') || 
     text.includes('làm được gì') || 
     text.includes('lam duoc gi') || 
+    text.includes('hỏi được gì') ||
+    text.includes('hỏi gì') ||
+    text.includes('những câu hỏi') ||
     text.includes('chức năng') || 
     text.includes('chuc nang') || 
     text.includes('khả năng') || 
@@ -639,15 +712,15 @@ function generateErgonomicAnalysisServer(params: {
     text.includes('giới thiệu') || 
     text.includes('hướng dẫn sử dụng')
   ) {
-    return `Tôi là Trợ lý AI Công Thái Học & Huấn Luyện Viên Hiệu Suất (OHPS Coach) được tích hợp trong hệ thống giám sát sức khỏe văn phòng thông minh.\n\n` +
-      `Các chức năng chính tôi có thể hỗ trợ bạn:\n\n` +
-      `1. Giám sát & phân tích tư thế: Nhận diện góc nghiêng cổ, phát hiện cúi gục đầu (Text Neck) hoặc gù lưng qua hệ thống camera AI, nhắc nhở điều chỉnh kịp thời.\n` +
-      `2. Theo dõi chỉ số sinh trắc học: Cập nhật nhịp tim (BPM) và nồng độ oxy trong máu (SpO2) từ cảm biến quang học MAX30102 kết nối IoT.\n` +
-      `3. Quản lý thời gian làm việc: Ghi nhận thời lượng phiên ngồi, cảnh báo ngồi sai tư thế kéo dài và nhắc nhở đứng dậy vận động định kỳ.\n` +
-      `4. Đánh giá Điểm Năng Suất Tổng Hợp (OHPS): Kết hợp giữa Sức khỏe Công thái học (HES 70%) và Tiến độ Nhiệm vụ (TS 30%) để đánh giá hiệu suất lao động toàn diện.\n` +
-      `5. Hướng dẫn bài tập giãn cơ 1-2 phút: Đưa ra các bài tập chuyên sâu tại bàn làm việc (Chin Tuck, Scapular Retraction, Seated Cat-Cow) giúp phòng tránh thoái hóa đốt sống cổ và đau mỏi thắt lưng.\n` +
-      `6. Tra cứu dữ liệu nhật ký: Tìm kiếm và đối chiếu lịch sử đo đạc theo từng mốc thời gian cụ thể được lưu trữ an toàn trên Supabase.\n\n` +
-      `Bạn cần tôi hỗ trợ kiểm tra tư thế, giải đáp chỉ số sinh trắc học hay gợi ý bài tập giãn cơ ngay lúc này?`;
+    return `Tôi là Trợ Lý AI Công Thái Học (Agent kết nối Gemini 4 & dữ liệu thời gian thực Pi 4/Supabase). Dưới đây là **7 nhóm câu hỏi & thao tác** tôi có thể xử lý chính xác cho bạn:\n\n` +
+      `1. **Phân tích tư thế & Camera Vision**: Hỏi tư thế hiện tại, góc cổ, hoặc bấm biểu tượng Camera để gửi ảnh chụp Pi 4 cho AI chấm trục tai-vai-lưng.\n` +
+      `2. **Sinh trắc học MAX30102**: Hỏi nhịp tim (BPM), SpO₂, nguyên nhân tim đập nhanh / thiếu oxy và bài thở điều hòa 4-7-8.\n` +
+      `3. **Dự báo rủi ro & Nhịp tập trung**: Hỏi *"Nguy cơ mỏi cổ/lưng của tôi thế nào?"*, *"Khung giờ vàng làm việc?"*, *"Có bất thường Z-Score không?"*.\n` +
+      `4. **Điểm OHPS & Chính sách thưởng**: Hỏi *"Tôi đang được bao nhiêu điểm OHPS?"*, *"Dự kiến thưởng bao nhiêu tiền?"*, *"Cách tối đa tiền thưởng?"*.\n` +
+      `5. **Tra cứu lịch sử theo mốc giờ**: Hỏi *"Lúc 14h hôm nay tôi ngồi thế nào?"*, *"Sáng nay có bao nhiêu lần gù lưng?"*, *"Thống kê 7 ngày qua"*.\n` +
+      `6. **Quản lý nhiệm vụ & Tạo nhắc nhở**: Hỏi *"Tôi còn task nào chưa xong?"* hoặc yêu cầu *"Tạo nhắc nhở đứng giãn cơ 3 phút lúc 15h"*.\n` +
+      `7. **Cấu hình ngưỡng Pi 4 trực tiếp**: Yêu cầu *"Đặt ngưỡng ngồi lâu xuống 35 phút"* — tôi sẽ tạo thẻ xác nhận để đồng bộ thẳng xuống Raspberry Pi 4.` +
+      (isAdmin ? `\n8. **Quản trị đội ngũ (Admin)**: Hỏi *"Ai ngồi sai nhiều nhất?"*, *"So sánh sức khỏe nhân viên"* hoặc chọn từng thành viên trên bộ lọc phía trên.` : '');
   }
 
   // 2b. Hỏi về tiền thưởng, mức thưởng và chính sách thưởng của công ty
@@ -1142,6 +1215,43 @@ function generateErgonomicAnalysisServer(params: {
       `2. Ép Bả Vai (Chest Opener): Đan tay sau lưng, hít sâu ưỡn ngực mở rộng bả vai 15 giây.`;
   }
 
+  // 14b. Hỏi về dự báo rủi ro, Z-Score, giờ vàng
+  if (
+    text.includes('dự báo') ||
+    text.includes('rủi ro') ||
+    text.includes('nguy cơ') ||
+    text.includes('giờ vàng') ||
+    text.includes('z-score') ||
+    text.includes('bất thường') ||
+    text.includes('khi nào mỏi')
+  ) {
+    const pf = predictiveSummary?.postureFatigue;
+    const mm = predictiveSummary?.modelMetrics;
+    const circ = predictiveSummary?.circadian;
+    const ohpsF = predictiveSummary?.ohpsForecast;
+    return `Phân Tích Dự Báo Rủi Ro & Chuỗi Thời Gian:\n\n` +
+      `- Dự báo OHPS ca tới: **${ohpsF?.predictedScore ?? ohpsResult?.ohpsScore ?? 80}/100** (${ohpsF?.trendLabel || 'Ổn định'}, độ tin cậy ${ohpsF?.confidencePercent ?? 70}%)\n` +
+      `- Nguy cơ đốt sống cổ C5-C7: **${pf?.neckSpineRiskPercent ?? 25}%** | Thắt lưng L4-L5: **${pf?.lumbarRiskPercent ?? 28}%**\n` +
+      `- Thời gian ước tính tới ngưỡng mỏi: **~${pf?.predictedMinutesUntilSlouch ?? 30} phút** ngồi liên tục\n` +
+      `- Đường cơ sở nhịp tim cá nhân: **${mm?.baselineBpmMean || '--'} ± ${mm?.baselineBpmStd || '--'} BPM** (${mm?.zScoreAnomalyCount ?? 0} bất thường Z-Score | SQI: ${mm?.sqiScore ?? ohpsResult?.sqiScore ?? '--'}/100)\n` +
+      `- Khung giờ vàng tập trung: **${circ?.goldenHoursWindow || '09:00 - 11:00'}** | Khung giờ dễ uể oải: **${circ?.slumpRiskWindow || '14:00 - 15:30'}**\n\n` +
+      `Khuyến nghị: Sắp xếp công việc khó vào khung giờ vàng và đứng dậy vận động trước mốc ~${pf?.predictedMinutesUntilSlouch ?? 30} phút.`;
+  }
+
+  // 14c. Hỏi về nhiệm vụ / task đang giao
+  if (text.includes('nhiệm vụ') || text.includes('task') || text.includes('công việc') || text.includes('việc cần làm')) {
+    const pending = detailedTasksList.filter(t => t.status !== 'completed');
+    const done = detailedTasksList.filter(t => t.status === 'completed');
+    if (detailedTasksList.length === 0) {
+      return `Hiện tại chưa có nhiệm vụ nào được giao cho ${userName}.\n\nBạn có thể yêu cầu tôi: *"Tạo nhắc nhở đứng giãn cơ 3 phút lúc 15h"* để thêm ngay nhiệm vụ mới!`;
+    }
+    const listStr = pending.slice(0, 6).map((t, i) => `${i + 1}. **${t.title}** (${t.priority || 'normal'}${t.deadline ? ` · Hạn: ${t.deadline}` : ''})`).join('\n');
+    return `Tổng Hợp Tiến Độ Nhiệm Vụ (${done.length}/${detailedTasksList.length} đã hoàn thành):\n\n` +
+      (pending.length > 0
+        ? `**Các nhiệm vụ đang chờ (${pending.length}):**\n${listStr}`
+        : `Tuyệt vời! Bạn đã hoàn thành toàn bộ ${done.length} nhiệm vụ được giao.`);
+  }
+
   // 15. Quản trị viên: So sánh, xếp hạng và đánh giá nhân viên
   if (isAdmin && (text.includes('ai ngồi sai') || text.includes('sai nhiều nhất') || text.includes('so sánh') || text.includes('nhân viên') || text.includes('toàn bộ') || text.includes('thành viên'))) {
     const memberList = Object.values(memberStatsMap);
@@ -1153,12 +1263,12 @@ function generateErgonomicAnalysisServer(params: {
         return `${idx + 1}. **${m.userName}**: ${m.bad} lần sai tư thế | ${m.good} lần đúng (${ratio}%) | Nhịp tim TB: ${m.countBpm > 0 ? Math.round(m.sumBpm / m.countBpm) : 'N/A'} BPM | Trạng thái: *${m.latestPosture}*`;
       }).join('\n');
 
-      return `📊 **Báo Cáo Phân Tích Công Thái Học Đội Ngũ (Dành Cho Quản Trị Viên):**\n\n` +
+      return `**Báo Cáo Phân Tích Công Thái Học Đội Ngũ (Dành Cho Quản Trị Viên):**\n\n` +
         `Thành viên có số lần cảnh báo sai tư thế cao nhất là **${topBad.userName}** (${topBad.bad} lần sai).\n\n` +
         `**Bảng Xếp Hạng & Chỉ Số Từng Thành Viên:**\n${details}\n\n` +
-        `💡 **Khuyến nghị cho Admin:** Bạn có thể vào tab **Giao việc & Nhiệm vụ** để gửi thông báo nhắc nhở điều chỉnh tư thế đến màn hình Raspberry Pi của nhân viên!`;
+        `**Khuyến nghị cho Admin:** Bạn có thể yêu cầu ngay tại đây *"Tạo nhiệm vụ nhắc ${topBad.userName} điều chỉnh tư thế"* hoặc vào tab **Quản trị / Giao việc**.`;
     }
-    return `📊 Hiện tại chưa có đủ dữ liệu từ nhiều thành viên để lập bảng so sánh. Bạn có thể kiểm tra tab Quản trị hệ thống để theo dõi danh sách thiết bị.`;
+    return `Hiện tại chưa có đủ dữ liệu từ nhiều thành viên để lập bảng so sánh. Bạn có thể kiểm tra tab Quản trị hệ thống để theo dõi danh sách thiết bị.`;
   }
 
   // 16. Phản hồi thông minh theo ngữ cảnh
@@ -1226,6 +1336,32 @@ function generateErgonomicAnalysisServer(params: {
           limit: {
             type: Type.INTEGER,
             description: 'Số bản ghi tối đa trả về (mặc định 120, tối đa 250).',
+          },
+        },
+      },
+    },
+    {
+      name: 'get_health_risk_and_bonus_report',
+      description: 'Lấy báo cáo định lượng gồm điểm OHPS, mức tiền thưởng công thái học (VNĐ), dự báo rủi ro cổ C5-C7 / thắt lưng L4-L5, khung giờ vàng và bất thường Z-Score.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          focusArea: {
+            type: Type.STRING,
+            description: 'Nhóm cần xem sâu: all, bonus, risk, hoặc circadian.',
+          },
+        },
+      },
+    },
+    {
+      name: 'query_tasks_status',
+      description: 'Kiểm tra danh sách nhiệm vụ công việc / nhắc nhở sức khỏe đang chờ và đã hoàn thành của người dùng.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          onlyPending: {
+            type: Type.BOOLEAN,
+            description: 'Nếu true, chỉ trả về các nhiệm vụ chưa hoàn thành.',
           },
         },
       },
@@ -1372,6 +1508,49 @@ function generateErgonomicAnalysisServer(params: {
       };
     }
 
+    if (callName === 'get_health_risk_and_bonus_report') {
+      toolCallsUsed.push('Báo cáo OHPS & Rủi ro');
+      return {
+        ohps: {
+          score: ohpsResult.ohpsScore,
+          hesScore: ohpsResult.hesScore,
+          taskScore: ohpsResult.taskScore,
+          breakdown: ohpsResult.breakdown,
+          level: ohpsResult.evaluation.level,
+          confidence: ohpsResult.dataConfidence,
+          sqiScore: ohpsResult.sqiScore,
+        },
+        bonus: bonusPolicy
+          ? {
+              companyName: bonusPolicy.companyName,
+              cycle: bonusPolicy.cycle,
+              maxRewardAmount: bonusPolicy.maxRewardAmount,
+              minScoreToReward: bonusPolicy.minScoreToReward,
+              estimatedReward: bonusResult?.totalReward ?? 0,
+              achievementRate: bonusResult?.achievementRate ?? 0,
+              isEligible: bonusResult?.isEligible ?? false,
+              tierName: bonusResult?.tierAchieved?.tierName ?? null,
+              tipsToReachNextTier: bonusResult?.tipsToReachNextTier ?? null,
+            }
+          : null,
+        predictiveRisk: predictiveSummary || null,
+      };
+    }
+
+    if (callName === 'query_tasks_status') {
+      toolCallsUsed.push('Tra cứu Nhiệm vụ');
+      const onlyPending = Boolean(args?.onlyPending);
+      const filtered = onlyPending
+        ? detailedTasksList.filter(t => t.status !== 'completed')
+        : detailedTasksList;
+      return {
+        totalTasks: detailedTasksList.length,
+        completedCount: detailedTasksList.filter(t => t.status === 'completed').length,
+        pendingCount: detailedTasksList.filter(t => t.status !== 'completed').length,
+        tasks: filtered.slice(0, 20),
+      };
+    }
+
     if (callName === 'propose_pi4_thresholds') {
       toolCallsUsed.push('Đề xuất ngưỡng Pi 4');
       const allowedKeys = [
@@ -1432,58 +1611,61 @@ function generateErgonomicAnalysisServer(params: {
     return { error: `Unknown tool: ${callName}` };
   };
 
-  // Thử gọi Gemini API nếu có API key hợp lệ (hỗ trợ Multi-turn, Vision và Function Calling)
+  // Thử gọi Gemini API nếu có API key hợp lệ (hỗ trợ Multi-turn, Vision và Function Calling tối đa 2 vòng)
+  let aiEngine: 'gemini-4-hydrogen' | 'rule-engine' = 'rule-engine';
   if (activeAi) {
     try {
       const systemWithTools = `${systemInstruction}
 
 === NĂNG LỰC AGENT & THỊ GIÁC MÁY TÍNH ===
-- Hệ thống đã cung cấp đầy đủ lịch sử hội thoại nhiều lượt. Hãy nhớ ngữ cảnh trước đó.
-- Nếu người dùng đính kèm ảnh chụp từ Camera Pi 4, hãy phân tích tư thế thực tế trong ảnh: độ thẳng trục tai-vai-hông, độ cân đối hai vai, khoảng cách tới màn hình và đề xuất chỉnh sửa cụ thể.
-- Nếu người dùng yêu cầu tra cứu khoảng thời gian khác (ví dụ 3 ngày qua, tuần qua, chỉ xem cảnh báo), hãy gọi tool query_telemetry_by_timerange.
-- Nếu người dùng yêu cầu đổi/tinh chỉnh ngưỡng cảnh báo Pi 4, hãy gọi tool propose_pi4_thresholds (nếu thresholds hiện tại có sẵn: ${JSON.stringify(thresholds || {})}).
-- Nếu người dùng yêu cầu tạo nhắc nhở/nhiệm vụ mới, hãy gọi tool propose_create_task.`;
+- Hệ thống đã cung cấp lịch sử hội thoại nhiều lượt. Hãy nhớ ngữ cảnh trước đó.
+- Nếu người dùng đính kèm ảnh chụp Camera Pi 4, hãy phân tích tư thế thực tế trong ảnh: độ thẳng trục tai-vai-hông, độ cân đối hai vai, khoảng cách tới màn hình và đề xuất chỉnh sửa cụ thể.
+- Dùng query_telemetry_by_timerange khi cần tra cứu mốc giờ / khoảng ngày trên Supabase.
+- Dùng get_health_risk_and_bonus_report khi hỏi về rủi ro cổ/lưng, dự báo xu hướng, Z-Score, OHPS hoặc tiền thưởng VNĐ.
+- Dùng query_tasks_status khi hỏi về danh sách nhiệm vụ / tiến độ công việc.
+- Dùng propose_pi4_thresholds khi yêu cầu đổi/tối ưu ngưỡng Pi 4 (thresholds hiện tại: ${JSON.stringify(thresholds || {})}).
+- Dùng propose_create_task khi yêu cầu đặt nhắc nhở / giao nhiệm vụ mới.`;
 
-      const firstResp = await activeAi.models.generateContent({
-        model: geminiModel,
-        contents: chatContents,
-        config: {
-          systemInstruction: systemWithTools,
-          tools: [{ functionDeclarations: chatTools }],
-        }
-      });
-
-      const functionCalls = firstResp.functionCalls;
-      const firstCandidateContent = firstResp.candidates?.[0]?.content;
-
-      if (functionCalls && functionCalls.length > 0 && firstCandidateContent) {
-        const fnResponseParts: any[] = [];
-        for (const call of functionCalls) {
-          const result = await executeToolCall(call.name || '', (call.args as Record<string, any>) || {});
-          fnResponseParts.push({
-            functionResponse: {
-              id: call.id,
-              name: call.name,
-              response: { result },
-            },
-          });
-        }
-
-        const followUpResp = await activeAi.models.generateContent({
+      let loopContents: any[] = [...chatContents];
+      for (let step = 0; step < 3; step++) {
+        const resp = await activeAi.models.generateContent({
           model: geminiModel,
-          contents: [
-            ...chatContents,
-            firstCandidateContent,
-            { role: 'user', parts: fnResponseParts },
-          ],
+          contents: loopContents,
           config: {
             systemInstruction: systemWithTools,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             tools: [{ functionDeclarations: chatTools }],
           }
         });
-        responseText = followUpResp.text || '';
-      } else {
-        responseText = firstResp.text || '';
+
+        const functionCalls = resp.functionCalls;
+        const candidateContent = resp.candidates?.[0]?.content;
+
+        if (functionCalls && functionCalls.length > 0 && candidateContent && step < 2) {
+          const fnResponseParts: any[] = [];
+          for (const call of functionCalls) {
+            const result = await executeToolCall(call.name || '', (call.args as Record<string, any>) || {});
+            fnResponseParts.push({
+              functionResponse: {
+                id: call.id,
+                name: call.name,
+                response: { result },
+              },
+            });
+          }
+          loopContents = [
+            ...loopContents,
+            candidateContent,
+            { role: 'user', parts: fnResponseParts },
+          ];
+          continue;
+        }
+
+        responseText = resp.text || '';
+        if (responseText) {
+          aiEngine = 'gemini-4-hydrogen';
+        }
+        break;
       }
     } catch (primaryErr: any) {
       const primaryMsg = String(primaryErr?.message || primaryErr || '');
@@ -1568,6 +1750,7 @@ function generateErgonomicAnalysisServer(params: {
 
   return res.json({
     reply: cleanReply,
+    aiEngine,
     sqiScore: ohpsResult.sqiScore ?? null,
     toolCallsUsed,
     pendingAction,
@@ -1966,14 +2149,20 @@ interface AIPredictionPayload {
     trendLabel: string;
     reasoning: string;
   };
+  next2HourForecast: {
+    statusSummary: string;
+    postureRiskPercent: number;
+    recommendedActionNow: string;
+  };
+  vitalForecastSummary: string;
   goldenHours: string;
   slumpWarningWindow: string;
   breakScheduleRecommendation: string;
   riskForecasts: PredictiveRiskDomain[];
-  dataExploitationSummary: Array<{
-    purpose: string;
-    insight: string;
-    recommendedAction: string;
+  recommendedTasks: Array<{
+    title: string;
+    content: string;
+    priority: 'normal' | 'high' | 'urgent';
   }>;
   aiNote?: string;
 }
@@ -2011,6 +2200,14 @@ function buildDeterministicForecast(params: {
     anomalyCount: 0,
     stressIndex: 28
   };
+  const vitalForecast = analyticsSummary?.vitalForecast || {
+    summaryText: 'Sinh hiệu ổn định trong dải cho phép.'
+  };
+  const immediate2h = analyticsSummary?.immediate2hRisk || {
+    postureRiskPercent: Math.max(fatigue.neckSpineRiskPercent, fatigue.lumbarRiskPercent),
+    minutesToNextBreak: fatigue.predictedMinutesUntilSlouch || 30,
+    headline: `Nên đứng dậy giãn cơ sau ~${fatigue.predictedMinutesUntilSlouch || 30} phút.`
+  };
   const circadian = analyticsSummary?.circadian || {
     goldenHoursWindow: '09:00 - 11:00',
     slumpRiskWindow: '14:00 - 15:30'
@@ -2021,77 +2218,74 @@ function buildDeterministicForecast(params: {
     eyeBreakSeconds: 20,
     rationale: 'Chu kỳ đứng-ngồi cân bằng.'
   };
+  const suggestedTasks = Array.isArray(analyticsSummary?.suggestedTasks)
+    ? analyticsSummary.suggestedTasks.slice(0, 3).map((t: any) => ({
+        title: String(t.title || 'Nghỉ giải lao giãn cơ'),
+        content: String(t.content || 'Đứng dậy đi lại 3 phút.'),
+        priority: t.priority === 'urgent' || t.priority === 'high' ? t.priority : 'normal' as const
+      }))
+    : [];
 
   const recentOhpsText = dailySummaries.length > 0
-    ? `Chuỗi ${dailySummaries.length} ngày gần nhất trên Supabase ghi nhận OHPS trung bình ${Math.round(dailySummaries.reduce((s, r) => s + Number(r.ohps_score || 0), 0) / dailySummaries.length)} điểm.`
-    : 'Phân tích dựa trên luồng nhật ký cảm biến trực tiếp và hồ sơ nhân trắc học.';
+    ? `Chuỗi ${dailySummaries.length} ngày gần nhất đạt TB ${Math.round(dailySummaries.reduce((s, r) => s + Number(r.ohps_score || 0), 0) / dailySummaries.length)}đ.`
+    : '';
 
   return {
     engine: 'statistical-engine',
     generatedAt: new Date().toISOString(),
     targetName,
     recordCountAnalyzed: recordCount,
-    executiveSummary: `Dựa trên ${recordCount} bản ghi của ${targetName}, điểm năng suất OHPS ca tới được dự báo đạt ${ohps.predictedScore}/100 (${ohps.delta >= 0 ? '+' : ''}${ohps.delta} điểm, xu hướng: ${ohps.trendLabel}). ${recentOhpsText} ${ohps.trendReason}`,
+    executiveSummary: `${targetName} (${recordCount} mẫu): Dự báo OHPS ca tới ${ohps.predictedScore}/100 (${ohps.delta >= 0 ? '+' : ''}${ohps.delta}đ · ${ohps.trendLabel}). ${recentOhpsText} ${ohps.trendReason}`.trim(),
     predictedOhpsNextShift: {
       score: Number(ohps.predictedScore || 80),
       confidencePercent: Number(ohps.confidencePercent || 65),
       trendLabel: String(ohps.trendLabel || 'Ổn định'),
-      reasoning: String(ohps.trendReason || 'Tổng hợp từ chuỗi thời gian tư thế, nhịp tim và tiến độ task.')
+      reasoning: String(ohps.trendReason || 'Tổng hợp từ chuỗi tư thế và sinh hiệu.')
     },
+    next2HourForecast: {
+      statusSummary: String(immediate2h.headline),
+      postureRiskPercent: Number(immediate2h.postureRiskPercent || 30),
+      recommendedActionNow: `Ngồi ${cadence.sitMinutes}p : Đứng ${cadence.standMinutes}p · Nghỉ giải lao sau ~${immediate2h.minutesToNextBreak} phút.`
+    },
+    vitalForecastSummary: String(vitalForecast.summaryText),
     goldenHours: circadian.goldenHoursWindow,
     slumpWarningWindow: circadian.slumpRiskWindow,
-    breakScheduleRecommendation: `Ngồi tập trung ${cadence.sitMinutes} phút, đứng làm việc ${cadence.standMinutes} phút, nghỉ mắt 20 giây mỗi 20 phút. ${cadence.rationale}`,
+    breakScheduleRecommendation: `Ngồi ${cadence.sitMinutes} phút, đứng ${cadence.standMinutes} phút, nghỉ mắt 20s mỗi 20 phút.`,
     riskForecasts: [
       {
         domain: 'Cột sống cổ & Vai gáy (C5-C7)',
         probabilityPercent: Number(fatigue.neckSpineRiskPercent || 25),
         severity: fatigue.neckSpineRiskPercent >= 60 ? 'Cao' : fatigue.neckSpineRiskPercent >= 32 ? 'Trung bình' : 'Thấp',
-        timeframe: `Trong ~${fatigue.predictedMinutesUntilSlouch} phút ngồi liên tục tới`,
-        evidence: `Tỷ lệ gù/cúi cổ chiếm ${fatigue.badPostureSharePercent}% tổng thời gian ngồi ghi nhận.`,
-        preventiveAction: 'Kê màn hình cao thêm 10cm ngang tầm mắt và tập 5 nhịp Thu Cằm (Chin Tuck) mỗi giờ.'
+        timeframe: `Trong ~${fatigue.predictedMinutesUntilSlouch} phút ngồi tới`,
+        evidence: `Tỷ lệ cúi cổ/gù chiếm ${fatigue.badPostureSharePercent}% thời gian ngồi.`,
+        preventiveAction: 'Nâng màn hình ngang tầm mắt và tập 5 nhịp Thu Cằm (Chin Tuck).'
       },
       {
         domain: 'Đĩa đệm Thắt lưng (L4-L5)',
         probabilityPercent: Number(fatigue.lumbarRiskPercent || 30),
         severity: fatigue.lumbarRiskPercent >= 60 ? 'Cao' : fatigue.lumbarRiskPercent >= 32 ? 'Trung bình' : 'Thấp',
-        timeframe: `Cuối ca làm việc (${circadian.slumpRiskWindow})`,
-        evidence: 'Ngồi tĩnh kéo dài làm tăng áp lực nội đĩa đệm khi thiếu chu kỳ đứng xen kẽ.',
-        preventiveAction: `Thiết lập ngưỡng đứng dậy sau mỗi ${cadence.sitMinutes} phút và tựa lưng sát ghế góc 105°.`
+        timeframe: `Khung ${circadian.slumpRiskWindow}`,
+        evidence: 'Tải trọng đĩa đệm tăng khi ngồi liên tục thiếu nhịp đứng xen kẽ.',
+        preventiveAction: `Đứng dậy sau mỗi ${cadence.sitMinutes} phút và tựa lưng góc 105°.`
       },
       {
-        domain: 'Căng thẳng Tim mạch & Stress',
+        domain: 'Stress & Nhịp tim (BPM)',
         probabilityPercent: Number(vital.stressIndex || 25),
         severity: vital.stressIndex >= 60 ? 'Cao' : vital.stressIndex >= 35 ? 'Trung bình' : 'Thấp',
-        timeframe: `Khi nhịp tim lệch +${Math.max(0, vital.bpmDriftOnSlouch)} BPM lúc ngồi sai`,
-        evidence: `Nhịp tim TB khi ngồi chuẩn ${vital.goodPostureAvgBpm || '--'} BPM so với lúc sai tư thế ${vital.badPostureAvgBpm || '--'} BPM (${vital.anomalyCount} lần vượt ngưỡng).`,
-        preventiveAction: 'Thực hiện hít thở sâu 4-7-8 trong 60 giây khi Pi 4 phát chuông nhịp tim vượt ngưỡng.'
+        timeframe: `Lệch +${Math.max(0, vital.bpmDriftOnSlouch)} BPM khi ngồi sai`,
+        evidence: `Ngồi chuẩn ${vital.goodPostureAvgBpm || '--'} BPM vs sai tư thế ${vital.badPostureAvgBpm || '--'} BPM (${vital.anomalyCount} bất thường).`,
+        preventiveAction: 'Thở chậm 4-7-8 trong 60 giây khi nhịp tim tăng cao.'
       },
       {
-        domain: 'Suy giảm Oxy & Tập trung (SpO2)',
+        domain: 'Suy giảm Oxy (SpO2)',
         probabilityPercent: vital.badPostureAvgSpo2 > 0 && vital.badPostureAvgSpo2 < 95 ? 62 : 18,
         severity: vital.badPostureAvgSpo2 > 0 && vital.badPostureAvgSpo2 < 95 ? 'Cao' : 'Thấp',
-        timeframe: `Khung giờ ${circadian.slumpRiskWindow}`,
-        evidence: `SpO2 trung bình đo từ MAX30102 đạt ${vital.goodPostureAvgSpo2 || '--'}% (chênh lệch ${vital.spo2DriftOnSlouch} % khi cúi gù).`,
-        preventiveAction: 'Mở thông gió phòng làm việc và ngồi thẳng lưng giúp giãn nở dung tích phổi.'
+        timeframe: `Khung ${circadian.slumpRiskWindow}`,
+        evidence: `SpO2 trung bình ${vital.goodPostureAvgSpo2 || '--'}% (chênh ${vital.spo2DriftOnSlouch}% khi gù).`,
+        preventiveAction: 'Mở thoáng khí và ngồi thẳng lưng để mở rộng lồng ngực.'
       }
     ],
-    dataExploitationSummary: [
-      {
-        purpose: 'Y tế dự phòng & Bảo vệ cột sống',
-        insight: `Phát hiện sớm nguy cơ quá tải cổ C5-C7 (${fatigue.neckSpineRiskPercent}%) trước khi người dùng cảm thấy đau mỏi.`,
-        recommendedAction: 'Áp dụng ngưỡng cảnh báo sai tư thế AI đề xuất xuống Raspberry Pi 4.'
-      },
-      {
-        purpose: 'Tối ưu lịch làm việc theo nhịp sinh học',
-        insight: `Hiệu suất tư thế đạt đỉnh ở khung ${circadian.goldenHoursWindow} và giảm rõ rệt lúc ${circadian.slumpRiskWindow}.`,
-        recommendedAction: 'Phân bổ các tác vụ đòi hỏi tập trung cao vào buổi sáng, ưu tiên đứng làm việc đầu giờ chiều.'
-      },
-      {
-        purpose: 'Quản trị công thái học & phúc lợi nhân sự',
-        insight: 'Chuỗi dữ liệu đa ngày trên Supabase cho phép đánh giá hiệu quả cải thiện khi trang bị ghế/giá đỡ mới.',
-        recommendedAction: 'Xuất báo cáo tổng hợp định kỳ phục vụ đánh giá an toàn vệ sinh lao động.'
-      }
-    ],
+    recommendedTasks: suggestedTasks,
     aiNote
   };
 }
@@ -2188,7 +2382,7 @@ app.post(['/api/ai-predict', '/ai-predict'], async (req: Request, res: Response)
         recordCount: totalRecordCount,
         analyticsSummary,
         dailySummaries,
-        aiNote: 'Đang sử dụng bộ phân tích định lượng nội bộ. Hãy kiểm tra hoặc thiết lập GEMINI_API_KEY trong Settings > Secrets để bật Gemini 4 AI.'
+        aiNote: 'Đang sử dụng bộ phân tích định lượng nội bộ. Thiết lập GEMINI_API_KEY trong Settings > Secrets để bật Gemini 4 AI.'
       });
       return res.json(fallbackPayload);
     }
@@ -2211,9 +2405,9 @@ app.post(['/api/ai-predict', '/ai-predict'], async (req: Request, res: Response)
       alert: l.hasAlert
     }));
 
-    const predictionPrompt = `Phân tích dữ liệu IoT công thái học & sinh trắc học cho đối tượng: "${resolvedTargetName}".
+    const predictionPrompt = `Phân tích dữ liệu IoT công thái học & sinh trắc học cho: "${resolvedTargetName}".
 
-1. HỒ SƠ & NGƯỠNG HIỆN TẠI:
+1. HỒ SƠ & NGƯỠNG:
 ${JSON.stringify({
   age: userProfile?.age,
   gender: userProfile?.gender,
@@ -2224,7 +2418,7 @@ ${JSON.stringify({
   thresholds
 })}
 
-2. TỔNG HỢP THỐNG KÊ ĐỊNH LƯỢNG & CHỈ SỐ MÔ HÌNH ĐÃ TÍNH TOÁN:
+2. CHỈ SỐ MÔ HÌNH ĐỊNH LƯỢNG (WLS · EWMA · Z-SCORE · VITAL):
 ${JSON.stringify({
   sampleCount: totalRecordCount,
   avgBpm: analyticsSummary?.avgBpm,
@@ -2234,19 +2428,21 @@ ${JSON.stringify({
   ohpsForecast: analyticsSummary?.ohpsForecast,
   postureFatigue: analyticsSummary?.postureFatigue,
   vitalCorrelation: analyticsSummary?.vitalCorrelation,
+  vitalForecast: analyticsSummary?.vitalForecast,
+  immediate2hRisk: analyticsSummary?.immediate2hRisk,
   circadian: {
     goldenHoursWindow: analyticsSummary?.circadian?.goldenHoursWindow,
     slumpRiskWindow: analyticsSummary?.circadian?.slumpRiskWindow
   }
 })}
 
-3. LỊCH SỬ OHPS NHIỀU NGÀY (SUPABASE daily_ohps_summary):
+3. LỊCH SỬ OHPS (daily_ohps_summary):
 ${JSON.stringify(dailySummaries)}
 
-4. CHUỖI LOG CẢM BIẾN GẦN NHẤT:
+4. MẪU CẢM BIẾN GẦN NHẤT:
 ${JSON.stringify(compactDbSample.length > 0 ? compactDbSample : compactClientSample)}
 
-Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương khớp, nhịp điệu tập trung và đề xuất các mục đích khai thác dữ liệu giá trị ngoài tính năng suất OHPS. Viết hoàn toàn bằng tiếng Việt chuyên nghiệp, súc tích, không sử dụng emoji.`;
+Hãy dự báo ngắn gọn, thực tế, đi thẳng vào số liệu và hành động can thiệp (KHÔNG viết lý thuyết dài dòng, KHÔNG dùng emoji).`;
 
     try {
       const response = await activeAi.models.generateContent({
@@ -2254,7 +2450,7 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
         contents: predictionPrompt,
         config: {
           systemInstruction:
-            'Bạn là Chuyên gia Khoa học Dữ liệu Y sinh & Công thái học Văn phòng. Nhiệm vụ của bạn là phân tích dữ liệu thu thập từ Raspberry Pi 4 (tư thế camera AI, nhịp tim & SpO2 MAX30102, bộ đếm thời gian ngồi/đứng, tiến độ công việc) để đưa ra dự báo định lượng chính xác và các kịch bản khai thác dữ liệu có giá trị thực tiễn cao. Tuyệt đối KHÔNG dùng emoji. Trả về đúng cấu trúc JSON yêu cầu.',
+            'Bạn là Chuyên gia Dự báo Công thái học & Sinh trắc học. Chỉ xuất nhận định ngắn gọn, định lượng cao và hành động thực tế ngay trên dữ liệu Pi 4. Tuyệt đối KHÔNG viết lý thuyết giáo trình dài dòng, KHÔNG dùng emoji. Trả về đúng JSON schema.',
           responseMimeType: 'application/json',
           thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           responseSchema: {
@@ -2262,7 +2458,7 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
             properties: {
               executiveSummary: {
                 type: Type.STRING,
-                description: 'Tóm tắt nhận định AI dài 2-3 câu về xu hướng sức khỏe và năng suất sắp tới.'
+                description: 'Nhận định cốt lõi dài 1-2 câu dựa trực tiếp trên số liệu.'
               },
               predictedOhpsNextShift: {
                 type: Type.OBJECT,
@@ -2273,6 +2469,19 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
                   reasoning: { type: Type.STRING }
                 },
                 required: ['score', 'confidencePercent', 'trendLabel', 'reasoning']
+              },
+              next2HourForecast: {
+                type: Type.OBJECT,
+                properties: {
+                  statusSummary: { type: Type.STRING },
+                  postureRiskPercent: { type: Type.INTEGER },
+                  recommendedActionNow: { type: Type.STRING }
+                },
+                required: ['statusSummary', 'postureRiskPercent', 'recommendedActionNow']
+              },
+              vitalForecastSummary: {
+                type: Type.STRING,
+                description: 'Tóm tắt 1 câu về xu hướng BPM và SpO2.'
               },
               goldenHours: { type: Type.STRING },
               slumpWarningWindow: { type: Type.STRING },
@@ -2292,27 +2501,29 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
                   required: ['domain', 'probabilityPercent', 'severity', 'timeframe', 'evidence', 'preventiveAction']
                 }
               },
-              dataExploitationSummary: {
+              recommendedTasks: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    purpose: { type: Type.STRING },
-                    insight: { type: Type.STRING },
-                    recommendedAction: { type: Type.STRING }
+                    title: { type: Type.STRING },
+                    content: { type: Type.STRING },
+                    priority: { type: Type.STRING }
                   },
-                  required: ['purpose', 'insight', 'recommendedAction']
+                  required: ['title', 'content', 'priority']
                 }
               }
             },
             required: [
               'executiveSummary',
               'predictedOhpsNextShift',
+              'next2HourForecast',
+              'vitalForecastSummary',
               'goldenHours',
               'slumpWarningWindow',
               'breakScheduleRecommendation',
               'riskForecasts',
-              'dataExploitationSummary'
+              'recommendedTasks'
             ]
           }
         }
@@ -2333,6 +2544,12 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
           trendLabel: stripAllEmojis(String(parsed.predictedOhpsNextShift?.trendLabel || 'Ổn định')),
           reasoning: stripAllEmojis(String(parsed.predictedOhpsNextShift?.reasoning || ''))
         },
+        next2HourForecast: {
+          statusSummary: stripAllEmojis(String(parsed.next2HourForecast?.statusSummary || '')),
+          postureRiskPercent: Math.min(100, Math.max(0, Math.round(Number(parsed.next2HourForecast?.postureRiskPercent || 30)))),
+          recommendedActionNow: stripAllEmojis(String(parsed.next2HourForecast?.recommendedActionNow || ''))
+        },
+        vitalForecastSummary: stripAllEmojis(String(parsed.vitalForecastSummary || '')),
         goldenHours: stripAllEmojis(String(parsed.goldenHours || analyticsSummary?.circadian?.goldenHoursWindow || '09:00 - 11:00')),
         slumpWarningWindow: stripAllEmojis(String(parsed.slumpWarningWindow || analyticsSummary?.circadian?.slumpRiskWindow || '14:00 - 15:30')),
         breakScheduleRecommendation: stripAllEmojis(String(parsed.breakScheduleRecommendation || '')),
@@ -2346,11 +2563,11 @@ Hãy thực hiện dự báo xu hướng sức khỏe, rủi ro cơ xương kh�
               preventiveAction: stripAllEmojis(String(r.preventiveAction || ''))
             }))
           : [],
-        dataExploitationSummary: Array.isArray(parsed.dataExploitationSummary)
-          ? parsed.dataExploitationSummary.slice(0, 4).map((d: any) => ({
-              purpose: stripAllEmojis(String(d.purpose || '')),
-              insight: stripAllEmojis(String(d.insight || '')),
-              recommendedAction: stripAllEmojis(String(d.recommendedAction || ''))
+        recommendedTasks: Array.isArray(parsed.recommendedTasks)
+          ? parsed.recommendedTasks.slice(0, 3).map((t: any) => ({
+              title: stripAllEmojis(String(t.title || 'Nghỉ giải lao công thái học')),
+              content: stripAllEmojis(String(t.content || '')),
+              priority: t.priority === 'urgent' || t.priority === 'high' ? t.priority : 'normal'
             }))
           : []
       };

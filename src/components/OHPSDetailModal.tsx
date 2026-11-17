@@ -270,12 +270,12 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
   // Early return ONLY after all hooks have been unconditionally invoked
   if (!isOpen) return null;
 
-  // Determine badge styling based on score (Light Mode High Contrast)
+  // Determine badge styling based on score (Tactile Light High Contrast)
   const getScoreBadge = (score: number) => {
-    if (score >= 90) return 'bg-emerald-50 border-emerald-200 text-emerald-800';
-    if (score >= 80) return 'bg-teal-50 border-teal-200 text-teal-800';
-    if (score >= 70) return 'bg-amber-50 border-amber-200 text-amber-800';
-    return 'bg-rose-50 border-rose-200 text-rose-800';
+    if (score >= 90) return 'bg-[#B2F5BE] border-slate-800 text-slate-900';
+    if (score >= 80) return 'bg-[#BAE0EC] border-slate-800 text-slate-900';
+    if (score >= 70) return 'bg-[#FDE68A] border-slate-800 text-slate-900';
+    return 'bg-[#FBC2C8] border-slate-800 text-slate-900';
   };
 
   const radius = 54;
@@ -287,21 +287,21 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
   const trendDelta = trendData.length >= 2 ? (trendData[trendData.length - 1].score - trendData[0].score) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
-      <div className="relative w-full max-w-4xl rounded-2xl bg-white border border-slate-200/90 shadow-2xl text-slate-800 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-white border-2 border-slate-800 shadow-[0_8px_0_#1E293B] text-slate-900 overflow-hidden flex flex-col max-h-[92vh]">
         
-        {/* Header (Light Mode) */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b-2 border-slate-800 bg-[#FDFBF7] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0 shadow-xs">
-              <Award className="w-5 h-5 text-teal-700" />
+            <div className="w-10 h-10 rounded-xl bg-[#FDE68A] text-slate-900 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center shrink-0">
+              <Award className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">
                   Phân Tích Chi Tiết Điểm Năng Suất (OHPS)
                 </h2>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getScoreBadge(ohpsScore)}`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border-[1.5px] ${getScoreBadge(ohpsScore)}`}>
                   {evaluation.level}
                 </span>
               </div>
@@ -317,40 +317,40 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
               type="button"
               onClick={handleRefresh}
               disabled={isLoadingHistory}
-              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 whitespace-nowrap bg-white hover:bg-slate-100 text-slate-700 border border-slate-300"
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold tactile-btn-white flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               title="Tải lại dữ liệu mới nhất từ bảng daily_ohps_summary trên Supabase"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isLoadingHistory ? 'animate-spin' : ''}`} />
               <span>{isLoadingHistory ? 'Đang tải...' : 'Làm mới Supabase'}</span>
             </button>
 
             <button
               onClick={onClose}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition cursor-pointer"
+              className="w-9 h-9 rounded-xl tactile-btn-white flex items-center justify-center cursor-pointer shrink-0"
               aria-label="Đóng"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 text-slate-700 scrollbar-thin bg-white">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 text-slate-800 scrollbar-thin bg-white">
           
-          {/* Kiến Trúc Luồng Dữ Liệu: Nhật Ký & Task -> Tính ngầm -> Supabase -> Giao diện OHPS */}
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-teal-50/60 border border-teal-200 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Kiến Trúc Luồng Dữ Liệu */}
+          <div className="p-3.5 rounded-2xl bg-[#B2F5BE]/45 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] text-xs text-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-white border-[1.5px] border-slate-800 text-emerald-700 flex items-center justify-center shrink-0">
                 <Database className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-slate-900">Luồng Dữ Liệu: Nhật Ký & Task → Tính Toán Ngầm → Supabase → OHPS</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white text-teal-800 border border-teal-300 font-mono">
+                  <span className="font-extrabold text-slate-900">Luồng Dữ Liệu: Nhật Ký & Task → Tính Toán Ngầm → Supabase → OHPS</span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-900 border-[1.5px] border-slate-800 font-mono">
                     daily_ohps_summary
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                <p className="text-[11px] text-slate-700 mt-0.5 leading-relaxed">
                   Điểm số được hệ thống tự động tính toán ngầm và lưu vào Supabase. Toàn bộ giao diện OHPS lấy trực tiếp từ Supabase làm nguồn dữ liệu chuẩn.
                 </p>
               </div>
@@ -360,15 +360,15 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenSupabaseConfig}
-                className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition cursor-pointer shrink-0 self-start sm:self-auto shadow-2xs"
+                className="px-3 py-1.5 rounded-xl tactile-btn-white font-bold text-xs cursor-pointer shrink-0 self-start sm:self-auto"
               >
                 Cấu hình kết nối
               </button>
             )}
           </div>
           
-          {/* Main Score Hero Card (Light Mode) */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-teal-50/20 to-slate-50 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6">
+          {/* Main Score Hero Card */}
+          <div className="p-5 rounded-2xl bg-[#FAF7F0] border-2 border-slate-800 shadow-[0_4px_0_#1E293B] flex flex-col sm:flex-row items-center justify-between gap-6">
             
             {/* Donut Gauge */}
             <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
@@ -379,15 +379,15 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                   r={radius}
                   fill="none"
                   stroke="#e2e8f0"
-                  strokeWidth="11"
+                  strokeWidth="12"
                 />
                 <circle
                   cx="65"
                   cy="65"
                   r={radius}
                   fill="none"
-                  stroke={ohpsScore >= 80 ? '#0d9488' : ohpsScore >= 70 ? '#d97706' : '#e11d48'}
-                  strokeWidth="11"
+                  stroke={ohpsScore >= 80 ? '#16B364' : ohpsScore >= 70 ? '#d97706' : '#e11d48'}
+                  strokeWidth="12"
                   strokeLinecap="round"
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset}
@@ -399,7 +399,7 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                 <span className="text-3xl font-black font-mono tracking-tight text-slate-900">
                   {ohpsScore}
                 </span>
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                <span className="text-[10px] uppercase font-bold text-slate-600 tracking-wider">
                   / 100 ĐIỂM
                 </span>
               </div>
@@ -408,56 +408,56 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
             {/* Score Explanation & Meaning */}
             <div className="flex-1 text-center sm:text-left space-y-2.5">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <span className="text-sm font-bold text-slate-900">Xếp loại năng suất:</span>
-                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${getScoreBadge(ohpsScore)}`}>
+                <span className="text-sm font-extrabold text-slate-900">Xếp loại năng suất:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border-[1.5px] ${getScoreBadge(ohpsScore)}`}>
                   {evaluation.level} ({ohpsScore}/100)
                 </span>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs text-slate-700 leading-relaxed">
                 {evaluation.meaning}
               </p>
               
-              <div className="pt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs font-mono text-slate-600 border-t border-slate-200">
+              <div className="pt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs font-mono text-slate-700 border-t border-slate-300">
                 <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-teal-600" />
-                  <span>Sức khỏe (HES 70%): <strong className="text-teal-700 font-bold">{hesScore}đ</strong></span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                  <span>Sức khỏe (HES 70%): <strong className="text-emerald-800 font-bold">{hesScore}đ</strong></span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <ListTodo className="w-4 h-4 text-indigo-600" />
-                  <span>Tiến độ (Task 30%): <strong className="text-indigo-700 font-bold">{taskScore}đ</strong></span>
+                  <ListTodo className="w-4 h-4 text-indigo-700" />
+                  <span>Tiến độ (Task 30%): <strong className="text-indigo-800 font-bold">{taskScore}đ</strong></span>
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-500">
-                  <Database className="w-3.5 h-3.5 text-sky-600" />
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <Database className="w-3.5 h-3.5 text-sky-700" />
                   <span>Độ tin cậy: <strong className="text-slate-900">{dataConfidence}%</strong></span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Biểu Đồ Xu Hướng Điểm Năng Suất (Recharts Light Theme) */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+          {/* Biểu Đồ Xu Hướng Điểm Năng Suất (Recharts) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border-2 border-slate-800 shadow-[0_4px_0_#1E293B] space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-teal-600" />
-                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900">
+                  <TrendingUp className="w-4 h-4 text-emerald-700" />
+                  <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">
                     Biểu Đồ Xu Hướng Điểm Năng Suất Theo Thời Gian
                   </h3>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-600 mt-0.5">
                   Theo dõi tiến trình duy trì tư thế đúng, thói quen vận động và hoàn thành nhiệm vụ
                 </p>
               </div>
 
               {/* Time Toggle */}
-              <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold self-stretch sm:self-auto">
+              <div className="flex items-center p-1 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 text-xs font-bold self-stretch sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setTimeView('today')}
-                  className={`flex-1 sm:flex-none px-3 py-1 rounded-lg transition cursor-pointer text-xs ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition cursor-pointer text-xs ${
                     timeView === 'today'
-                      ? 'bg-teal-600 text-white font-bold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-[#16B364] text-white font-bold border-[1.5px] border-slate-900 shadow-[0_1px_0_#0F172A]'
+                      : 'text-slate-600 hover:text-slate-900 border-[1.5px] border-transparent'
                   }`}
                 >
                   Hôm nay (Theo giờ)
@@ -465,10 +465,10 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setTimeView('week')}
-                  className={`flex-1 sm:flex-none px-3 py-1 rounded-lg transition cursor-pointer text-xs ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition cursor-pointer text-xs ${
                     timeView === 'week'
-                      ? 'bg-teal-600 text-white font-bold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-[#16B364] text-white font-bold border-[1.5px] border-slate-900 shadow-[0_1px_0_#0F172A]'
+                      : 'text-slate-600 hover:text-slate-900 border-[1.5px] border-transparent'
                   }`}
                 >
                   7 Ngày qua
@@ -478,39 +478,39 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
 
             {/* Metric Highlights */}
             <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] text-slate-500 block font-medium">Điểm Cao Nhất</span>
-                <span className="text-base sm:text-lg font-black font-mono text-emerald-700">
+              <div className="p-2.5 rounded-xl bg-[#B2F5BE]/35 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                <span className="text-[10px] text-slate-700 block font-bold uppercase tracking-wider">Điểm Cao Nhất</span>
+                <span className="text-base sm:text-lg font-black font-mono text-emerald-900 tabular-nums">
                   {trendData.length > 0 ? `${peakScore}đ` : '–'}
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] text-slate-500 block font-medium">Điểm Trung Bình</span>
-                <span className="text-base sm:text-lg font-black font-mono text-teal-700">
+              <div className="p-2.5 rounded-xl bg-[#BAE0EC]/40 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                <span className="text-[10px] text-slate-700 block font-bold uppercase tracking-wider">Điểm Trung Bình</span>
+                <span className="text-base sm:text-lg font-black font-mono text-slate-900 tabular-nums">
                   {trendData.length > 0 ? `${avgScore}đ` : '–'}
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] text-slate-500 block font-medium">Xu Hướng Phong Độ</span>
-                <div className="text-base sm:text-lg font-black font-mono flex items-center justify-center gap-1">
+              <div className="p-2.5 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                <span className="text-[10px] text-slate-700 block font-bold uppercase tracking-wider">Xu Hướng Phong Độ</span>
+                <div className="text-base sm:text-lg font-black font-mono flex items-center justify-center gap-1 tabular-nums">
                   {trendData.length < 2 ? (
-                    <span className="text-xs text-slate-500 font-sans font-medium">
+                    <span className="text-xs text-slate-600 font-sans font-semibold">
                       {trendData.length === 1 ? '1 mốc dữ liệu' : 'Chưa có dữ liệu'}
                     </span>
                   ) : trendDelta > 0 ? (
                     <>
-                      <ArrowUpRight className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="text-emerald-700">+{trendDelta}đ</span>
+                      <ArrowUpRight className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span className="text-emerald-800">+{trendDelta}đ</span>
                     </>
                   ) : trendDelta < 0 ? (
                     <>
-                      <ArrowDownRight className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span className="text-rose-700">{trendDelta}đ</span>
+                      <ArrowDownRight className="w-4 h-4 text-rose-700 shrink-0" />
+                      <span className="text-rose-800">{trendDelta}đ</span>
                     </>
                   ) : (
                     <>
-                      <Minus className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span className="text-slate-600">0đ</span>
+                      <Minus className="w-4 h-4 text-slate-600 shrink-0" />
+                      <span className="text-slate-700">0đ</span>
                     </>
                   )}
                 </div>
@@ -520,17 +520,17 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
             {/* Recharts Area Chart */}
             <div className="h-56 sm:h-64 w-full pt-2">
               {isLoadingHistory ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 border border-dashed border-slate-200 rounded-xl">
-                  <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
-                  <span className="text-xs font-medium">Đang truy vấn dữ liệu thực tế từ Supabase...</span>
+                <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 bg-[#FAF7F0] border-[1.5px] border-dashed border-slate-400 rounded-xl">
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#16B364]" />
+                  <span className="text-xs font-bold">Đang truy vấn dữ liệu thực tế từ Supabase...</span>
                 </div>
               ) : trendData.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-200 rounded-xl p-4 text-center bg-slate-50/50">
-                  <Database className="w-8 h-8 text-slate-300 mb-2" />
-                  <span className="text-xs font-bold text-slate-700">
+                <div className="h-full flex flex-col items-center justify-center text-slate-600 border-[1.5px] border-dashed border-slate-400 rounded-xl p-4 text-center bg-[#FAF7F0]">
+                  <Database className="w-8 h-8 text-slate-400 mb-2" />
+                  <span className="text-xs font-bold text-slate-800">
                     {timeView === 'week' ? 'Chưa có bản ghi nào trong bảng daily_ohps_summary' : 'Chưa có bản ghi telemetry hôm nay'}
                   </span>
-                  <span className="text-[11px] text-slate-500 max-w-sm mt-1 leading-relaxed">
+                  <span className="text-[11px] text-slate-600 max-w-sm mt-1 leading-relaxed">
                     {timeView === 'week' 
                       ? 'Biểu đồ được vẽ trực tiếp từ bảng daily_ohps_summary trên Supabase. Hệ thống sẽ tự động lưu ngầm khi có phiên đo hoặc nhiệm vụ.' 
                       : 'Hệ thống chỉ hiển thị khi nhận được các gói tin telemetry thực tế từ Raspberry Pi trong ngày.'}
@@ -541,71 +541,71 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                   <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="ohpsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#0d9488" stopOpacity={0.0} />
+                        <stop offset="5%" stopColor="#16B364" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#16B364" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} />
                     <XAxis 
                       dataKey="timeLabel" 
-                      stroke="#64748b" 
+                      stroke="#475569" 
                       fontSize={11} 
                       tickLine={false}
-                      axisLine={{ stroke: '#cbd5e1' }}
+                      axisLine={{ stroke: '#1e293b' }}
                     />
                     <YAxis 
                       domain={[0, 100]} 
                       ticks={[0, 25, 50, 75, 100]} 
-                      stroke="#64748b" 
+                      stroke="#475569" 
                       fontSize={11} 
                       tickLine={false}
-                      axisLine={{ stroke: '#cbd5e1' }}
+                      axisLine={{ stroke: '#1e293b' }}
                     />
                     <ReferenceLine 
                       y={80} 
-                      stroke="#059669" 
+                      stroke="#16B364" 
                       strokeDasharray="4 4" 
-                      label={{ value: 'Mục Tiêu Chuẩn (80đ)', fill: '#059669', fontSize: 10, position: 'insideTopRight' }} 
+                      label={{ value: 'Mục Tiêu Chuẩn (80đ)', fill: '#065f46', fontSize: 10, position: 'insideTopRight' }} 
                     />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload as TrendPoint;
                           return (
-                            <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-xl text-xs space-y-1.5">
-                              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1">
+                            <div className="p-3 rounded-xl bg-white border-2 border-slate-800 shadow-[0_4px_0_#1E293B] text-xs space-y-1.5">
+                              <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-1">
                                 <span className="font-bold text-slate-900 font-mono">
                                   {data.timeRangeLabel ? `Khung giờ: ${data.timeRangeLabel}` : data.timeLabel}
                                 </span>
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#B2F5BE] text-slate-900 border border-slate-800 whitespace-nowrap">
                                   {data.status}
                                 </span>
                               </div>
                               <div className="space-y-1 text-[11px] font-mono">
-                                <p className="text-teal-700 font-bold">
+                                <p className="text-emerald-800 font-bold">
                                   Điểm OHPS: <span className="text-slate-900 text-xs">{data.score}/100</span>
                                 </p>
-                                <p className="text-slate-600">
-                                  • Tư thế ngồi chuẩn: <span className="text-emerald-700 font-semibold">{data.postureScore}%</span>
+                                <p className="text-slate-700">
+                                  • Tư thế ngồi chuẩn: <span className="text-emerald-700 font-bold">{data.postureScore}%</span>
                                 </p>
-                                <p className="text-slate-600">
-                                  • Vận động giải lao: <span className="text-sky-700 font-semibold">{data.breakScore}đ</span>
+                                <p className="text-slate-700">
+                                  • Vận động giải lao: <span className="text-sky-700 font-bold">{data.breakScore}đ</span>
                                 </p>
-                                <p className="text-slate-600">
-                                  • Sinh hiệu: <span className="text-rose-700 font-semibold">{data.vitalScore >= 0 ? `${data.vitalScore}đ` : 'Không có cảm biến'}</span>
+                                <p className="text-slate-700">
+                                  • Sinh hiệu: <span className="text-rose-700 font-bold">{data.vitalScore >= 0 ? `${data.vitalScore}đ` : 'Không có cảm biến'}</span>
                                 </p>
                                 {data.avgBpm !== undefined && data.avgBpm > 0 && (
-                                  <p className="text-rose-600">
+                                  <p className="text-rose-700">
                                     • Nhịp tim TB: <span className="font-bold">{data.avgBpm} BPM</span>
                                   </p>
                                 )}
                                 {data.avgSpo2 !== undefined && data.avgSpo2 > 0 && (
-                                  <p className="text-sky-600">
+                                  <p className="text-sky-700">
                                     • SpO₂ TB: <span className="font-bold">{data.avgSpo2}%</span>
                                   </p>
                                 )}
                                 {data.sampleCount !== undefined && data.sampleCount > 0 && (
-                                  <p className="text-slate-400 text-[10px] pt-0.5 border-t border-slate-100">
+                                  <p className="text-slate-500 text-[10px] pt-0.5 border-t border-slate-200">
                                     (Ghi nhận {data.sampleCount} bản ghi trong khung giờ)
                                   </p>
                                 )}
@@ -619,11 +619,11 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                     <Area 
                       type="monotone" 
                       dataKey="score" 
-                      stroke="#0d9488" 
+                      stroke="#16B364" 
                       strokeWidth={2.5} 
                       fill="url(#ohpsGradient)" 
-                      dot={{ fill: '#0d9488', stroke: '#ffffff', strokeWidth: 2, r: 5 }}
-                      activeDot={{ fill: '#0d9488', stroke: '#ffffff', strokeWidth: 3, r: 7 }}
+                      dot={{ fill: '#16B364', stroke: '#0f172a', strokeWidth: 1.5, r: 5 }}
+                      activeDot={{ fill: '#16B364', stroke: '#0f172a', strokeWidth: 2, r: 7 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -631,37 +631,37 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
             </div>
 
             {/* Chân Thích Nguồn Dữ Liệu Thực Tế */}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 pt-2.5 border-t border-slate-200">
               <span className="flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                <Database className="w-3.5 h-3.5 text-[#16B364] shrink-0" />
                 <span>
-                  Nguồn dữ liệu: <strong className="text-slate-700">{timeView === 'week' ? 'Bảng public.daily_ohps_summary (Supabase)' : 'Nhật ký telemetry_logs hôm nay'}</strong>
+                  Nguồn dữ liệu: <strong className="text-slate-900">{timeView === 'week' ? 'Bảng public.daily_ohps_summary (Supabase)' : 'Nhật ký telemetry_logs hôm nay'}</strong>
                 </span>
               </span>
-              <span className="font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+              <span className="font-mono font-bold text-slate-900 bg-[#FAF7F0] border border-slate-800 px-2.5 py-0.5 rounded-full whitespace-nowrap">
                 {trendData.length} {timeView === 'week' ? 'ngày ghi nhận' : 'mốc thời gian ghi nhận'}
               </span>
             </div>
           </div>
 
           {/* Khung Thưởng Năng Suất & Sức Khỏe Doanh Nghiệp (Company Bonus Policy) */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-teal-500/10 border border-amber-300/80 shadow-xs space-y-3">
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FDE68A]/45 border-2 border-slate-800 shadow-[0_4px_0_#1E293B] space-y-3">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-700 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-[#FDE68A] border-[1.5px] border-slate-800 flex items-center justify-center text-slate-900 shrink-0 shadow-[0_2px_0_#1E293B]">
                   <Gift className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900">
+                    <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">
                       Chính Sách Thưởng Công Thái Học Của Công Ty
                     </h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white text-slate-900 border border-slate-800 whitespace-nowrap">
                       {bonusPolicy.companyName || 'Doanh Nghiệp'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    Chu kỳ: {bonusPolicy.cycle === 'daily' ? 'Hàng ngày' : bonusPolicy.cycle === 'weekly' ? 'Hàng tuần' : 'Hàng tháng'} • Mức thưởng tối đa: <strong className="font-mono text-amber-800">{formatCurrencyVND(bonusPolicy.maxRewardAmount)}</strong>/người
+                  <p className="text-[11px] text-slate-700 mt-0.5 font-medium">
+                    Chu kỳ: {bonusPolicy.cycle === 'daily' ? 'Hàng ngày' : bonusPolicy.cycle === 'weekly' ? 'Hàng tuần' : 'Hàng tháng'} • Mức thưởng tối đa: <strong className="font-mono text-slate-900">{formatCurrencyVND(bonusPolicy.maxRewardAmount)}</strong>/người
                   </p>
                 </div>
               </div>
@@ -671,37 +671,37 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsBonusModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-2xs transition cursor-pointer active:scale-95 whitespace-nowrap self-stretch sm:self-auto justify-center"
+                  className="tactile-btn-white inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
                 >
-                  <Settings2 className="w-3.5 h-3.5 text-slate-500" />
+                  <Settings2 className="w-3.5 h-3.5 text-slate-700" />
                   <span>Nhập / Tùy chỉnh mức thưởng</span>
                 </button>
               )}
             </div>
 
             {/* Nội Dung Mức Thưởng Đạt Được */}
-            <div className="p-3.5 rounded-xl bg-white border border-amber-200/90 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="p-3.5 sm:p-4 rounded-xl bg-white border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-slate-600 font-medium">Mức thưởng ước tính đạt được:</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  <span className="text-xs text-slate-700 font-semibold">Mức thưởng ước tính đạt được:</span>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-slate-800 whitespace-nowrap ${
                     bonusResult.isEligible
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      ? 'bg-[#B2F5BE] text-slate-900'
+                      : 'bg-[#FBC2C8] text-slate-900'
                   }`}>
                     {bonusResult.isEligible ? (bonusResult.tierAchieved?.tierName || 'Đạt chuẩn') : `Chưa đạt điểm sàn (≥ ${bonusPolicy.minScoreToReward}đ)`}
                   </span>
                 </div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700 tracking-tight">
+                <div className="mt-1.5 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-800 tracking-tight tabular-nums">
                     +{formatCurrencyVND(bonusResult.totalReward)}
                   </span>
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-xs text-slate-600 font-semibold">
                     ({bonusResult.achievementRate}% hạn mức thưởng)
                   </span>
                 </div>
                 {(bonusResult.postureBonus > 0 || bonusResult.breakBonus > 0 || bonusResult.taskBonus > 0) && (
-                  <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap gap-2">
+                  <div className="text-[11px] text-slate-600 mt-1 flex flex-wrap gap-2 font-medium">
                     <span>(Bao gồm: Cơ bản {formatCurrencyVND(bonusResult.baseReward)}</span>
                     {bonusResult.postureBonus > 0 && <span>• Thưởng tư thế +{formatCurrencyVND(bonusResult.postureBonus)}</span>}
                     {bonusResult.breakBonus > 0 && <span>• Thưởng giải lao +{formatCurrencyVND(bonusResult.breakBonus)}</span>}
@@ -713,13 +713,13 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
 
               {/* Progress bar */}
               <div className="w-full sm:w-48">
-                <div className="flex justify-between text-[10px] text-slate-500 font-semibold mb-1">
+                <div className="flex justify-between text-[10px] text-slate-700 font-bold mb-1.5">
                   <span>Tiến độ nhận thưởng</span>
-                  <span className="font-mono text-emerald-700 font-bold">{bonusResult.achievementRate}%</span>
+                  <span className="font-mono text-emerald-800">{bonusResult.achievementRate}%</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                <div className="tactile-progress-track w-full h-3 rounded-full">
                   <div 
-                    className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                    className="tactile-progress-fill h-full rounded-l-full transition-all duration-500" 
                     style={{ width: `${Math.min(100, bonusResult.achievementRate)}%` }}
                   />
                 </div>
@@ -727,108 +727,116 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
             </div>
 
             {/* Lời khuyên tối ưu thưởng */}
-            <div className="text-[11px] text-slate-600 bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/60 flex items-start gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-[11px] text-slate-800 bg-white/80 p-2.5 rounded-xl border border-slate-800 flex items-start gap-2 font-medium">
+              <Sparkles className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
               <span>{bonusResult.tipsToReachNextTier}</span>
             </div>
           </div>
 
           {/* Component Breakdown Cards (4 Trụ Cột) */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-teal-600" />
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mb-3 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-[#16B364]" />
               <span>4 Trụ Cột Cấu Thành Điểm Năng Suất</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               
               {/* 1. Tư thế công thái học (35%) */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-900">
                     <span className="flex items-center gap-1.5">
-                      <Activity className="w-4 h-4 text-emerald-600" />
+                      <span className="w-6 h-6 rounded-lg bg-[#B2F5BE] border border-slate-800 flex items-center justify-center shrink-0">
+                        <Activity className="w-3.5 h-3.5 text-slate-900" />
+                      </span>
                       <span>1. Tư Thế Ngồi Chuẩn (35%)</span>
                     </span>
-                    <span className="font-mono text-emerald-700 font-bold">{breakdown.S_posture} / 100đ</span>
+                    <span className="font-mono text-emerald-800 font-extrabold whitespace-nowrap tabular-nums">{breakdown.S_posture} / 100đ</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
+                  <p className="text-[11px] text-slate-700 mt-2 leading-relaxed">
                     Tỷ lệ thời gian duy trì tư thế thẳng lưng tự nhiên, mắt ngang tầm nhìn từ Camera thông minh.
                   </p>
                 </div>
-                <div className="mt-2.5 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                <div className="tactile-progress-track mt-3 w-full h-2.5 rounded-full">
                   <div 
-                    className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                    className="tactile-progress-fill h-full rounded-l-full transition-all duration-500" 
                     style={{ width: `${breakdown.S_posture}%` }}
                   />
                 </div>
               </div>
 
               {/* 2. Nghỉ giải lao & Chu kỳ đứng (20%) */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-900">
                     <span className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-sky-600" />
+                      <span className="w-6 h-6 rounded-lg bg-[#BAE0EC] border border-slate-800 flex items-center justify-center shrink-0">
+                        <Clock className="w-3.5 h-3.5 text-slate-900" />
+                      </span>
                       <span>2. Nghỉ Giải Lao & Đứng (20%)</span>
                     </span>
-                    <span className="font-mono text-sky-700 font-bold">{breakdown.S_break} / 100đ</span>
+                    <span className="font-mono text-sky-900 font-extrabold whitespace-nowrap tabular-nums">{breakdown.S_break} / 100đ</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
+                  <p className="text-[11px] text-slate-700 mt-2 leading-relaxed">
                     Tuân thủ chu kỳ đứng dậy làm việc hoặc vận động nhẹ giải phóng áp lực cột sống.
                   </p>
                 </div>
-                <div className="mt-2.5 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                <div className="tactile-progress-track mt-3 w-full h-2.5 rounded-full">
                   <div 
-                    className="bg-sky-600 h-full rounded-full transition-all duration-500" 
+                    className="bg-sky-500 border-r-[1.5px] border-slate-800 h-full rounded-l-full transition-all duration-500" 
                     style={{ width: `${breakdown.S_break}%` }}
                   />
                 </div>
               </div>
 
               {/* 3. Chỉ số sinh hiệu (15%) */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-900">
                     <span className="flex items-center gap-1.5">
-                      <Heart className="w-4 h-4 text-rose-600" />
+                      <span className="w-6 h-6 rounded-lg bg-[#FBC2C8] border border-slate-800 flex items-center justify-center shrink-0">
+                        <Heart className="w-3.5 h-3.5 text-slate-900" />
+                      </span>
                       <span>3. Chỉ Số Sinh Hiệu (15%)</span>
                     </span>
-                    <span className="font-mono text-rose-700 font-bold">
+                    <span className="font-mono text-rose-800 font-extrabold whitespace-nowrap tabular-nums">
                       {hasVitalData ? `${breakdown.S_vital} / 100đ` : 'Tự điều chỉnh (Offline)'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
+                  <p className="text-[11px] text-slate-700 mt-2 leading-relaxed">
                     {hasVitalData 
                       ? 'Nhịp tim (BPM) và nồng độ oxy SpO₂ duy trì trong dải tiêu chuẩn an toàn y tế.'
                       : 'Chưa kết nối cảm biến đo: Hệ thống tự động chia lại trọng số 15% vào tư thế & giải lao.'}
                   </p>
                 </div>
-                <div className="mt-2.5 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                <div className="tactile-progress-track mt-3 w-full h-2.5 rounded-full">
                   <div 
-                    className="bg-rose-600 h-full rounded-full transition-all duration-500" 
+                    className="bg-rose-500 border-r-[1.5px] border-slate-800 h-full rounded-l-full transition-all duration-500" 
                     style={{ width: `${hasVitalData ? breakdown.S_vital : 100}%` }}
                   />
                 </div>
               </div>
 
               {/* 4. Tiến độ hoàn thành nhiệm vụ (30%) */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-[#FAF7F0] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-900">
                     <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                      <span className="w-6 h-6 rounded-lg bg-[#FDE68A] border border-slate-800 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-slate-900" />
+                      </span>
                       <span>4. Tiến Độ Công Việc (30%)</span>
                     </span>
-                    <span className="font-mono text-indigo-700 font-bold">{breakdown.S_task} / 100đ</span>
+                    <span className="font-mono text-indigo-900 font-extrabold whitespace-nowrap tabular-nums">{breakdown.S_task} / 100đ</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
+                  <p className="text-[11px] text-slate-700 mt-2 leading-relaxed">
                     Tỷ lệ hoàn thành các nhiệm vụ công thái học & bài tập được giao trong ngày.
                   </p>
                 </div>
-                <div className="mt-2.5 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                <div className="tactile-progress-track mt-3 w-full h-2.5 rounded-full">
                   <div 
-                    className="bg-indigo-600 h-full rounded-full transition-all duration-500" 
+                    className="bg-indigo-500 border-r-[1.5px] border-slate-800 h-full rounded-l-full transition-all duration-500" 
                     style={{ width: `${breakdown.S_task}%` }}
                   />
                 </div>
@@ -838,47 +846,49 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
           </div>
 
           {/* Nguồn Dữ Liệu & Công Thức Tính Toán OHPS */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5">
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F0] border-2 border-slate-800 shadow-[0_3px_0_#1E293B] space-y-3.5">
             <button
               type="button"
               onClick={() => setShowFormulaDetails(!showFormulaDetails)}
-              className="w-full flex items-center justify-between text-left cursor-pointer group"
+              className="w-full min-h-[40px] flex items-center justify-between text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-teal-600" />
-                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900 group-hover:text-teal-700 transition">
+                <div className="w-7 h-7 rounded-lg bg-[#BAE0EC] border border-slate-800 flex items-center justify-center shrink-0">
+                  <Database className="w-3.5 h-3.5 text-slate-900" />
+                </div>
+                <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900 group-hover:text-emerald-800 transition">
                   Nguồn Dữ Liệu & Công Thức Tính Toán OHPS
                 </h3>
               </div>
-              <div className="flex items-center gap-1 text-slate-500 text-xs">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-slate-800 text-slate-800 text-xs font-bold whitespace-nowrap">
                 <span>{showFormulaDetails ? 'Thu gọn' : 'Xem chi tiết'}</span>
                 {showFormulaDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
             </button>
 
             {showFormulaDetails && (
-              <div className="space-y-4 pt-2 border-t border-slate-200 text-xs text-slate-700 animate-fadeIn leading-relaxed">
+              <div className="space-y-4 pt-3 border-t-[1.5px] border-slate-800 text-xs text-slate-700 animate-fadeIn leading-relaxed">
                 {/* 1. Nguồn Dữ Liệu */}
                 <div>
                   <h4 className="font-bold text-slate-900 flex items-center gap-1.5 mb-2">
-                    <Layers className="w-3.5 h-3.5 text-sky-600" />
+                    <Layers className="w-3.5 h-3.5 text-sky-700" />
                     <span>1. Điểm năng suất lấy thông tin từ đâu?</span>
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                    <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                      <strong className="text-teal-700 block mb-0.5">📷 Camera AI thị giác thông minh:</strong>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
+                    <div className="p-3 rounded-xl bg-white border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                      <strong className="text-emerald-800 block mb-0.5">📷 Camera AI thị giác thông minh:</strong>
                       Ghi nhận góc nghiêng cổ, phân loại tư thế ngồi (Đúng / Cúi gù / Nghiêng vẹo / Vắng mặt).
                     </div>
-                    <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                      <strong className="text-rose-700 block mb-0.5">❤️ Cảm biến đo nhịp tim & SpO₂:</strong>
+                    <div className="p-3 rounded-xl bg-white border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                      <strong className="text-rose-800 block mb-0.5">❤️ Cảm biến đo nhịp tim & SpO₂:</strong>
                       Thu thập nhịp tim (BPM) và nồng độ oxy trong máu (SpO₂) theo thời gian thực.
                     </div>
-                    <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                      <strong className="text-sky-700 block mb-0.5">⏱️ Bộ đếm thời gian làm việc & giải lao:</strong>
+                    <div className="p-3 rounded-xl bg-white border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                      <strong className="text-sky-800 block mb-0.5">⏱️ Bộ đếm thời gian làm việc & giải lao:</strong>
                       Đếm thời gian ngồi liên tục và các chu kỳ đứng làm việc (Sit-to-Stand Cycle).
                     </div>
-                    <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                      <strong className="text-indigo-700 block mb-0.5">🗄️ Cơ sở dữ liệu đồng bộ đám mây:</strong>
+                    <div className="p-3 rounded-xl bg-white border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B]">
+                      <strong className="text-indigo-800 block mb-0.5">🗄️ Cơ sở dữ liệu đồng bộ đám mây:</strong>
                       Lưu trữ hồ sơ đo đạc bền vững, phân tích xu hướng và so sánh lịch sử.
                     </div>
                   </div>
@@ -887,18 +897,18 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                 {/* 2. Công Thức Tính */}
                 <div>
                   <h4 className="font-bold text-slate-900 flex items-center gap-1.5 mb-2">
-                    <Cpu className="w-3.5 h-3.5 text-emerald-600" />
+                    <Cpu className="w-3.5 h-3.5 text-emerald-700" />
                     <span>2. Công thức toán học tính điểm OHPS</span>
                   </h4>
-                  <div className="p-3 rounded-xl bg-white border border-teal-300 font-mono text-xs space-y-2 shadow-xs">
-                    <p className="text-teal-700 font-bold text-sm">
+                  <div className="p-3.5 rounded-xl bg-white border-2 border-slate-800 font-mono text-xs space-y-2 shadow-[0_3px_0_#1E293B]">
+                    <p className="text-emerald-800 font-extrabold text-sm">
                       OHPS = 0.70 × HES + 0.30 × S_task
                     </p>
-                    <div className="text-[11px] text-slate-600 space-y-1 pl-2 border-l-2 border-teal-500 font-sans">
+                    <div className="text-[11px] text-slate-700 space-y-1 pl-2.5 border-l-2 border-[#16B364] font-sans">
                       <p>
                         • <strong>HES (Health & Ergonomics Score - 70%):</strong> Điểm sức khỏe & tư thế.
                         <br />
-                        <span className="font-mono text-[10px] text-slate-500">
+                        <span className="font-mono text-[10px] text-slate-600">
                           HES = (35 × S_posture + 20 × S_break + 15 × S_vital) / 70
                         </span>
                       </p>
@@ -915,7 +925,7 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
                         • <strong>S_task (30%):</strong> (Số nhiệm vụ hoàn thành / Tổng số nhiệm vụ được giao) × 100
                       </p>
                     </div>
-                    <p className="text-[10px] text-amber-800 font-sans pt-1">
+                    <p className="text-[10px] text-slate-800 bg-[#FDE68A]/50 border border-slate-800 rounded-lg px-2.5 py-1.5 font-sans">
                       💡 <em>Cơ chế Tự Động Tái Chuẩn Hóa:</em> Nếu người dùng chưa bật cảm biến nhịp tim, hệ thống tự động tái phân phối trọng số sang Tư Thế & Giải Lao trên tổng 55% còn lại để không bị trừ điểm oan.
                     </p>
                   </div>
@@ -927,14 +937,14 @@ export const OHPSDetailModal: React.FC<OHPSDetailModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <Info className="w-4 h-4 text-teal-600 shrink-0" />
+        <div className="px-5 sm:px-6 py-3.5 border-t-2 border-slate-800 bg-[#FDFBF7] flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+            <Info className="w-4 h-4 text-[#16B364] shrink-0" />
             <span>Thuật toán chuẩn công thái học văn phòng NIOSH & ISO 9241</span>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white transition cursor-pointer shadow-sm active:scale-95"
+            className="tactile-btn-primary min-h-[42px] px-5 py-2 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap"
           >
             Đóng Lại
           </button>

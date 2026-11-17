@@ -19,8 +19,12 @@ import {
   AuthUser 
 } from '../types';
 
+import { normalizeTelemetry } from './deviceTelemetry';
+
 export * from './deviceTelemetry';
 export * from './historyService';
+
+export const HEARTBEAT_WINDOW_MS = 75 * 1000; // 75 giây: khớp heartbeat 30s của Web + sai số trễ mạng/tab nền
 
 export const DEFAULT_FIREBASE_CONFIG: FirebaseConnectionConfig = {
   projectId: 'theodoisk-66ddb',
@@ -373,8 +377,10 @@ export async function deleteTaskFromFirebase(
 
 export function subscribeToUsers(
   config: FirebaseConnectionConfig,
-  onUsers: (users: AuthUser[]) => void
+  onUsers: (users: AuthUser[]) => void,
+  onTelemetryMap?: (map: Record<string, HealthTelemetry>) => void
 ): () => void {
+  if (checkIsQuotaExceeded()) return () => {};
   try {
     const app = initializeFirebaseApp(config);
     const db = getAppFirestore(app, config);
@@ -382,6 +388,8 @@ export function subscribeToUsers(
     const unsub = onSnapshot(usersColl, (snap) => {
       if (!snap.empty) {
         const now = Date.now();
+        const telemetryMap: Record<string, HealthTelemetry> = {};
+
         const firestoreUsers: AuthUser[] = snap.docs
           .filter(d => {
             if (d.id === 'usr-admin-01' || d.id === 'usr-employee-01') return false;
@@ -395,72 +403,83 @@ export function subscribeToUsers(
             const username = data.username || email.split('@')[0] || d.id;
             const isAdmin = data.role === 'admin' || data.role === 'manager';
 
-          const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-          const HEARTBEAT_WINDOW_MS = 60 * 1000; // 60 giây (1 phút): tab chạy nền vẫn ping đều, rời web sau 1 phút chuyển offline
-          const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < HEARTBEAT_WINDOW_MS) : false;
-          const isLiveHeartbeatActive = Boolean(data.isOnline) && isRecentPing;
-
-          const rawPostureText = data.currentPostureText || '';
-          const hasPostureSignal = Boolean(
-            isLiveHeartbeatActive &&
-            rawPostureText &&
-            !rawPostureText.includes('Chờ') &&
-            !rawPostureText.includes('chưa') &&
-            data.currentPosture &&
-            data.currentPosture !== 'waiting'
-          );
-
-          let postureText = '– Chờ kết nối';
-          let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = 'waiting';
-
-          if (hasPostureSignal) {
-            if (data.currentPosture === 'standing' || rawPostureText.includes('Đứng')) {
-              posture = 'standing';
-              postureText = '↑ Đứng';
-            } else if (data.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
-              posture = 'incorrect';
-              postureText = '⚠ Sai';
-            } else if (data.currentPosture === 'absent' || rawPostureText.includes('Vắng') || rawPostureText.includes('Ngoài vùng')) {
-              posture = 'absent';
-              postureText = '– Ngoài vùng';
-            } else {
-              posture = 'correct';
-              postureText = '✓ Đúng';
+            if (onTelemetryMap) {
+              const norm = normalizeTelemetry(data, data.device || `Tài khoản ${d.id}`);
+              telemetryMap[d.id] = norm;
+              if (data.id) telemetryMap[data.id] = norm;
+              if (data.userId) telemetryMap[data.userId] = norm;
+              telemetryMap[email.toLowerCase()] = norm;
             }
-          }
 
-          return {
-            id: d.id,
-            username,
-            email,
-            fullName: data.fullName || (isAdmin ? 'Quản Trị Viên' : 'Thành Viên'),
-            role: isAdmin ? 'admin' : 'employee',
-            department: data.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
-            avatar: data.avatar || '',
-            phoneNumber: data.phoneNumber || '',
-            age: Number(data.age) || 28,
-            gender: data.gender || 'male',
-            height: Number(data.height) || 170,
-            weight: Number(data.weight) || 65,
-            maxSittingHours: Number(data.maxSittingHours) || 6,
-            healthNotes: data.healthNotes || '',
-            status: data.status || 'active',
-            lastLogin: data.lastLogin || data.updatedAt || '',
-            createdAt: data.createdAt || data.updatedAt || '',
-            device: data.device || '',
-            isOnline: isLiveHeartbeatActive,
-            lastActive: data.lastActive || '',
-            currentPresence: isLiveHeartbeatActive ? 'Present' : 'Away',
-            currentPosture: posture,
-            currentPostureText: postureText,
-            hasAlert: isLiveHeartbeatActive && posture === 'incorrect',
-            alertReason: isLiveHeartbeatActive && posture === 'incorrect' ? (data.alertReason || 'Cột sống đang bị gù hoặc cúi cổ') : '',
-            sittingMinutes: isLiveHeartbeatActive ? Number(data.sittingMinutes || 0) : 0,
-            bpm: hasPostureSignal && posture !== 'absent' ? Number(data.bpm || 0) : 0,
-            spo2: hasPostureSignal && posture !== 'absent' ? Number(data.spo2 || 0) : 0
-          };
-        });
+            const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
+            const isRecentPing = lastActiveTime > 0 ? (Math.abs(now - lastActiveTime) < HEARTBEAT_WINDOW_MS) : false;
+            const isLiveHeartbeatActive = Boolean(data.isOnline) && isRecentPing;
+
+            const rawPostureText = data.currentPostureText || '';
+            const hasPostureSignal = Boolean(
+              isLiveHeartbeatActive &&
+              rawPostureText &&
+              !rawPostureText.includes('Chờ') &&
+              !rawPostureText.includes('chưa') &&
+              !rawPostureText.includes('Offline') &&
+              data.currentPosture &&
+              data.currentPosture !== 'waiting'
+            );
+
+            let postureText = '– Chờ kết nối';
+            let posture: 'correct' | 'incorrect' | 'absent' | 'waiting' | 'standing' = 'waiting';
+
+            if (hasPostureSignal) {
+              if (data.currentPosture === 'standing' || rawPostureText.includes('Đứng')) {
+                posture = 'standing';
+                postureText = '↑ Đứng';
+              } else if (data.currentPosture === 'incorrect' || rawPostureText.includes('Sai')) {
+                posture = 'incorrect';
+                postureText = '⚠ Sai';
+              } else if (data.currentPosture === 'absent' || rawPostureText.includes('Vắng') || rawPostureText.includes('Ngoài vùng')) {
+                posture = 'absent';
+                postureText = '– Ngoài vùng';
+              } else {
+                posture = 'correct';
+                postureText = '✓ Đúng';
+              }
+            }
+
+            return {
+              id: d.id,
+              username,
+              email,
+              fullName: data.fullName || (isAdmin ? 'Quản Trị Viên' : 'Thành Viên'),
+              role: isAdmin ? 'admin' : 'employee',
+              department: data.department || (isAdmin ? 'Ban Điều Hành & An Toàn Lao Động' : 'Văn Phòng IoT'),
+              avatar: data.avatar || '',
+              phoneNumber: data.phoneNumber || '',
+              age: Number(data.age) || 28,
+              gender: data.gender || 'male',
+              height: Number(data.height) || 170,
+              weight: Number(data.weight) || 65,
+              maxSittingHours: Number(data.maxSittingHours) || 6,
+              healthNotes: data.healthNotes || '',
+              status: data.status || 'active',
+              lastLogin: data.lastLogin || data.updatedAt || '',
+              createdAt: data.createdAt || data.updatedAt || '',
+              device: data.device || '',
+              isOnline: isLiveHeartbeatActive,
+              lastActive: data.lastActive || '',
+              currentPresence: isLiveHeartbeatActive ? 'Present' : 'Away',
+              currentPosture: posture,
+              currentPostureText: postureText,
+              hasAlert: isLiveHeartbeatActive && posture === 'incorrect',
+              alertReason: isLiveHeartbeatActive && posture === 'incorrect' ? (data.alertReason || 'Cột sống đang bị gù hoặc cúi cổ') : '',
+              sittingMinutes: isLiveHeartbeatActive ? Number(data.sittingMinutes || 0) : 0,
+              bpm: hasPostureSignal && posture !== 'absent' ? Number(data.bpm || 0) : 0,
+              spo2: hasPostureSignal && posture !== 'absent' ? Number(data.spo2 || 0) : 0
+            };
+          });
         onUsers(firestoreUsers);
+        if (onTelemetryMap) {
+          onTelemetryMap(telemetryMap);
+        }
       }
     }, err => {
       markQuotaExceeded(err);
@@ -477,7 +496,7 @@ export async function updateUserRealtimePresence(
   userId: string,
   presenceData: Partial<AuthUser> & Record<string, any>
 ): Promise<void> {
-  if (isQuotaExceeded) return;
+  if (checkIsQuotaExceeded()) return;
   try {
     const app = initializeFirebaseApp(config);
     const db = getAppFirestore(app, config);

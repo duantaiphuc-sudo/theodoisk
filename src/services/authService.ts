@@ -253,7 +253,7 @@ export async function fetchAllUsers(): Promise<AuthUser[]> {
         const username = data.username || docEmail.split('@')[0] || d.id;
         const isAdmin = data.role === 'admin' || data.role === 'manager';
         const lastActiveTime = data.lastActive ? new Date(data.lastActive).getTime() : 0;
-        const HEARTBEAT_WINDOW_MS = 60 * 1000; // 60 giây (1 phút): tab chạy nền ping mỗi 12s vẫn online, đóng tab thì 1 phút sau chuyển offline
+        const HEARTBEAT_WINDOW_MS = 75 * 1000; // 75 giây: khớp heartbeat 30s của Web + sai số trễ mạng/tab nền
         const isOnline = Boolean(data.isOnline) && (lastActiveTime > 0 ? (now - lastActiveTime) < HEARTBEAT_WINDOW_MS : false);
 
         addOrMerge({

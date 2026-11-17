@@ -298,45 +298,44 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
   const hasImageOnly = templateStatus?.hasImage === true && !hasVector;
 
   return (
-    <section className={`rounded-2xl glass-panel border border-white/60 p-3.5 sm:p-5 shadow-lg transition-all overflow-hidden ${className || ''}`} aria-label="Xác thực khuôn mặt">
-      {/* Header Panel - Thiết kế tự co giãn gọn gàng, chống tràn viền tuyệt đối */}
-      <div className="flex flex-col gap-2.5 pb-3 border-b border-slate-200/70">
+    <section className={`rounded-2xl glass-panel p-3.5 sm:p-5 transition-all overflow-hidden ${className || ''}`} aria-label="Xác thực khuôn mặt">
+      {/* Header Panel */}
+      <div className="flex flex-col gap-2.5 pb-3 border-b-2 border-slate-800/15">
         <div className="flex items-start justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-slate-800 ${
               isVerified 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                ? 'bg-[#B2F5BE] text-slate-900' 
                 : isAuthFailedOrMismatch
-                ? 'bg-rose-50 text-rose-700 border-rose-300'
-                : 'bg-sky-50 text-sky-700 border-sky-200'
+                ? 'bg-[#FBC2C8] text-slate-900'
+                : 'bg-[#BAE0EC] text-slate-900'
             }`}>
               <ScanFace className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold tracking-tight text-slate-900 truncate">
+              <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-slate-950 truncate">
                 Xác Thực Khuôn Mặt SFace
               </h3>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium truncate">
-                <span>Trạm: <b className="font-mono text-slate-700">{deviceId || 'Chưa gán'}</b></span>
-                <span className="text-slate-300">•</span>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium truncate">
+                <span>Trạm: <b className="font-mono text-slate-900">{deviceId || 'Chưa gán'}</b></span>
+                <span className="text-slate-400">•</span>
                 <span className="truncate">SFace 128D</span>
               </div>
             </div>
           </div>
 
-          {/* Badge trạng thái thu gọn, căn phải an toàn không tràn thẻ */}
           <div className="shrink-0">
             <span 
-              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border-[1.5px] border-slate-800 whitespace-nowrap ${
                 isVerified
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  ? 'bg-[#B2F5BE] text-slate-950'
                   : session === 'REGISTERED'
-                  ? 'bg-sky-50 text-sky-800 border-sky-300'
+                  ? 'bg-[#BAE0EC] text-slate-950'
                   : isAuthFailedOrMismatch
-                  ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200'
+                  ? 'bg-[#FBC2C8] text-slate-950'
                   : isWaitLogin
-                  ? 'bg-amber-50 text-amber-800 border-amber-300'
-                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                  ? 'bg-[#FDE68A] text-slate-950'
+                  : 'bg-slate-100 text-slate-800'
               }`}
               role="status"
             >
@@ -596,45 +595,42 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
         </div>
       )}
 
-      {/* HÀNG NÚT THAO TÁC (Tự động co giãn chống tràn viền) */}
-      <div className="mt-2.5 grid grid-cols-12 gap-1.5 sm:gap-2">
-        {/* Nút 1: Đăng ký mẫu Pi 4 */}
+      {/* HÀNG NÚT THAO TÁC */}
+      <div className="mt-3 grid grid-cols-12 gap-2">
         <button
           type="button"
           disabled={working || isResetting || !deviceId}
           onClick={() => execute('ENROLL')}
-          className="col-span-5 sm:col-span-5 min-h-9 inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 px-2 sm:px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
+          className="col-span-5 min-h-10 tactile-btn-secondary inline-flex items-center justify-center gap-1.5 rounded-xl px-2 sm:px-3 py-1.5 text-xs disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate"
           title="Yêu cầu camera Raspberry Pi 4 chụp và tạo vector khuôn mặt 128 chiều"
         >
           <ScanFace className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">{working && commandStatus.includes('ENROLL') ? 'Đang lưu...' : 'Đăng ký mẫu'}</span>
         </button>
 
-        {/* Nút 2: Xác thực khuôn mặt qua Camera Pi 4 (Thay thế nút Test lạ) */}
         <button
           type="button"
           disabled={working || isResetting || !deviceId}
           onClick={() => execute('VERIFY')}
-          className="col-span-4 sm:col-span-4 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs transition cursor-pointer whitespace-nowrap active:scale-95 truncate disabled:opacity-50"
+          className="col-span-4 min-h-10 tactile-btn-primary inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs cursor-pointer whitespace-nowrap truncate disabled:opacity-50"
           title="Yêu cầu Camera Pi 4 quét và xác thực khuôn mặt người đang ngồi"
         >
           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">{working && commandStatus.includes('VERIFY') ? 'Đang quét...' : 'Xác thực'}</span>
         </button>
 
-        {/* Nút 3: Đặt lại mẫu khuôn mặt */}
         <button
           type="button"
           disabled={working || isResetting}
           onClick={() => setShowConfirmReset(prev => !prev)}
-          className={`col-span-3 sm:col-span-3 min-h-9 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold shadow-2xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer border whitespace-nowrap truncate ${
+          className={`col-span-3 min-h-10 inline-flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer whitespace-nowrap truncate ${
             showConfirmReset 
-              ? 'bg-amber-100 text-amber-950 border-amber-400' 
-              : 'glass-subcard glass-subcard-interactive text-slate-700 hover:text-amber-800 hover:border-amber-300'
+              ? 'bg-[#FDE68A] text-slate-950 border-2 border-slate-900 shadow-[0_2px_0_#0F172A]' 
+              : 'tactile-btn-white'
           }`}
           title="Xóa mẫu khuôn mặt đã lưu của tài khoản này để quét lại mẫu mới"
         >
-          <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-600 ${isResetting ? 'animate-spin' : ''}`} />
+          <RotateCcw className={`w-3.5 h-3.5 shrink-0 text-amber-700 ${isResetting ? 'animate-spin' : ''}`} />
           <span className="truncate">Đặt lại</span>
         </button>
       </div>
@@ -648,7 +644,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
           aria-modal="true"
         >
           <div 
-            className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-5 overflow-hidden animate-scaleUp text-slate-900 dark:text-slate-100"
+            className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-800 shadow-[0_8px_0_#1E293B] p-4 sm:p-5 overflow-hidden animate-scaleUp text-slate-900 dark:text-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -759,31 +755,34 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
       {/* MODAL PHÓNG TO ẢNH KHUÔN MẶT ĐÃ CHỤP TỪ PI 4 (PORTAL ĐỘC LẬP) */}
       {isModalZoomOpen && capturedFaceImage && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xs animate-fadeIn"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-[2px] animate-fadeIn"
           onClick={() => setIsModalZoomOpen(false)}
           role="dialog"
           aria-modal="true"
         >
           <div 
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden animate-scaleUp text-slate-900 dark:text-slate-100"
+            className="bg-white rounded-2xl border-2 border-slate-800 shadow-[0_8px_0_#1E293B] max-w-lg w-full overflow-hidden animate-scaleUp text-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+            <div className="px-4 py-3 bg-[#FDFBF7] border-b-2 border-slate-800 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Camera className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs sm:text-sm font-bold tracking-tight">Chi tiết ảnh khuôn mặt Camera Pi 4</h4>
+                <div className="w-7 h-7 rounded-lg bg-[#BAE0EC] border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+                  <Camera className="w-4 h-4 text-slate-900" />
+                </div>
+                <h4 className="text-xs sm:text-sm font-extrabold tracking-tight">Chi tiết ảnh khuôn mặt Camera Pi 4</h4>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalZoomOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                className="tactile-btn-white w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer"
+                aria-label="Đóng"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 bg-slate-950 flex flex-col items-center justify-center">
-              <div className="max-h-[60vh] w-full rounded-xl overflow-hidden flex items-center justify-center bg-black">
+            <div className="p-4 bg-[#FAF7F0] flex flex-col items-center justify-center">
+              <div className="max-h-[60vh] w-full rounded-xl border-2 border-slate-800 overflow-hidden flex items-center justify-center bg-slate-950">
                 <img 
                   src={capturedFaceImage} 
                   alt="Ảnh chi tiết từ Camera Pi 4" 
@@ -792,15 +791,15 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+            <div className="p-4 bg-[#FDFBF7] border-t-2 border-slate-800 flex items-center justify-between gap-2">
+              <span className="px-2.5 py-1 rounded-full bg-[#B2F5BE] border border-slate-800 text-[11px] text-slate-900 font-bold whitespace-nowrap">
                 {hasVector ? '✓ SFace OpenCV 128 chiều' : 'Ảnh mẫu Pi 4'}
               </span>
               <div className="flex items-center gap-2">
                 <a
                   href={capturedFaceImage}
                   download="anh-khuon-mat-pi4.jpg"
-                  className="min-h-10 px-3.5 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
+                  className="tactile-btn-primary min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Tải ảnh</span>
@@ -808,7 +807,7 @@ export function FaceControlPanel({ deviceId, telemetry, hasReceivedData, classNa
                 <button
                   type="button"
                   onClick={() => setIsModalZoomOpen(false)}
-                  className="min-h-10 px-3.5 py-1.5 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 text-xs font-semibold shadow-xs transition cursor-pointer"
+                  className="tactile-btn-white min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap"
                 >
                   Đóng
                 </button>

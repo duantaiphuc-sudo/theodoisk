@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'ai_predict' as MainNavTab,
-      label: 'AI Dự đoán & Khai thác',
+      label: 'AI Dự đoán Sức khỏe',
       icon: BrainCircuit,
       badge: 'Mới',
       badgeColor: 'bg-teal-100 text-teal-800 font-bold'
@@ -196,22 +196,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title={collapsed ? "Nhấn để về Trang chủ & Mở rộng menu" : "Nhấn để về Trang chủ & Thu gọn menu dạng logo"}
             aria-label="Về Trang chủ và chuyển trạng thái menu"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-600 text-white flex items-center justify-center shadow-md shadow-sky-600/20 shrink-0 group-hover:scale-105 transition-transform">
-              <Activity className="w-5 h-5 animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white border-2 border-slate-900 shadow-[0_2px_0_#0F172A] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Activity className="w-5 h-5 stroke-[2.4]" />
             </div>
 
             {isExpanded && (
               <div className="min-w-0 transition-opacity duration-200">
                 <div className="flex items-center gap-1.5">
                   <span className="font-extrabold text-base tracking-tight text-slate-900 leading-tight truncate">
-                    Health IoT
+                    Health <span className="text-[#16A34A]">IoT</span>
                   </span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800">
                     Pi 4
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 truncate font-medium mt-0.5">
-                  Theo Dõi Sức Khỏe & Tư Thế
+                <p className="text-[11px] text-slate-600 truncate font-semibold mt-0.5">
+                  Theo Dõi Sức Khỏe &amp; Tư Thế
                 </p>
               </div>
             )}
@@ -271,29 +271,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={!isExpanded ? item.label : undefined}
                 className={`w-full flex items-center transition-all cursor-pointer relative group ${
                   isExpanded
-                    ? `justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm ${
+                    ? `justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm ${
                         isActive
-                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/20'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          ? 'bg-[#16B364] text-white border-2 border-slate-900 shadow-[0_3px_0_#0F172A]'
+                          : 'text-slate-700 hover:bg-[#FAF7F0] hover:text-slate-900 border-2 border-transparent hover:border-slate-800/30'
                       }`
                     : `justify-center w-11 h-11 mx-auto rounded-xl ${
                         isActive
-                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/20'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          ? 'bg-[#16B364] text-white border-2 border-slate-900 shadow-[0_3px_0_#0F172A]'
+                          : 'text-slate-700 hover:bg-[#FAF7F0] hover:text-slate-900 border-2 border-transparent'
                       }`
                 }`}
               >
                 <div className={`flex items-center gap-3 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
-                  <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                  <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-700'}`} />
                   {isExpanded && <span className="whitespace-nowrap truncate">{item.label}</span>}
                 </div>
 
                 {isExpanded && item.badge && (
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap ${
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold whitespace-nowrap border-[1.5px] ${
                       isActive
-                        ? 'bg-white/20 text-white'
-                        : item.badgeColor || 'bg-slate-100 text-slate-600'
+                        ? 'bg-white text-slate-900 border-slate-900'
+                        : item.badgeColor
+                        ? `${item.badgeColor} border-slate-800`
+                        : 'bg-[#FAF7F0] text-slate-800 border-slate-800'
                     }`}
                   >
                     {item.badge}
@@ -316,35 +318,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title={!isExpanded ? "Trợ Lý AI Công Thái Học" : undefined}
             className={`w-full flex items-center transition-all cursor-pointer relative group ${
               isExpanded
-                ? `justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm ${
+                ? `justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm border-2 ${
                     isChatbotOpen
-                      ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/20'
-                      : 'text-slate-700 bg-teal-50/60 hover:bg-teal-50 hover:text-teal-900 border border-teal-200/80'
+                      ? 'bg-[#16B364] text-white border-slate-900 shadow-[0_3px_0_#0F172A]'
+                      : 'text-slate-900 bg-[#BAE0EC] hover:bg-[#a6d5e4] border-slate-900 shadow-[0_3px_0_#0F172A]'
                   }`
-                : `justify-center w-11 h-11 mx-auto rounded-xl ${
+                : `justify-center w-11 h-11 mx-auto rounded-xl border-2 ${
                     isChatbotOpen
-                      ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/20'
-                      : 'text-slate-700 bg-teal-50/60 hover:bg-teal-50 hover:text-teal-900 border border-teal-200/80'
+                      ? 'bg-[#16B364] text-white border-slate-900 shadow-[0_3px_0_#0F172A]'
+                      : 'text-slate-900 bg-[#BAE0EC] hover:bg-[#a6d5e4] border-slate-900 shadow-[0_3px_0_#0F172A]'
                   }`
             }`}
           >
             <div className={`flex items-center gap-3 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
-              <Bot className={`w-4.5 h-4.5 shrink-0 ${isChatbotOpen ? 'text-white' : 'text-teal-600'}`} />
-              {isExpanded && <span className="whitespace-nowrap truncate font-bold">Trợ Lý AI</span>}
+              <Bot className={`w-4.5 h-4.5 shrink-0 ${isChatbotOpen ? 'text-white' : 'text-slate-900'}`} />
+              {isExpanded && <span className="whitespace-nowrap truncate font-extrabold">Trợ Lý AI</span>}
             </div>
 
             {isExpanded && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                isChatbotOpen
-                  ? 'bg-white/20 text-white border-white/30'
-                  : 'bg-teal-100 text-teal-800 border-teal-200'
-              }`}>
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border-[1.5px] bg-white text-slate-900 border-slate-900">
                 AI
               </span>
             )}
 
             {!isExpanded && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-teal-500 ring-2 ring-white"></span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#16B364] ring-2 ring-white"></span>
             )}
           </button>
 
@@ -474,12 +472,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={isManager ? "Cấu hình kết nối Firebase Firestore" : "Chức năng dành cho Quản trị viên"}
               >
                 <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
-                  <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                  <div className="w-7 h-7 rounded-lg bg-[#FDE68A] text-slate-900 border-[1.5px] border-slate-800 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                     <Database className="w-3.5 h-3.5" />
                   </div>
                   {isExpanded && <span className="truncate whitespace-nowrap">Cấu hình Firebase</span>}
                 </div>
-                {isExpanded && <span className="text-[10px] text-slate-400 font-mono shrink-0">DB</span>}
+                {isExpanded && <span className="text-[10px] text-slate-500 font-mono font-bold shrink-0">DB</span>}
               </button>
 
               {/* 1.1 Supabase Configuration (PostgreSQL) */}
@@ -492,18 +490,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`w-full flex items-center transition text-left group ${
                   isExpanded
-                    ? 'justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
-                    : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-slate-100 cursor-pointer'
+                    ? 'justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-[#FAF7F0] hover:text-slate-900 cursor-pointer'
+                    : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-[#FAF7F0] cursor-pointer'
                 }`}
                 title="Cấu hình & trạng thái kết nối Supabase (PostgreSQL)"
               >
                 <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
-                  <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                  <div className="w-7 h-7 rounded-lg bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                     <Database className="w-3.5 h-3.5" />
                   </div>
                   {isExpanded && <span className="truncate whitespace-nowrap">Cấu hình Supabase</span>}
                 </div>
-                {isExpanded && <span className="text-[10px] text-emerald-700 font-bold font-mono shrink-0">SQL</span>}
+                {isExpanded && <span className="text-[10px] text-[#16B364] font-extrabold font-mono shrink-0">SQL</span>}
               </button>
 
               {/* 2. Measurement Threshold Settings */}
@@ -517,24 +515,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 disabled={!isManager}
                 className={`w-full flex items-center transition text-left group ${
                   isExpanded
-                    ? `justify-between px-3 py-2 rounded-xl text-xs font-semibold ${
+                    ? `justify-between px-3 py-2 rounded-xl text-xs font-bold ${
                         isManager
-                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
+                          ? 'text-slate-700 hover:bg-[#FAF7F0] hover:text-slate-900 cursor-pointer'
                           : 'text-slate-400 cursor-not-allowed opacity-60'
                       }`
                     : `justify-center w-11 h-11 mx-auto rounded-xl ${
-                        isManager ? 'hover:bg-slate-100 cursor-pointer' : 'cursor-not-allowed opacity-60'
+                        isManager ? 'hover:bg-[#FAF7F0] cursor-pointer' : 'cursor-not-allowed opacity-60'
                       }`
                 }`}
                 title={isManager ? "Cài đặt ngưỡng cảnh báo nhịp tim & SpO2" : "Chức năng dành cho Quản trị viên"}
               >
                 <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
-                  <div className="w-6 h-6 rounded-lg bg-sky-50 text-sky-600 border border-sky-200/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                  <div className="w-7 h-7 rounded-lg bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                     <Sliders className="w-3.5 h-3.5" />
                   </div>
                   {isExpanded && <span className="truncate whitespace-nowrap">Cài đặt ngưỡng đo</span>}
                 </div>
-                {isExpanded && <span className="text-[10px] text-slate-400 font-mono shrink-0">BPM/SpO₂</span>}
+                {isExpanded && <span className="text-[10px] text-slate-500 font-mono font-bold shrink-0">BPM/SpO₂</span>}
               </button>
 
               {/* 4. User & Role Management */}
@@ -546,18 +544,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   className={`w-full flex items-center transition text-left group ${
                     isExpanded
-                      ? 'justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
-                      : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-slate-100 cursor-pointer'
+                      ? 'justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-[#FAF7F0] hover:text-slate-900 cursor-pointer'
+                      : 'justify-center w-11 h-11 mx-auto rounded-xl hover:bg-[#FAF7F0] cursor-pointer'
                   }`}
                   title="Quản lý danh sách tài khoản & phân quyền hệ thống"
                 >
                   <div className={`flex items-center gap-2.5 ${!isExpanded ? 'justify-center' : 'min-w-0'}`}>
-                    <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                    <div className="w-7 h-7 rounded-lg bg-[#FBC2C8] text-slate-900 border-[1.5px] border-slate-800 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                       <Users className="w-3.5 h-3.5" />
                     </div>
                     {isExpanded && <span className="truncate whitespace-nowrap">Quản lý tài khoản</span>}
                   </div>
-                  {isExpanded && <span className="text-[10px] text-indigo-600 font-bold font-mono shrink-0">Users</span>}
+                  {isExpanded && <span className="text-[10px] text-slate-700 font-extrabold font-mono shrink-0">Users</span>}
                 </button>
               )}
             </div>

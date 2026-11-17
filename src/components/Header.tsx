@@ -118,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2.5 sm:gap-3 group text-left cursor-pointer transition active:scale-95 shrink-0"
             title="Nhấp để xem Thông tin Hệ thống & Chẩn đoán"
           >
-            <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-500/20 shrink-0 group-hover:rotate-6 transition-transform">
+            <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-[#22C55E] to-[#16A34A] border-2 border-slate-900 shadow-[0_2px_0_#0F172A] text-white shrink-0 group-hover:rotate-6 transition-transform">
               <Activity className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
               <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -128,10 +128,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div className="shrink-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-normal group-hover:text-sky-600 transition whitespace-nowrap">
+                <h1 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-normal group-hover:text-[#16A34A] transition whitespace-nowrap">
                   <span>Hệ Thống Theo Dõi Sức Khỏe & Tư Thế</span>
                 </h1>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 shrink-0 whitespace-nowrap">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                   Pi 4 IoT
                 </span>
               </div>

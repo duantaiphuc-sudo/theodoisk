@@ -77,24 +77,24 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
   };
 
   return (
-    <div className={`rounded-2xl glass-panel border border-white/60 shadow-lg p-4 sm:p-5 flex flex-col justify-between transition-all ${className || ''}`}>
+    <div className={`rounded-2xl glass-panel p-4 sm:p-5 flex flex-col justify-between transition-all ${className || ''}`}>
       {/* Header */}
       <div>
-        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b-2 border-slate-800/15">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center shrink-0">
-              <ListTodo className="w-4 h-4 text-sky-600" />
+            <div className="w-8 h-8 rounded-lg bg-[#BAE0EC] text-slate-900 border-[1.5px] border-slate-800 flex items-center justify-center shrink-0">
+              <ListTodo className="w-4 h-4 text-slate-900" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-950 tracking-tight">
                 Nhiệm vụ hôm nay
               </h3>
-              <p className="text-[11px] text-slate-500">Mục tiêu công thái học & bài tập</p>
+              <p className="text-[11px] text-slate-600 font-medium">Mục tiêu công thái học & bài tập</p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold font-mono bg-[#B2F5BE] text-slate-900 border-[1.5px] border-slate-800">
               {completedCount}/{totalCount}
             </span>
             <button
@@ -103,7 +103,7 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
                 setIsAdding(!isAdding);
                 if (isCollapsed) setIsCollapsed(false);
               }}
-              className="w-7 h-7 rounded-lg glass-subcard glass-subcard-interactive border text-slate-600 hover:text-sky-700 hover:border-sky-300 flex items-center justify-center transition cursor-pointer"
+              className="w-8 h-8 rounded-lg tactile-btn-white flex items-center justify-center cursor-pointer"
               title="Thêm nhiệm vụ mới"
             >
               <Plus className="w-4 h-4" />
@@ -111,7 +111,7 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
             <button
               type="button"
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="w-7 h-7 rounded-lg glass-subcard glass-subcard-interactive border text-slate-600 hover:text-slate-900 flex items-center justify-center transition cursor-pointer"
+              className="w-8 h-8 rounded-lg tactile-btn-white flex items-center justify-center cursor-pointer"
               title={isCollapsed ? "Mở rộng nhiệm vụ" : "Thu gọn nhiệm vụ"}
             >
               {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -134,7 +134,7 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
 
         {/* Inline Add Task Form */}
         {isAdding && (
-          <form onSubmit={handleCreate} className="mt-3 p-3 rounded-xl glass-subcard border animate-fadeIn space-y-2.5">
+          <form onSubmit={handleCreate} className="mt-3 p-3 rounded-xl glass-subcard animate-fadeIn space-y-2.5">
             <input
               type="text"
               required
@@ -142,13 +142,13 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
               placeholder="Ví dụ: Đứng làm việc 15 phút..."
-              className="w-full px-3 py-1.5 rounded-lg text-xs bg-white border border-slate-200 focus:outline-none focus:border-sky-500 text-slate-900"
+              className="w-full px-3 py-1.5 rounded-lg text-xs bg-white border-2 border-slate-800 focus:outline-none text-slate-900 font-medium"
             />
             <div className="flex items-center justify-between gap-2">
               <select
                 value={newPriority}
                 onChange={e => setNewPriority(e.target.value as any)}
-                className="px-2 py-1 rounded-lg text-[11px] bg-white border border-slate-200 text-slate-700 cursor-pointer"
+                className="px-2 py-1 rounded-lg text-[11px] font-bold bg-white border-2 border-slate-800 text-slate-800 cursor-pointer"
               >
                 <option value="normal">Bình thường</option>
                 <option value="high">Ưu tiên cao</option>
@@ -159,14 +159,14 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAdding(false)}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                  className="tactile-btn-white px-2.5 py-1 rounded-lg text-xs cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !newTitle.trim()}
-                  className="px-3 py-1 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition disabled:opacity-50 cursor-pointer shadow-2xs"
+                  className="tactile-btn-primary px-3 py-1 rounded-lg text-xs disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'Đang thêm...' : 'Thêm'}
                 </button>
@@ -229,11 +229,11 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
                     title={isCompleted ? 'Đã hoàn thành' : 'Đánh dấu hoàn thành'}
                   >
                     {isCompleted ? (
-                      <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                      <div className="w-5 h-5 rounded-full bg-[#16B364] border-[1.5px] border-slate-900 text-white flex items-center justify-center">
                         <Check className="w-3 h-3 stroke-3" />
                       </div>
                     ) : (
-                      <div className="w-5 h-5 rounded-full border-2 border-slate-300 hover:border-emerald-500 transition" />
+                      <div className="w-5 h-5 rounded-full border-2 border-slate-800 hover:border-[#16B364] bg-white transition" />
                     )}
                   </button>
 
@@ -285,15 +285,15 @@ export const DailyTasksCard: React.FC<DailyTasksCardProps> = ({
 
       {/* Footer Quick Prompt */}
       {!isCollapsed && myTasks.length > 0 && (
-        <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex items-center justify-between text-[11px] text-slate-500">
-          <span className="flex items-center gap-1 text-emerald-600 font-medium">
+        <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
+          <span className="flex items-center gap-1 text-[#16B364] font-bold">
             <Sparkles className="w-3 h-3" />
             <span>{completedCount === totalCount && totalCount > 0 ? 'Xuất sắc! Đã hoàn thành tất cả' : 'Tiếp tục duy trì!'}</span>
           </span>
           <button
             type="button"
             onClick={() => setIsAdding(true)}
-            className="text-sky-600 hover:text-sky-700 font-bold hover:underline cursor-pointer"
+            className="text-[#16B364] hover:underline font-extrabold cursor-pointer"
           >
             + Thêm task
           </button>

@@ -21,16 +21,26 @@ export interface HourlyForecastPoint {
   isFuture: boolean;
 }
 
-export interface ExploitationPurposeCard {
+export interface SuggestedInterventionTask {
   id: string;
   title: string;
-  category: string;
-  statusLabel: string;
-  inputSignals: string[];
-  processingMethod: string;
-  liveMetricLabel: string;
-  liveMetricValue: string;
-  businessValue: string;
+  content: string;
+  priority: 'normal' | 'high' | 'urgent';
+  suggestedTime: string;
+}
+
+export interface VitalForecastSummary {
+  predictedNextBpm: number;
+  bpmSlope: number;
+  predictedNextSpo2: number;
+  spo2DropRisk: 'Thấp' | 'Trung bình' | 'Cao';
+  summaryText: string;
+}
+
+export interface Immediate2hForecast {
+  postureRiskPercent: number;
+  minutesToNextBreak: number;
+  headline: string;
 }
 
 export interface ThresholdDiffItem {
@@ -96,6 +106,8 @@ export interface PredictiveAnalyticsSummary {
     anomalyCount: number;
     stressIndex: number;
   };
+  vitalForecast: VitalForecastSummary;
+  immediate2hRisk: Immediate2hForecast;
   circadian: {
     goldenHoursWindow: string;
     slumpRiskWindow: string;
@@ -109,7 +121,7 @@ export interface PredictiveAnalyticsSummary {
   };
   suggestedThresholds: AlertThresholds;
   thresholdDiffs: ThresholdDiffItem[];
-  exploitationMatrix: ExploitationPurposeCard[];
+  suggestedTasks: SuggestedInterventionTask[];
 }
 
 function isBadPostureLog(log: TelemetryLog): boolean {
@@ -638,76 +650,90 @@ export function buildPredictiveAnalytics(params: {
   const recommendedSitMin = clamp(Math.round(suggestedThresholds.longSittingSec / 60), 25, 50);
   const recommendedStandMin = clamp(Math.round((thresholds.standingTargetSec || 300) / 60), 3, 15);
 
-  // 7. Bản đồ 6 mục đích khai thác dữ liệu thu thập được (Trả lời câu hỏi giảng viên hướng dẫn)
-  const completedTasksCount = tasks.filter(t => t.status === 'completed').length;
-  const exploitationMatrix: ExploitationPurposeCard[] = [
-    {
-      id: 'ohps_productivity',
-      title: '1. Chấm điểm Năng suất & Chính sách Thưởng (OHPS)',
-      category: 'Hiệu suất & Nhân sự',
-      statusLabel: 'Đang vận hành',
-      inputSignals: ['posture_status', 'standingSeconds', 'bpm/spo2', 'tasks'],
-      processingMethod: 'Tổng hợp đa trọng số: 70% Sức khỏe Công thái học (HES) + 30% Tiến độ Task (TS).',
-      liveMetricLabel: 'Điểm OHPS hiện tại / Dự báo',
-      liveMetricValue: `${currentOhps}đ → ${predictedOhps}đ`,
-      businessValue: 'Là cơ sở minh bạch hóa đánh giá hiệu suất làm việc lành mạnh và xét thưởng chu kỳ.',
-    },
-    {
-      id: 'musculoskeletal_risk',
-      title: '2. Dự báo Sớm Rủi ro Cơ xương khớp (C5-C7 & L4-L5)',
-      category: 'Y tế Dự phòng',
-      statusLabel: 'AI Dự đoán',
-      inputSignals: ['badPostureSeconds', 'angleNeck', 'continuousSittingSeconds'],
-      processingMethod: 'Tính tích lũy tải trọng gập cổ/cong lưng và ước lượng thời gian tới ngưỡng mỏi cơ.',
-      liveMetricLabel: 'Nguy cơ Cổ / Thắt lưng',
-      liveMetricValue: `${neckSpineRiskPercent}% / ${lumbarRiskPercent}%`,
-      businessValue: 'Cảnh báo phòng ngừa hội chứng Text Neck và thoát vị đĩa đệm trước khi phát sinh đau mãn tính.',
-    },
-    {
-      id: 'circadian_focus',
-      title: '3. Khai phá Nhịp sinh học & Khung giờ vàng Tập trung',
-      category: 'Phân tích Hành vi',
-      statusLabel: 'Chuỗi thời gian',
-      inputSignals: ['created_at (theo giờ)', 'posture_status', 'in_zone'],
-      processingMethod: 'Phân cụm hiệu suất tư thế theo từng giờ (08:00–18:00) tìm giờ hưng phấn & giờ suy giảm.',
-      liveMetricLabel: 'Giờ vàng / Giờ dễ uể oải',
-      liveMetricValue: `${goldenHoursWindow} • ${slumpRiskWindow}`,
-      businessValue: 'Giúp nhân viên sắp xếp việc khó vào giờ vàng và chủ động nghỉ giải lao trước giờ tụt năng lượng.',
-    },
-    {
-      id: 'cardio_stress_air',
-      title: '4. Phát hiện Căng thẳng Sinh hiệu & Thiếu Oxy phòng kín',
-      category: 'Sinh trắc học MAX30102',
-      statusLabel: 'Tương quan đa biến',
-      inputSignals: ['bpm', 'spo2', 'posture_status'],
-      processingMethod: 'Đối chiếu độ lệch BPM và SpO₂ giữa lúc ngồi chuẩn và lúc ngồi gù lưng/căng thẳng.',
-      liveMetricLabel: 'Chỉ số Stress / Lệch BPM',
-      liveMetricValue: `${stressIndex}/100 (${bpmDriftOnSlouch >= 0 ? '+' : ''}${bpmDriftOnSlouch} BPM)`,
-      businessValue: 'Phát hiện sớm dấu hiệu stress công việc hoặc thiếu thông gió văn phòng (SpO₂ giảm) để nhắc hít thở/mở cửa.',
-    },
-    {
-      id: 'closed_loop_pi4',
-      title: '5. Vòng lặp Khép kín Tự động Tinh chỉnh Ngưỡng Pi 4',
-      category: 'Điều khiển IoT thích ứng',
-      statusLabel: 'Closed-Loop IoT',
-      inputSignals: ['lịch sử vi phạm ngưỡng', 'hồ sơ tuổi/BMI/bệnh nền'],
-      processingMethod: 'Kết hợp tiền sử y khoa và tần suất sai tư thế thực tế để cập nhật ngưỡng xuống Firestore -> Pi 4.',
-      liveMetricLabel: 'Chu kỳ ngồi AI đề xuất',
-      liveMetricValue: `${recommendedSitMin}p ngồi : ${recommendedStandMin}p đứng`,
-      businessValue: 'Tránh cảnh báo giả gây khó chịu, đồng thời siết chặt bảo vệ cho nhóm có tiền sử bệnh cột sống/tim mạch.',
-    },
-    {
-      id: 'org_ergonomics_audit',
-      title: '6. Hoạch định Công thái học & Y tế Lao động Doanh nghiệp',
-      category: 'Quản trị Doanh nghiệp',
-      statusLabel: 'Báo cáo Tổng hợp',
-      inputSignals: ['daily_ohps_summary', 'tỷ lệ vắng/đứng toàn đội ngũ', 'tasks'],
-      processingMethod: 'Thống kê so sánh theo phòng ban/thành viên trên Supabase để định hướng đầu tư bàn ghế công thái học.',
-      liveMetricLabel: 'Dữ liệu đã tích lũy',
-      liveMetricValue: `${sampleCount} log • ${completedTasksCount}/${tasks.length} task`,
-      businessValue: 'Chuyển đổi dữ liệu cảm biến thô thành quyết định mua sắm bàn nâng hạ, giá đỡ màn hình và phúc lợi y tế.',
-    },
-  ];
+  // 7. Dự báo sinh hiệu (BPM & SpO2) theo chuỗi thời gian thực
+  const bpmSeries = validVitalLogs.slice(-30).map(l => Number(l.bpm));
+  const spo2Series = validVitalLogs.slice(-30).map(l => Number(l.spo2));
+  const bpmWls = computeWeightedLinearRegression(bpmSeries.length > 0 ? bpmSeries : avgBpm > 0 ? [avgBpm] : [75]);
+  const spo2Wls = computeWeightedLinearRegression(spo2Series.length > 0 ? spo2Series : avgSpo2 > 0 ? [avgSpo2] : [98]);
+  const predictedNextBpm = avgBpm > 0 ? clamp(Math.round(bpmWls.predictedNext), 45, 160) : 0;
+  const predictedNextSpo2 = avgSpo2 > 0 ? clamp(Math.round(spo2Wls.predictedNext), 85, 100) : 0;
+  const spo2DropRisk: 'Thấp' | 'Trung bình' | 'Cao' =
+    predictedNextSpo2 > 0 && predictedNextSpo2 < 94
+      ? 'Cao'
+      : (predictedNextSpo2 > 0 && predictedNextSpo2 <= 95) || spo2DriftOnSlouch <= -1.5
+      ? 'Trung bình'
+      : 'Thấp';
+
+  const vitalForecast: VitalForecastSummary = {
+    predictedNextBpm,
+    bpmSlope: bpmSeries.length >= 3 ? bpmWls.slope : 0,
+    predictedNextSpo2,
+    spo2DropRisk,
+    summaryText:
+      validVitalLogs.length === 0
+        ? 'Chưa có đủ mẫu sinh hiệu từ cảm biến MAX30102 để dự báo nhịp tim và SpO₂.'
+        : bpmWls.slope > 1.2
+        ? `Nhịp tim có xu hướng tăng nhẹ (+${bpmWls.slope} BPM/mẫu), dự kiến quanh ${predictedNextBpm} BPM; nên hít thở chậm 4-7-8.`
+        : spo2DropRisk !== 'Thấp'
+        ? `SpO₂ có dấu hiệu giảm nhẹ (dự kiến ${predictedNextSpo2}%), nên mở thoáng khí và ngồi thẳng mở lồng ngực.`
+        : `Sinh hiệu ổn định quanh ${predictedNextBpm} BPM và ${predictedNextSpo2}% SpO₂.`,
+  };
+
+  // 8. Dự báo ngắn hạn 2 giờ tới & Hành động đề xuất thực tế
+  const immediatePostureRisk = clamp(
+    Math.round(Math.max(neckSpineRiskPercent, lumbarRiskPercent) * 0.75 + continuousSitRatio * 22),
+    8,
+    98
+  );
+  const minutesToNextBreak = Math.max(5, Math.min(recommendedSitMin, predictedMinutesUntilSlouch));
+  const immediate2hRisk: Immediate2hForecast = {
+    postureRiskPercent: immediatePostureRisk,
+    minutesToNextBreak,
+    headline:
+      immediatePostureRisk >= 60
+        ? `Nguy cơ mỏi cổ/lưng cao (${immediatePostureRisk}%) — nên đứng dậy giãn cơ sau ~${minutesToNextBreak} phút.`
+        : immediatePostureRisk >= 35
+        ? `Rủi ro trung bình (${immediatePostureRisk}%) — duy trì chu kỳ ${recommendedSitMin}p ngồi : ${recommendedStandMin}p đứng.`
+        : `Tư thế 2 giờ tới ổn định — tiếp tục nghỉ giải lao sau mỗi ${recommendedSitMin} phút.`,
+  };
+
+  const suggestedTasks: SuggestedInterventionTask[] = [];
+  if (neckSpineRiskPercent >= 35) {
+    suggestedTasks.push({
+      id: 'task-neck-chin-tuck',
+      title: 'Tập 5 nhịp Thu Cằm (Chin Tuck) giải tỏa cổ C5-C7',
+      content: `Nguy cơ mỏi cổ đạt ${neckSpineRiskPercent}%. Ngồi thẳng, kéo cằm lùi về gáy giữ 5 giây x 5 lần và nâng màn hình ngang tầm mắt.`,
+      priority: neckSpineRiskPercent >= 60 ? 'urgent' : 'high',
+      suggestedTime: 'Ngay bây giờ',
+    });
+  }
+  if (continuousSitRatio >= 0.6 || lumbarRiskPercent >= 35) {
+    suggestedTasks.push({
+      id: 'task-stand-break',
+      title: `Đứng dậy vận động ${recommendedStandMin} phút`,
+      content: `Giảm áp lực đĩa đệm thắt lưng L4-L5 và tránh khung giờ dễ uể oải (${slumpRiskWindow}).`,
+      priority: lumbarRiskPercent >= 60 ? 'high' : 'normal',
+      suggestedTime: `Trong ${minutesToNextBreak} phút tới`,
+    });
+  }
+  if (spo2DropRisk !== 'Thấp' || stressIndex >= 45 || zScoreModel.anomalies.length > 0) {
+    suggestedTasks.push({
+      id: 'task-vital-breathe',
+      title: 'Hít thở sâu 4-7-8 & đo lại sinh hiệu MAX30102',
+      content: `Chỉ số Stress ${stressIndex}/100 (${zScoreModel.anomalies.length} lệch chuẩn Z-Score). Uống 200ml nước và hít thở sâu 60 giây.`,
+      priority: stressIndex >= 65 ? 'high' : 'normal',
+      suggestedTime: 'Sau 15 phút',
+    });
+  }
+  if (suggestedTasks.length === 0) {
+    suggestedTasks.push({
+      id: 'task-maintain-cadence',
+      title: `Nghỉ mắt 20-20-20 & đứng ${recommendedStandMin} phút`,
+      content: `Duy trì nhịp làm việc ${recommendedSitMin}p ngồi : ${recommendedStandMin}p đứng để giữ vững điểm OHPS trên ${predictedOhps}đ.`,
+      priority: 'normal',
+      suggestedTime: `Khung ${slumpRiskWindow}`,
+    });
+  }
 
   const resolvedSqi = ohpsData?.sqiScore ?? zScoreModel.sqiScore;
 
@@ -757,6 +783,8 @@ export function buildPredictiveAnalytics(params: {
       anomalyCount,
       stressIndex,
     },
+    vitalForecast,
+    immediate2hRisk,
     circadian: {
       goldenHoursWindow,
       slumpRiskWindow,
@@ -768,11 +796,11 @@ export function buildPredictiveAnalytics(params: {
       eyeBreakSeconds: 20,
       rationale:
         hasSpineHistory || badPostureSharePercent >= 25
-          ? `Với tỷ lệ sai tư thế ${badPostureSharePercent}%, chia nhỏ phiên ngồi ${recommendedSitMin} phút giúp giảm 40% áp lực nội đĩa đệm.`
-          : `Nhịp độ ${recommendedSitMin} phút tập trung / ${recommendedStandMin} phút đứng tối ưu cả điểm HES và tiến độ công việc.`,
+          ? `Tỷ lệ sai tư thế ${badPostureSharePercent}% — chia phiên ngồi ${recommendedSitMin} phút giúp giảm tải đĩa đệm.`
+          : `Chu kỳ ${recommendedSitMin}p ngồi / ${recommendedStandMin}p đứng tối ưu sức khỏe và tiến độ việc.`,
     },
     suggestedThresholds,
     thresholdDiffs,
-    exploitationMatrix,
+    suggestedTasks,
   };
 }

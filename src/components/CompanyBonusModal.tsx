@@ -82,22 +82,22 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
   const previewResult = calculateEmployeeBonus(currentScore, breakdown, policy);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className="w-full max-w-2xl bg-white rounded-2xl border border-slate-200/90 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        className="w-full max-w-2xl bg-white rounded-2xl border-2 border-slate-800 shadow-[0_8px_0_#1E293B] flex flex-col max-h-[90vh] overflow-hidden text-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50/80">
+        <div className="flex items-center justify-between px-5 py-4 border-b-2 border-slate-800 bg-[#FDFBF7] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
+            <div className="w-10 h-10 rounded-xl bg-[#FDE68A] border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] flex items-center justify-center text-slate-900 shrink-0">
               <Gift className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">
+              <h2 className="text-base font-extrabold text-slate-900">
                 Chính Sách Thưởng Công Thái Học Của Công Ty
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-600">
                 Tùy chỉnh ngân sách và cơ chế khen thưởng gắn liền với điểm OHPS
               </p>
             </div>
@@ -105,9 +105,10 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
           <button 
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            className="w-9 h-9 tactile-btn-white rounded-xl flex items-center justify-center cursor-pointer shrink-0"
+            aria-label="Đóng"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -117,8 +118,8 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
           {/* 1. Tên công ty & Chu kỳ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
+              <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-slate-600" />
                 <span>Tên Doanh Nghiệp / Tổ Chức</span>
               </label>
               <input
@@ -126,16 +127,16 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                 value={policy.companyName}
                 onChange={(e) => setPolicy({ ...policy, companyName: e.target.value })}
                 placeholder="Ví dụ: Công ty Cổ phần Công nghệ ABC..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-sky-500 font-medium"
+                className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+              <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-600" />
                 <span>Chu Kỳ Xét Thưởng</span>
               </label>
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#FAF7F0] rounded-xl border-[1.5px] border-slate-800">
                 {(['daily', 'weekly', 'monthly'] as const).map((cycle) => (
                   <button
                     key={cycle}
@@ -143,8 +144,8 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                     onClick={() => setPolicy({ ...policy, cycle })}
                     className={`py-1.5 px-2 rounded-lg text-xs font-bold transition cursor-pointer text-center ${
                       policy.cycle === cycle
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_1px_0_#0F172A]'
+                        : 'text-slate-600 hover:text-slate-900 border-[1.5px] border-transparent'
                     }`}
                   >
                     {cycle === 'daily' ? 'Hàng Ngày' : cycle === 'weekly' ? 'Hàng Tuần' : 'Hàng Tháng'}
@@ -155,13 +156,13 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
           </div>
 
           {/* 2. Mức thưởng tối đa & Chọn nhanh */}
-          <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                <DollarSign className="w-4 h-4 text-amber-600" />
+          <div className="p-4 rounded-xl bg-[#FDE68A]/45 border-[1.5px] border-slate-800 shadow-[0_2px_0_#1E293B] space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <label className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-amber-800" />
                 <span>Mức Thưởng Tối Đa Mỗi Nhân Viên ({policy.cycle === 'daily' ? 'Ngày' : policy.cycle === 'weekly' ? 'Tuần' : 'Tháng'})</span>
               </label>
-              <span className="font-mono font-black text-amber-800 text-base">
+              <span className="font-mono font-black text-slate-900 text-base">
                 {formatCurrencyVND(policy.maxRewardAmount)}
               </span>
             </div>
@@ -173,23 +174,23 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                 step="50000"
                 value={policy.maxRewardAmount}
                 onChange={(e) => setPolicy({ ...policy, maxRewardAmount: Math.max(0, Number(e.target.value)) })}
-                className="flex-1 px-3 py-2 rounded-xl bg-white border border-amber-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                className="flex-1 px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
-              <span className="text-xs font-bold text-amber-700 font-mono">VNĐ</span>
+              <span className="text-xs font-extrabold text-slate-800 font-mono">VNĐ</span>
             </div>
 
             {/* Quick amount chips */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] text-slate-500 font-medium">Mức gợi ý:</span>
+              <span className="text-[11px] text-slate-700 font-bold">Mức gợi ý:</span>
               {QUICK_AMOUNTS.map((amt) => (
                 <button
                   key={amt.value}
                   type="button"
                   onClick={() => setPolicy({ ...policy, maxRewardAmount: amt.value })}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                     policy.maxRewardAmount === amt.value
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-[#16B364] text-white border-[1.5px] border-slate-900 shadow-[0_2px_0_#0F172A]'
+                      : 'bg-white text-slate-900 border-[1.5px] border-slate-800 hover:bg-[#FAF7F0]'
                   }`}
                 >
                   {amt.label}
@@ -201,8 +202,8 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
           {/* 3. Ngưỡng điểm sàn nhận thưởng */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Percent className="w-3.5 h-3.5 text-slate-500" />
+              <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <Percent className="w-3.5 h-3.5 text-slate-600" />
                 <span>Điểm OHPS Tối Thiểu Để Nhận Thưởng</span>
               </label>
               <div className="flex items-center gap-2">
@@ -212,19 +213,19 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                   max="100"
                   value={policy.minScoreToReward}
                   onChange={(e) => setPolicy({ ...policy, minScoreToReward: Math.min(100, Math.max(0, Number(e.target.value))) })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-600 font-bold">điểm</span>
+                <span className="text-xs text-slate-700 font-bold">điểm</span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] text-slate-600 mt-1">
                 Dưới {policy.minScoreToReward} điểm: Nhân viên không đủ điều kiện nhận thưởng chu kỳ.
               </p>
             </div>
 
             {/* Thưởng Nóng Chuyên Cần */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+              <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
                 <span>Thưởng Thêm Cho Tư Thế Chuẩn (≥90%)</span>
               </label>
               <div className="flex items-center gap-2">
@@ -240,9 +241,9 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                       perfectPostureBonus: Math.max(0, Number(e.target.value))
                     }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-600 font-bold whitespace-nowrap">VNĐ</span>
+                <span className="text-xs text-slate-700 font-bold whitespace-nowrap">VNĐ</span>
               </div>
             </div>
           </div>
@@ -250,7 +251,7 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
           {/* 4. Thưởng thêm giải lao & task */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-800 mb-1.5">
                 Thưởng Thêm Cho Giải Lao & Đứng Đầy Đủ (≥90%)
               </label>
               <div className="flex items-center gap-2">
@@ -266,14 +267,14 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                       fullBreakBonus: Math.max(0, Number(e.target.value))
                     }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-600 font-bold whitespace-nowrap">VNĐ</span>
+                <span className="text-xs text-slate-700 font-bold whitespace-nowrap">VNĐ</span>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-800 mb-1.5">
                 Thưởng Thêm Cho Hoàn Thành 100% Nhiệm Vụ
               </label>
               <div className="flex items-center gap-2">
@@ -289,48 +290,48 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
                       taskCompletedBonus: Math.max(0, Number(e.target.value))
                     }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 rounded-xl bg-white border-[1.5px] border-slate-800 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-600 font-bold whitespace-nowrap">VNĐ</span>
+                <span className="text-xs text-slate-700 font-bold whitespace-nowrap">VNĐ</span>
               </div>
             </div>
           </div>
 
           {/* 5. Khung mô phỏng tiền thưởng thực tế theo điểm số hiện tại */}
-          <div className="p-4 rounded-xl bg-teal-50/70 border border-teal-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-teal-700" />
+          <div className="p-4 rounded-xl bg-[#B2F5BE]/45 border-2 border-slate-800 shadow-[0_3px_0_#1E293B]">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+              <span className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4 text-emerald-800" />
                 <span>Mô Phỏng Thưởng Với Điểm OHPS Hiện Tại ({currentScore}đ)</span>
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold font-mono ${
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold font-mono border-[1.5px] border-slate-800 ${
                 previewResult.isEligible 
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                  : 'bg-rose-100 text-rose-800 border border-rose-300'
+                  ? 'bg-white text-emerald-800' 
+                  : 'bg-[#FBC2C8] text-slate-900'
               }`}>
                 {previewResult.isEligible ? previewResult.tierAchieved?.tierName : 'Chưa đủ điều kiện'}
               </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-teal-200/80">
-              <div className="text-xs text-teal-800 space-y-0.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/20">
+              <div className="text-xs text-slate-800 space-y-0.5">
                 <div>Thưởng cơ bản: <strong className="font-mono">{formatCurrencyVND(previewResult.baseReward)}</strong></div>
                 {(previewResult.postureBonus > 0 || previewResult.breakBonus > 0 || previewResult.taskBonus > 0) && (
-                  <div className="text-[11px] text-teal-700">
+                  <div className="text-[11px] text-slate-700">
                     Thưởng thêm: <strong className="font-mono">+{formatCurrencyVND(previewResult.postureBonus + previewResult.breakBonus + previewResult.taskBonus)}</strong>
                   </div>
                 )}
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-teal-700 uppercase font-bold block">Tổng Tiền Thưởng Dự Kiến</span>
-                <span className="text-xl font-extrabold font-mono text-teal-900">
+                <span className="text-[10px] text-slate-700 uppercase font-extrabold block">Tổng Tiền Thưởng Dự Kiến</span>
+                <span className="text-xl font-extrabold font-mono text-slate-900">
                   {formatCurrencyVND(previewResult.totalReward)}
                 </span>
               </div>
             </div>
 
-            <div className="mt-2.5 p-2 rounded-lg bg-white/70 border border-teal-200 text-[11px] text-teal-900 leading-relaxed flex items-start gap-1.5">
-              <Info className="w-3.5 h-3.5 text-teal-700 shrink-0 mt-0.5" />
+            <div className="mt-2.5 p-2.5 rounded-xl bg-white border-[1.5px] border-slate-800 text-[11px] text-slate-800 font-medium leading-relaxed flex items-start gap-1.5">
+              <Info className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
               <span>{previewResult.tipsToReachNextTier}</span>
             </div>
           </div>
@@ -338,28 +339,28 @@ export const CompanyBonusModal: React.FC<CompanyBonusModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-200 bg-slate-50/80">
+        <div className="flex items-center justify-between px-5 py-3.5 border-t-2 border-slate-800 bg-[#FDFBF7] shrink-0">
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Mặc định</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-bold tactile-btn-white cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-md shadow-sky-600/20 active:scale-95 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-extrabold tactile-btn-primary cursor-pointer"
             >
               {saveSuccess ? (
                 <>
